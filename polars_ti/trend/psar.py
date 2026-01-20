@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 from numpy import full, nan, zeros
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_offset, v_pos_default, v_series, zero
 
 
 def psar(
     high: Series,
     low: Series,
-    close: Series = None,
-    af0: IntFloat = None,
-    af: IntFloat = None,
-    max_af: IntFloat = None,
+    close: Series | None = None,
+    af0: int | float | None = None,
+    af: int | float | None = None,
+    max_af: int | float | None = None,
     tv=False,
-    offset: Int = None,
-    **kwargs: DictLike,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Parabolic Stop and Reverse (psar)
 
@@ -130,10 +130,10 @@ def psar(
 
     # Fill
     if "fillna" in kwargs:
-        _af.fillna(kwargs["fillna"], inplace=True)
-        long.fillna(kwargs["fillna"], inplace=True)
-        short.fillna(kwargs["fillna"], inplace=True)
-        reversal.fillna(kwargs["fillna"], inplace=True)
+        _af.fillna(kwargs["fillna"])
+        long.fillna(kwargs["fillna"])
+        short.fillna(kwargs["fillna"])
+        reversal.fillna(kwargs["fillna"])
 
     _props = f"_{af0}_{max_af}"
     data = {

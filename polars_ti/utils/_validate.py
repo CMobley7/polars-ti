@@ -3,6 +3,7 @@ from functools import partial
 
 from pandas import DataFrame, Series
 from pandas.api.types import is_datetime64_any_dtype
+
 from polars_ti._typing import (
     Float,
     Int,

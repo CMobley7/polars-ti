@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import hl2
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
@@ -9,9 +9,9 @@ def ttm_trend(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """TTM Trend (TTM_TRND)
 
@@ -56,7 +56,7 @@ def ttm_trend(
     trend_avg = trend_avg / length
 
     tm_trend = (close > trend_avg).astype(int)
-    tm_trend.replace(0, -1, inplace=True)
+    tm_trend = tm_trend.replace(0, -1)
 
     # Offset
     if offset != 0:
@@ -64,7 +64,7 @@ def ttm_trend(
 
     # Fill
     if "fillna" in kwargs:
-        tm_trend.fillna(kwargs["fillna"], inplace=True)
+        tm_trend = tm_trend.fillna(kwargs["fillna"])
 
     # Name and Category
     tm_trend.name = f"TTM_TRND_{length}"

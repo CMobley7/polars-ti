@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat, List, Union
+
 from polars_ti.candles import cdl_doji, cdl_inside
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_scalar, v_series
@@ -76,10 +76,10 @@ def cdl_pattern(
     high: Series,
     low: Series,
     close: Series,
-    name: Union[str, List[str]] = "all",
-    scalar: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    name: str | list[str] = "all",
+    scalar: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """TA Lib Candle Patterns
 
@@ -166,7 +166,7 @@ def cdl_pattern(
 
             # Fill
             if "fillna" in kwargs:
-                pattern_result.fillna(kwargs["fillna"], inplace=True)
+                pattern_result = pattern_result.fillna(kwargs["fillna"])
             result[f"CDL_{n.upper()}"] = pattern_result
 
     if len(result) == 0:

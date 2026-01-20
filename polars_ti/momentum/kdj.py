@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import (
     non_zero_range,
     rma_pandas,
@@ -14,10 +14,10 @@ def kdj(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    signal: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    signal: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """KDJ (KDJ)
 
@@ -76,9 +76,9 @@ def kdj(
 
     # Fill
     if "fillna" in kwargs:
-        k.fillna(kwargs["fillna"], inplace=True)
-        d.fillna(kwargs["fillna"], inplace=True)
-        j.fillna(kwargs["fillna"], inplace=True)
+        k = k.fillna(kwargs["fillna"])
+        d = d.fillna(kwargs["fillna"])
+        j = j.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{signal}"

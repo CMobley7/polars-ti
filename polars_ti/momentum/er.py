@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series, concat
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import signals, v_drift, v_offset, v_pos_default, v_series
 
 
 def er(
     close: Series,
-    length: Int = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Efficiency Ratio (ER)
 
@@ -57,7 +57,7 @@ def er(
 
     # Fill
     if "fillna" in kwargs:
-        er.fillna(kwargs["fillna"], inplace=True)
+        er = er.fillna(kwargs["fillna"])
 
     # Name and Category
     er.name = f"ER_{length}"

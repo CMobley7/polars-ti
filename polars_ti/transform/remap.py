@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_float, v_offset, v_series
 
 
 def remap(
     close: Series,
-    from_min: IntFloat = None,
-    from_max: IntFloat = None,
-    to_min: IntFloat = None,
-    to_max: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    from_min: int | float | None = None,
+    from_max: int | float | None = None,
+    to_min: int | float | None = None,
+    to_max: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """
     Indicator: ReMap (REMAP)
@@ -62,7 +62,7 @@ def remap(
 
     # Fill
     if "fillna" in kwargs:
-        result.fillna(kwargs["fillna"], inplace=True)
+        result = result.fillna(kwargs["fillna"])
 
     # Name and Category
     result.name = f"REMAP_{from_min}_{from_max}_{to_min}_{to_max}"

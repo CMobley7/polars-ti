@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
 
 def midpoint(
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Midpoint
 
@@ -59,7 +59,7 @@ def midpoint(
 
     # Fill
     if "fillna" in kwargs:
-        midpoint.fillna(kwargs["fillna"], inplace=True)
+        midpoint = midpoint.fillna(kwargs["fillna"])
 
     # Name and Category
     midpoint.name = f"MIDPOINT_{length}"

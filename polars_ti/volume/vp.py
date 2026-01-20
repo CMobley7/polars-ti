@@ -3,16 +3,16 @@ from warnings import simplefilter
 
 from numpy import array_split, mean, sum
 from pandas import DataFrame, Series, concat, cut
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import signed_series, v_bool, v_pos_default, v_series
 
 
 def vp(
     close: Series,
     volume: Series,
-    width: Int = None,
-    sort: bool = None,
-    **kwargs: DictLike,
+    width: int | None = None,
+    sort: bool | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Volume Profile (VP)
 
@@ -121,7 +121,7 @@ def vp(
 
     # Fill
     if "fillna" in kwargs:
-        vpdf.fillna(kwargs["fillna"], inplace=True)
+        vpdf = vpdf.fillna(kwargs["fillna"])
 
     # Name and Category
     vpdf.name = f"VP_{width}"

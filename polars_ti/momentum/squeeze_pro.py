@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.momentum import mom
 from polars_ti.trend import decreasing, increasing
@@ -22,19 +22,19 @@ def squeeze_pro(
     high: Series,
     low: Series,
     close: Series,
-    bb_length: Int = None,
-    bb_std: IntFloat = None,
-    kc_length: Int = None,
-    kc_scalar_wide: IntFloat = None,
-    kc_scalar_normal: IntFloat = None,
-    kc_scalar_narrow: IntFloat = None,
-    mom_length: Int = None,
-    mom_smooth: Int = None,
-    use_tr: bool = None,
-    mamode: str = None,
-    prenan: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    bb_length: int | None = None,
+    bb_std: int | float | None = None,
+    kc_length: int | None = None,
+    kc_scalar_wide: int | float | None = None,
+    kc_scalar_normal: int | float | None = None,
+    kc_scalar_narrow: int | float | None = None,
+    mom_length: int | None = None,
+    mom_smooth: int | None = None,
+    use_tr: bool | None = None,
+    mamode: str | None = None,
+    prenan: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Squeeze PRO(SQZPRO)
 
@@ -173,12 +173,12 @@ def squeeze_pro(
 
     # Fill
     if "fillna" in kwargs:
-        squeeze.fillna(kwargs["fillna"], inplace=True)
-        squeeze_on_wide.fillna(kwargs["fillna"], inplace=True)
-        squeeze_on_normal.fillna(kwargs["fillna"], inplace=True)
-        squeeze_on_narrow.fillna(kwargs["fillna"], inplace=True)
-        squeeze_off_wide.fillna(kwargs["fillna"], inplace=True)
-        no_squeeze.fillna(kwargs["fillna"], inplace=True)
+        squeeze = squeeze.fillna(kwargs["fillna"])
+        squeeze_on_wide = squeeze_on_wide.fillna(kwargs["fillna"])
+        squeeze_on_normal = squeeze_on_normal.fillna(kwargs["fillna"])
+        squeeze_on_narrow = squeeze_on_narrow.fillna(kwargs["fillna"])
+        squeeze_off_wide = squeeze_off_wide.fillna(kwargs["fillna"])
+        no_squeeze = no_squeeze.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = "" if use_tr else "hlr"
@@ -225,24 +225,24 @@ def squeeze_pro(
         neg_dec *= squeeze
         neg_inc *= squeeze
 
-        pos_inc.replace(0, nan, inplace=True)
-        pos_dec.replace(0, nan, inplace=True)
-        neg_dec.replace(0, nan, inplace=True)
-        neg_inc.replace(0, nan, inplace=True)
+        pos_inc = pos_inc.replace(0, nan)
+        pos_dec = pos_dec.replace(0, nan)
+        neg_dec = neg_dec.replace(0, nan)
+        neg_inc = neg_inc.replace(0, nan)
 
         sqz_inc = squeeze * increasing(squeeze)
         sqz_dec = squeeze * decreasing(squeeze)
-        sqz_inc.replace(0, nan, inplace=True)
-        sqz_dec.replace(0, nan, inplace=True)
+        sqz_inc = sqz_inc.replace(0, nan)
+        sqz_dec = sqz_dec.replace(0, nan)
 
         # Fill
         if "fillna" in kwargs:
-            sqz_inc.fillna(kwargs["fillna"], inplace=True)
-            sqz_dec.fillna(kwargs["fillna"], inplace=True)
-            pos_inc.fillna(kwargs["fillna"], inplace=True)
-            pos_dec.fillna(kwargs["fillna"], inplace=True)
-            neg_dec.fillna(kwargs["fillna"], inplace=True)
-            neg_inc.fillna(kwargs["fillna"], inplace=True)
+            sqz_inc = sqz_inc.fillna(kwargs["fillna"])
+            sqz_dec = sqz_dec.fillna(kwargs["fillna"])
+            pos_inc = pos_inc.fillna(kwargs["fillna"])
+            pos_dec = pos_dec.fillna(kwargs["fillna"])
+            neg_dec = neg_dec.fillna(kwargs["fillna"])
+            neg_inc = neg_inc.fillna(kwargs["fillna"])
 
         df[f"SQZPRO_INC"] = sqz_inc
         df[f"SQZPRO_DEC"] = sqz_dec

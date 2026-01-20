@@ -14,6 +14,7 @@ from numpy import (
     where,
     zeros_like,
 )
+
 from polars_ti._typing import Array, Int, IntFloat
 
 

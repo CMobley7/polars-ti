@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -18,13 +18,13 @@ def stoch(
     high: Series,
     low: Series,
     close: Series,
-    k: Int = None,
-    d: Int = None,
-    smooth_k: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    k: int | None = None,
+    d: int | None = None,
+    smooth_k: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Stochastic (STOCH)
 
@@ -110,9 +110,9 @@ def stoch(
 
     # Fill
     if "fillna" in kwargs:
-        stoch_k.fillna(kwargs["fillna"], inplace=True)
-        stoch_d.fillna(kwargs["fillna"], inplace=True)
-        stoch_h.fillna(kwargs["fillna"], inplace=True)
+        stoch_k = stoch_k.fillna(kwargs["fillna"])
+        stoch_d = stoch_d.fillna(kwargs["fillna"])
+        stoch_h = stoch_h.fillna(kwargs["fillna"])
 
     # Name and Category
     _name = "STOCH"

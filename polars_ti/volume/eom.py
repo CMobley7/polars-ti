@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import hl2, sma
 from polars_ti.utils import non_zero_range, v_drift, v_offset, v_pos_default, v_series
 
@@ -10,11 +10,11 @@ def eom(
     low: Series,
     close: Series,
     volume: Series,
-    length: Int = None,
-    divisor: IntFloat = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    divisor: int | float | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Ease of Movement (EOM)
 
@@ -73,7 +73,7 @@ def eom(
 
     # Fill
     if "fillna" in kwargs:
-        eom.fillna(kwargs["fillna"], inplace=True)
+        eom = eom.fillna(kwargs["fillna"])
 
     # Name and Category
     eom.name = f"EOM_{length}_{divisor}"

@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from numpy import log, nan, sqrt
 from pandas import Series, Timedelta
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import RATE
 from polars_ti.utils._math import linear_regression
 from polars_ti.utils._time import total_time
 from polars_ti.utils._validate import v_series
 
 
-def cagr(close: Series) -> IntFloat:
+def cagr(close: Series) -> int | float:
     """Compounded Annual Growth Rate
 
     Args:
@@ -21,7 +21,7 @@ def cagr(close: Series) -> IntFloat:
     return ((end / start) ** (1 / total_time(close))) - 1
 
 
-def calmar_ratio(close: Series, method: str = "percent", years: Int = 3) -> IntFloat:
+def calmar_ratio(close: Series, method: str = "percent", years: int = 3) -> int | float:
     """The Calmar Ratio is the percent Max Drawdown Ratio 'typically' over
     the past three years.
 
@@ -45,8 +45,8 @@ def calmar_ratio(close: Series, method: str = "percent", years: Int = 3) -> IntF
 
 
 def downside_deviation(
-    returns: Series, benchmark_rate: IntFloat = 0.0, tf: str = "years"
-) -> IntFloat:
+    returns: Series, benchmark_rate: int | float = 0.0, tf: str = "years"
+) -> int | float:
     """Downside Deviation for the Sortino ratio.
     Benchmark rate is assumed to be annualized. Adjusted according for the
     number of periods per year seen in the data.
@@ -71,7 +71,7 @@ def downside_deviation(
     return downside_deviation * sqrt(days_per_year)
 
 
-def jensens_alpha(returns: Series, benchmark_returns: Series) -> IntFloat:
+def jensens_alpha(returns: Series, benchmark_returns: Series) -> int | float:
     """Jensen's 'Alpha' of a series and a benchmark.
 
     Args:
@@ -83,11 +83,11 @@ def jensens_alpha(returns: Series, benchmark_returns: Series) -> IntFloat:
     returns = v_series(returns)
     benchmark_returns = v_series(benchmark_returns)
 
-    benchmark_returns.interpolate(inplace=True)
+    benchmark_returns = benchmark_returns.interpolate()
     return linear_regression(benchmark_returns, returns)["a"]
 
 
-def log_max_drawdown(close: Series) -> IntFloat:
+def log_max_drawdown(close: Series) -> int | float:
     """Log Max Drawdown of a series.
 
     Args:
@@ -100,7 +100,9 @@ def log_max_drawdown(close: Series) -> IntFloat:
     return log_return - max_drawdown(close, method="log")
 
 
-def max_drawdown(close: Series, method: str = None, all: bool = False) -> IntFloat:
+def max_drawdown(
+    close: Series, method: str | None = None, all: bool = False
+) -> int | float:
     """Maximum Drawdown from close. Default: 'dollar'.
 
     Args:
@@ -132,12 +134,12 @@ def max_drawdown(close: Series, method: str = None, all: bool = False) -> IntFlo
 
 def optimal_leverage(
     close: Series,
-    benchmark_rate: IntFloat = 0.0,
-    period: IntFloat = RATE["TRADING_DAYS_PER_YEAR"],
+    benchmark_rate: int | float = 0.0,
+    period: int | float = RATE["TRADING_DAYS_PER_YEAR"],
     log: bool = False,
-    capital: IntFloat = 1.0,
-    **kwargs: DictLike,
-) -> IntFloat:
+    capital: int | float = 1.0,
+    **kwargs: dict,
+) -> int | float:
     """Optimal Leverage of a series. NOTE: Incomplete. Do NOT use.
 
     Args:
@@ -173,7 +175,7 @@ def optimal_leverage(
     return amount
 
 
-def pure_profit_score(close: Series) -> IntFloat:
+def pure_profit_score(close: Series) -> int | float:
     """Pure Profit Score of a series.
 
     Args:
@@ -192,11 +194,11 @@ def pure_profit_score(close: Series) -> IntFloat:
 
 def sharpe_ratio(
     close: Series,
-    benchmark_rate: IntFloat = 0.0,
+    benchmark_rate: int | float = 0.0,
     log: bool = False,
     use_cagr: bool = False,
-    period: IntFloat = RATE["TRADING_DAYS_PER_YEAR"],
-) -> IntFloat:
+    period: int | float = RATE["TRADING_DAYS_PER_YEAR"],
+) -> int | float:
     """Sharpe Ratio of a series.
 
     Args:
@@ -228,8 +230,10 @@ def sharpe_ratio(
 
 
 def sortino_ratio(
-    close: Series, benchmark_rate: IntFloat = 0.0, log: bool = False
-) -> IntFloat:
+    close: Series,
+    benchmark_rate: int | float = 0.0,
+    log: bool = False,
+) -> int | float:
     """Sortino Ratio of a series.
 
     Args:
@@ -258,8 +262,8 @@ def volatility(
     tf: str = "years",
     returns: bool = False,
     log: bool = False,
-    **kwargs: DictLike,
-) -> IntFloat:
+    **kwargs: dict,
+) -> int | float:
     """Volatility of a series. Default: 'years'
 
     Args:

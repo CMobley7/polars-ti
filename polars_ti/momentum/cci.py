@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.overlap import hlc3, sma
 from polars_ti.statistics import mad
@@ -11,11 +11,11 @@ def cci(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    c: IntFloat = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    c: int | float | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Commodity Channel Index (CCI)
 
@@ -72,7 +72,7 @@ def cci(
 
     # Fill
     if "fillna" in kwargs:
-        cci.fillna(kwargs["fillna"], inplace=True)
+        cci = cci.fillna(kwargs["fillna"])
 
     # Name and Category
     cci.name = f"CCI_{length}_{c}"

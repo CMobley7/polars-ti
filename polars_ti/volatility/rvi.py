@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.statistics import stdev
 from polars_ti.utils import (
@@ -32,16 +32,16 @@ def _rvi(source, length, scalar, mode, drift):
 
 def rvi(
     close: Series,
-    high: Series = None,
-    low: Series = None,
-    length: Int = None,
-    scalar: IntFloat = None,
-    refined: bool = None,
-    thirds: bool = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    high: Series | None = None,
+    low: Series | None = None,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    refined: bool | None = None,
+    thirds: bool | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Relative Volatility Index (RVI)
 
@@ -115,7 +115,7 @@ def rvi(
 
     # Fill
     if "fillna" in kwargs:
-        rvi.fillna(kwargs["fillna"], inplace=True)
+        rvi = rvi.fillna(kwargs["fillna"])
 
     # Name and Category
     rvi.name = f"RVI{_mode}_{length}"

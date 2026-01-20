@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series, weights
 
 
 def cg(
-    close: Series, length: Int = None, offset: Int = None, **kwargs: DictLike
+    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
     """Center of Gravity (CG)
 
@@ -46,7 +46,7 @@ def cg(
 
     # Fill
     if "fillna" in kwargs:
-        cg.fillna(kwargs["fillna"], inplace=True)
+        cg = cg.fillna(kwargs["fillna"])
 
     # Name and Category
     cg.name = f"CG_{length}"

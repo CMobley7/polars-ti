@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from numpy import fabs, inf, nan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import non_zero_range, v_drift, v_offset, v_pos_default, v_series
 
 
 def vhf(
     close: Series,
-    length: Int = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Vertical Horizontal Filter (VHF)
 
@@ -45,7 +45,7 @@ def vhf(
     lcp = close.rolling(length).min()
     diff = fabs(close.diff(drift))
     vhf = fabs(non_zero_range(hcp, lcp)) / diff.rolling(length).sum()
-    vhf.replace([inf, -inf], nan, inplace=True)
+    vhf = vhf.replace([inf, -inf], nan)
     # np_vhf = where(np_vhf == inf, nan, np_vhf)
 
     # Offset
@@ -54,7 +54,7 @@ def vhf(
 
     # Fill
     if "fillna" in kwargs:
-        vhf.fillna(kwargs["fillna"], inplace=True)
+        vhf = vhf.fillna(kwargs["fillna"])
 
     # Name and Category
     vhf.name = f"VHF_{length}"

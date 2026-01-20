@@ -4,16 +4,16 @@ from numpy import average, log, nan
 from numpy import power as np_power
 from numpy import sqrt, zeros_like
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_float, v_offset, v_pos_default, v_series
 
 
 def jma(
     close: Series,
-    length: IntFloat = None,
-    phase: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | float | None = None,
+    phase: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Jurik Moving Average Average (JMA)
 
@@ -113,7 +113,7 @@ def jma(
 
     # Fill
     if "fillna" in kwargs:
-        jma.fillna(kwargs["fillna"], inplace=True)
+        jma = jma.fillna(kwargs["fillna"])
 
     # Name and Category
     jma.name = f"JMA_{_length}_{phase}"

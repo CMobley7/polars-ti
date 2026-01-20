@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import (
     signed_series,
@@ -17,12 +17,12 @@ from polars_ti.utils import (
 def wb_tsv(
     close: Series,
     volume: Series,
-    length: Int = None,
-    signal: Int = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    signal: int | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Time Segmented Value (TSV)
 
@@ -86,9 +86,9 @@ def wb_tsv(
 
     # Fill
     if "fillna" in kwargs:
-        tsv.fillna(kwargs["fillna"], inplace=True)
-        signal_.fillna(kwargs["fillna"], inplace=True)
-        ratio.fillna(kwargs["fillna"], inplace=True)
+        tsv = tsv.fillna(kwargs["fillna"])
+        signal_ = signal_.fillna(kwargs["fillna"])
+        ratio = ratio.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{signal}"

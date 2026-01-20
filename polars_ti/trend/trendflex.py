@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import cos, exp, nan, sqrt, zeros_like
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
@@ -15,9 +15,9 @@ def nb_trendflex(x, n, k, alpha, pi, sqrt2):
     b = 2 * a * cos(180 * ratio)
     c = a * a - b + 1
 
-    _f = zeros_like(x)
-    _ms = zeros_like(x)
-    result = zeros_like(x)
+    _f = zeros_like(x, dtype=x.dtype)
+    _ms = zeros_like(x, dtype=x.dtype)
+    result = zeros_like(x, dtype=x.dtype)
 
     for i in range(2, m):
         _f[i] = 0.5 * c * (x[i] + x[i - 1]) + b * _f[i - 1] - a * a * _f[i - 2]
@@ -37,13 +37,13 @@ def nb_trendflex(x, n, k, alpha, pi, sqrt2):
 
 def trendflex(
     close: Series,
-    length: Int = None,
-    smooth: Int = None,
-    alpha: IntFloat = None,
-    pi: IntFloat = None,
-    sqrt2: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    smooth: int | None = None,
+    alpha: int | float | None = None,
+    pi: int | float | None = None,
+    sqrt2: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Trendflex (TRENDFLEX)
 
@@ -106,7 +106,7 @@ def trendflex(
 
     # Fill
     if "fillna" in kwargs:
-        result.fillna(kwargs["fillna"], inplace=True)
+        result = result.fillna(kwargs["fillna"])
 
     # Name and Category
     result.name = f"TRENDFLEX_{length}_{smooth}_{alpha}"

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import polars_ti as ti
 from pytest import mark
+
+import polars_ti as ti
 
 
 @mark.parametrize(

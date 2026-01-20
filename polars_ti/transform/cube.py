@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_int, v_lowerbound, v_offset, v_series
 
 
 def cube(
     close: Series,
-    pwr: IntFloat = None,
-    signal_offset: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    pwr: int | float | None = None,
+    signal_offset: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """
     Indicator: Cube Transform
@@ -65,8 +65,8 @@ def cube(
 
     # Fill
     if "fillna" in kwargs:
-        ct.fillna(kwargs["fillna"], inplace=True)
-        ct_signal.fillna(kwargs["fillna"], inplace=True)
+        ct = ct.fillna(kwargs["fillna"])
+        ct_signal = ct_signal.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{pwr}_{signal_offset}"

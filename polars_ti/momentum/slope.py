@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from numpy import arctan, pi, rad2deg
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import nb_idiff, v_bool, v_offset, v_pos_default, v_series
 
 
 def slope(
     close: Series,
-    length: Int = None,
-    as_angle: bool = None,
-    to_degrees: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    as_angle: bool | None = None,
+    to_degrees: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Slope
 
@@ -61,7 +61,7 @@ def slope(
 
     # Fill
     if "fillna" in kwargs:
-        slope.fillna(kwargs["fillna"], inplace=True)
+        slope = slope.fillna(kwargs["fillna"])
 
     # Name and Category
     slope.name = (

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.trend.long_run import long_run
 from polars_ti.trend.short_run import short_run
@@ -12,14 +12,14 @@ from .obv import obv
 def aobv(
     close: Series,
     volume: Series,
-    fast: Int = None,
-    slow: Int = None,
-    max_lookback: Int = None,
-    min_lookback: Int = None,
-    mamode: str = None,
-    run_length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    max_lookback: int | None = None,
+    min_lookback: int | None = None,
+    mamode: str | None = None,
+    run_length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Archer On Balance Volume (AOBV)
 
@@ -90,11 +90,11 @@ def aobv(
 
     # Fill
     if "fillna" in kwargs:
-        obv_.fillna(kwargs["fillna"], inplace=True)
-        maf.fillna(kwargs["fillna"], inplace=True)
-        mas.fillna(kwargs["fillna"], inplace=True)
-        obv_long.fillna(kwargs["fillna"], inplace=True)
-        obv_short.fillna(kwargs["fillna"], inplace=True)
+        obv_ = obv_.fillna(kwargs["fillna"])
+        maf = maf.fillna(kwargs["fillna"])
+        mas = mas.fillna(kwargs["fillna"])
+        obv_long = obv_long.fillna(kwargs["fillna"])
+        obv_short = obv_short.fillna(kwargs["fillna"])
 
     _mode = mamode.lower()[0] if len(mamode) else ""
     data = {

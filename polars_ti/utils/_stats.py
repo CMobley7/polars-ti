@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import array, inf, log, nan, pi, sqrt
-from polars_ti._typing import Array, IntFloat, Number, Union
+
+from polars_ti._typing import Array, IntFloat, Number
 from polars_ti.maps import Imports
 from polars_ti.utils import hpoly
 
@@ -89,7 +90,7 @@ def _gaussian_poly_coefficients() -> Array:
     return [p0, q0, p1, q1, p2, q2]
 
 
-def inv_norm(value: IntFloat) -> Union[None, Number]:
+def inv_norm(value: IntFloat) -> Number | None:
     """Inverse Normal (inv_norm)
     Calculates the 'x' in which the area under the Gaussian PDF is
     equal to value.

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
@@ -9,10 +9,10 @@ from .ema import ema
 
 def tema(
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Triple Exponential Moving Average (TEMA)
 
@@ -63,7 +63,7 @@ def tema(
 
     # Fill
     if "fillna" in kwargs:
-        tema.fillna(kwargs["fillna"], inplace=True)
+        tema = tema.fillna(kwargs["fillna"])
 
     # Name and Category
     tema.name = f"TEMA_{length}"

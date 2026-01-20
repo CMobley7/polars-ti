@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import greater, nan, zeros_like
 from pandas import DataFrame, DateOffset, Series, infer_freq
-from polars_ti._typing import DictLike
+
 from polars_ti.utils import nb_non_zero_range, v_datetime_ordered, v_series, v_str
 
 # Support for Pandas v1.4.x and v2.2.x
@@ -123,9 +123,9 @@ def pivots(
     high: Series,
     low: Series,
     close: Series,
-    method: str = None,
-    anchor: str = None,
-    **kwargs: DictLike,
+    method: str | None = None,
+    anchor: str | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Pivot Points
 
@@ -192,7 +192,7 @@ def pivots(
                 "close": close.resample(anchor).last(),
             }
         )
-        df.dropna(inplace=True)
+        df = df.dropna()
     else:
         df = DataFrame(
             data={"open": open_, "high": high, "low": low, "close": close},
@@ -250,7 +250,7 @@ def pivots(
     df = df.iloc[:, 4:]
 
     if method in ["demark", "fibonacci"]:
-        df.drop(columns=[x for x in df.columns if all(df[x].isna())], inplace=True)
+        df = df.drop(columns=[x for x in df.columns if all(df[x].isna())])
 
     df.name = _props
     df.category = "overlap"

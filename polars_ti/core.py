@@ -486,7 +486,7 @@ class TechnicalIndicators(object):
         """Returns the columns in which all it's values are na."""
         return [x for x in self._df.columns if all(self._df[x].isna())]
 
-    def _get_column(self, series: Union[Series, str, None]):
+    def _get_column(self, series: Series | str | None):
         """Attempts to get the correct series or 'column' and return it."""
         df = self._df
         if df is None:
@@ -536,8 +536,8 @@ class TechnicalIndicators(object):
             return getattr(self, method)(*args, **kwargs)[0]
 
     def _post_process(
-        self, result: Union[Series, DataFrame], **kwargs: DictLike
-    ) -> Union[Series, DataFrame]:
+        self, result: Series | DataFrame, **kwargs: DictLike
+    ) -> Series | DataFrame:
         """Applies any additional modifications to the DataFrame
         * Applies prefixes and/or suffixes
         * Appends the result to main DataFrame

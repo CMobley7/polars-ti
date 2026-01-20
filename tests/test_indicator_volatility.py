@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import pandas.testing as pdt
-import polars_ti as ti
 import talib as tal
 from pandas import DataFrame, Series
+
+import polars_ti as ti
 
 from .config import CORRELATION, CORRELATION_THRESHOLD, error_analysis
 

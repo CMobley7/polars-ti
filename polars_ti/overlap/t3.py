@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
@@ -10,11 +10,11 @@ from .ema import ema
 
 def t3(
     close: Series,
-    length: Int = None,
-    a: IntFloat = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    a: int | float | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Tim Tillson's T3 Moving Average (T3)
 
@@ -76,7 +76,7 @@ def t3(
 
     # Fill
     if "fillna" in kwargs:
-        t3.fillna(kwargs["fillna"], inplace=True)
+        t3 = t3.fillna(kwargs["fillna"])
 
     # Name and Category
     t3.name = f"T3_{length}_{a}"

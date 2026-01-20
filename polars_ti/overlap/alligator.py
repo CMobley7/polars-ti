@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
 from .smma import smma
@@ -8,12 +8,12 @@ from .smma import smma
 
 def alligator(
     close: Series,
-    jaw: Int = None,
-    teeth: Int = None,
-    lips: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    jaw: int | None = None,
+    teeth: int | None = None,
+    lips: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Bill Williams Alligator (ALLIGATOR)
 
@@ -70,9 +70,9 @@ def alligator(
 
     # Fill
     if "fillna" in kwargs:
-        gator_jaw.fillna(kwargs["fillna"], inplace=True)
-        gator_teeth.fillna(kwargs["fillna"], inplace=True)
-        gator_lips.fillna(kwargs["fillna"], inplace=True)
+        gator_jaw = gator_jaw.fillna(kwargs["fillna"])
+        gator_teeth = gator_teeth.fillna(kwargs["fillna"])
+        gator_lips = gator_lips.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{jaw}_{teeth}_{lips}"

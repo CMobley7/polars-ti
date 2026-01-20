@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import hl2
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
 from polars_ti.volatility import atr
@@ -11,12 +11,12 @@ def supertrend(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    atr_length: Int = None,
-    multiplier: IntFloat = None,
-    atr_mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    atr_length: int | None = None,
+    multiplier: int | float | None = None,
+    atr_mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Supertrend (supertrend)
 
@@ -109,6 +109,6 @@ def supertrend(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     return df

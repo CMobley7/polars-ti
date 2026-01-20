@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan, maximum, minimum, nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.utils import (
     v_drift,
@@ -17,13 +17,13 @@ from .rsi import rsi
 
 def qqe(
     close: Series,
-    length: Int = None,
-    smooth: Int = None,
-    factor: IntFloat = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    smooth: int | None = None,
+    factor: int | float | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Quantitative Qualitative Estimation (QQE)
 
@@ -151,10 +151,10 @@ def qqe(
 
     # Fill
     if "fillna" in kwargs:
-        rsi_ma.fillna(kwargs["fillna"], inplace=True)
-        qqe.fillna(kwargs["fillna"], inplace=True)
-        qqe_long.fillna(kwargs["fillna"], inplace=True)
-        qqe_short.fillna(kwargs["fillna"], inplace=True)
+        rsi_ma = rsi_ma.fillna(kwargs["fillna"])
+        qqe = qqe.fillna(kwargs["fillna"])
+        qqe_long = qqe_long.fillna(kwargs["fillna"])
+        qqe_short = qqe_short.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"{_mode}_{length}_{smooth}_{factor}"

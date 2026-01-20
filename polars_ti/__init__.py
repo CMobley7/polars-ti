@@ -169,7 +169,6 @@ from polars_ti.utils import (
     camelCase2Title,
     candle_color,
     category_files,
-    client_exists,
     combination,
     cross,
     cross_value,

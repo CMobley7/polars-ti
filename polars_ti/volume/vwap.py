@@ -2,7 +2,7 @@
 from warnings import simplefilter
 
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, List
+
 from polars_ti.overlap import hlc3
 from polars_ti.utils import v_datetime_ordered, v_list, v_offset, v_series
 
@@ -12,10 +12,10 @@ def vwap(
     low: Series,
     close: Series,
     volume: Series,
-    anchor: str = None,
-    bands: List = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    anchor: str | None = None,
+    bands: list | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Volume Weighted Average Price (VWAP)
 
@@ -115,9 +115,9 @@ def vwap(
     # Fill
     if "fillna" in kwargs:
         if bands and not df.empty:
-            df.fillna(kwargs["fillna"], inplace=True)
+            df = df.fillna(kwargs["fillna"])
         else:
-            vwap.fillna(kwargs["fillna"], inplace=True)
+            vwap = vwap.fillna(kwargs["fillna"])
 
     if bands and not df.empty:
         return df

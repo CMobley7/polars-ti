@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series, concat
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -17,13 +17,13 @@ from polars_ti.utils import (
 
 def rsi(
     close: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    mamode: str = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Relative Strength Index (RSI)
 
@@ -86,7 +86,7 @@ def rsi(
 
     # Fill
     if "fillna" in kwargs:
-        rsi.fillna(kwargs["fillna"], inplace=True)
+        rsi = rsi.fillna(kwargs["fillna"])
 
     # Name and Category
     rsi.name = f"RSI_{length}"

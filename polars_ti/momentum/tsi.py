@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.overlap import ema
 from polars_ti.utils import (
@@ -16,14 +16,14 @@ from polars_ti.utils import (
 
 def tsi(
     close: Series,
-    fast: Int = None,
-    slow: Int = None,
-    signal: Int = None,
-    scalar: IntFloat = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    signal: int | None = None,
+    scalar: int | float | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """True Strength Index (TSI)
 
@@ -96,8 +96,8 @@ def tsi(
 
     # Fill
     if "fillna" in kwargs:
-        tsi.fillna(kwargs["fillna"], inplace=True)
-        tsi_signal.fillna(kwargs["fillna"], inplace=True)
+        tsi = tsi.fillna(kwargs["fillna"])
+        tsi_signal = tsi_signal.fillna(kwargs["fillna"])
 
     # Name and Category
     tsi.name = f"TSI_{fast}_{slow}_{signal}"

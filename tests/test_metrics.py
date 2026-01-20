@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-import polars_ti as ti
 from pytest import mark
+
+import polars_ti as ti
 
 
 def test_cagr(df):

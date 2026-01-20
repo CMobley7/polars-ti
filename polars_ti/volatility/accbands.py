@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.utils import (
     non_zero_range,
@@ -16,12 +16,12 @@ def accbands(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    c: IntFloat = None,
-    drift: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    c: int | float | None = None,
+    drift: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Acceleration Bands (ACCBANDS)
 
@@ -80,9 +80,9 @@ def accbands(
 
     # Fill
     if "fillna" in kwargs:
-        lower.fillna(kwargs["fillna"], inplace=True)
-        mid.fillna(kwargs["fillna"], inplace=True)
-        upper.fillna(kwargs["fillna"], inplace=True)
+        lower = lower.fillna(kwargs["fillna"])
+        mid = mid.fillna(kwargs["fillna"])
+        upper = upper.fillna(kwargs["fillna"])
 
     # Name and Category
     lower.name = f"ACCBL_{length}"

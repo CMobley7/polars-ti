@@ -15,7 +15,7 @@ from numpy import (
     zeros_like,
 )
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import (
     nb_ffill,
     nb_idiff,
@@ -56,13 +56,13 @@ def nb_exhc(x, n, cap, lb, ub, show_all):
 
 def exhc(
     close: Series,
-    length: Int = None,
-    cap: Int = None,
-    asint: bool = None,
-    show_all: bool = None,
-    nozeros: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike
+    length: int | None = None,
+    cap: int | None = None,
+    asint: bool | None = None,
+    show_all: bool | None = None,
+    nozeros: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Exhaustion Count (EXHC)
 
@@ -119,7 +119,7 @@ def exhc(
     df.category = "momentum"
 
     if nozeros:
-        df.replace({0: nan}, inplace=True)
+        df = df.replace({0: nan})
 
     # Offset
     if offset != 0:

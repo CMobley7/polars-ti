@@ -5,9 +5,10 @@ sys.dont_write_bytecode = True
 
 from os import system as os_system
 
-import polars_ti as ti
 import pytest
 from pandas import read_csv
+
+import polars_ti as ti
 
 TEST_ROWS = 200
 TEST_CSV = f"data/SPY_D.csv"
@@ -20,7 +21,7 @@ PLAY_BEEP = f"osascript -e beep"
 def testdf():
     """Yields a truncated df from TEST_CSV file"""
     df = read_csv(TEST_CSV, index_col=0, parse_dates=True)
-    df.drop(columns=["dividends", "stock splits"], inplace=True)
+    df = df.drop(columns=["dividends", "stock splits"])
     yield df.iloc[:TEST_ROWS]
 
     del df

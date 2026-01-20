@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from numpy import arange, array, polyfit, std
 from pandas import DataFrame, DatetimeIndex, Series
-from polars_ti._typing import DictLike, Int, List
+
 from polars_ti.utils import v_list, v_lowerbound, v_offset, v_series
 
 
 def tos_stdevall(
     close: Series,
-    length: Int = None,
-    stds: List = None,
-    ddof: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    stds: list | None = None,
+    ddof: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """TD Ameritrade's Think or Swim Standard Deviation All (TOS_STDEV)
 
@@ -91,7 +91,7 @@ def tos_stdevall(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     df.name = f"{_props}"
     df.category = "statistics"

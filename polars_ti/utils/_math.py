@@ -26,6 +26,7 @@ from numpy import (
     zeros,
 )
 from pandas import DataFrame, Series
+
 from polars_ti._typing import Array, DictLike, Float, Int, IntFloat, List, Optional
 from polars_ti.maps import Imports
 from polars_ti.utils._validate import v_series

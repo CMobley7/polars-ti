@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan, nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -22,16 +22,16 @@ def adx(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    lensig: Int = None,
-    adxr_length: Int = None,
-    scalar: IntFloat = None,
-    talib: bool = None,
-    tvmode: bool = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    lensig: int | None = None,
+    adxr_length: int | None = None,
+    scalar: int | float | None = None,
+    talib: bool | None = None,
+    tvmode: bool | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Average Directional Movement (ADX)
 
@@ -159,10 +159,10 @@ def adx(
 
     # Fill
     if "fillna" in kwargs:
-        adx.fillna(kwargs["fillna"], inplace=True)
-        adxr.fillna(kwargs["fillna"], inplace=True)
-        dmp.fillna(kwargs["fillna"], inplace=True)
-        dmn.fillna(kwargs["fillna"], inplace=True)
+        adx = adx.fillna(kwargs["fillna"])
+        adxr = adxr.fillna(kwargs["fillna"])
+        dmp = dmp.fillna(kwargs["fillna"])
+        dmn = dmn.fillna(kwargs["fillna"])
 
     # Name and Category
     adx.name = f"ADX_{lensig}"

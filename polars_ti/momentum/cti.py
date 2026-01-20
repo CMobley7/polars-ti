@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import linreg
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 def cti(
-    close: Series, length: Int = None, offset: Int = None, **kwargs: DictLike
+    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
     """Correlation Trend Indicator (CTI)
 
@@ -45,7 +45,7 @@ def cti(
 
     # Fill
     if "fillna" in kwargs:
-        cti.fillna(method=kwargs["fillna"], inplace=True)
+        cti = cti.fillna(kwargs["fillna"])
 
     # Name and Category
     cti.name = f"CTI_{length}"

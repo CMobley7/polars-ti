@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
 
 
 def bias(
     close: Series,
-    length: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Bias (BIAS)
 
@@ -52,7 +52,7 @@ def bias(
 
     # Fill
     if "fillna" in kwargs:
-        bias.fillna(kwargs["fillna"], inplace=True)
+        bias = bias.fillna(kwargs["fillna"])
 
     # Name and Category
     bias.name = f"BIAS_{bma.name}"

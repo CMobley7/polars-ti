@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from numba import njit
-from numpy import zeros_like
+from numpy import float64, zeros_like
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_str
 
 
@@ -11,7 +11,7 @@ from polars_ti.utils import v_offset, v_pos_default, v_series, v_str
 def nb_exponential_decay(x, n):
     m, rate = x.size, 1.0 - (1.0 / n)
 
-    result = zeros_like(x, dtype="float")
+    result = zeros_like(x, dtype=float64)
     result[0] = x[0]
 
     for i in range(1, m):
@@ -25,7 +25,7 @@ def nb_exponential_decay(x, n):
 def nb_linear_decay(x, n):
     m, rate = x.size, 1.0 / n
 
-    result = zeros_like(x, dtype="float")
+    result = zeros_like(x, dtype=float64)
     result[0] = x[0]
 
     for i in range(1, m):
@@ -36,10 +36,10 @@ def nb_linear_decay(x, n):
 
 def decay(
     close: Series,
-    length: Int = None,
-    mode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Decay
 
@@ -89,7 +89,7 @@ def decay(
 
     # Fill
     if "fillna" in kwargs:
-        result.fillna(kwargs["fillna"], inplace=True)
+        result = result.fillna(kwargs["fillna"])
 
     # Name and Category
     result.name = f"{_mode}DECAY_{length}"

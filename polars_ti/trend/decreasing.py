@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import (
     is_percent,
     v_bool,
@@ -13,13 +13,13 @@ from polars_ti.utils import (
 
 def decreasing(
     close: Series,
-    length: Int = None,
-    strict: bool = None,
-    asint: bool = None,
-    percent: IntFloat = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    strict: bool | None = None,
+    asint: bool | None = None,
+    percent: int | float | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Decreasing
 
@@ -65,7 +65,7 @@ def decreasing(
         for x in range(3, length + 1):
             decreasing &= close.shift(x - (drift + 1)) < close_.shift(x - drift)
 
-        decreasing.fillna(0, inplace=True)
+        decreasing = decreasing.fillna(0)
         decreasing = decreasing.astype(bool)
     else:
         decreasing = close_.diff(length) < 0
@@ -79,7 +79,7 @@ def decreasing(
 
     # Fill
     if "fillna" in kwargs:
-        decreasing.fillna(kwargs["fillna"], inplace=True)
+        decreasing = decreasing.fillna(kwargs["fillna"])
 
     # Name and Category
     _percent = f"_{0.01 * percent}" if percent else ""

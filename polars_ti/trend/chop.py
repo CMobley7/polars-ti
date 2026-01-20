@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import log, log10
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_bool, v_drift, v_offset, v_pos_default, v_scalar, v_series
 from polars_ti.volatility import atr
 
@@ -10,13 +10,13 @@ def chop(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    atr_length: Int = None,
-    ln: bool = None,
-    scalar: IntFloat = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    atr_length: int | None = None,
+    ln: bool | None = None,
+    scalar: int | float | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Choppiness Index (CHOP)
 
@@ -80,7 +80,7 @@ def chop(
 
     # Fill
     if "fillna" in kwargs:
-        chop.fillna(kwargs["fillna"], inplace=True)
+        chop = chop.fillna(kwargs["fillna"])
 
     # Name and Category
     chop.name = f"CHOP{'ln' if ln else ''}_{length}_{atr_length}_{scalar}"

@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import arctan, isnan, nan, zeros_like
 from pandas import DataFrame, Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
@@ -14,14 +14,18 @@ def nb_mama(x, fastlimit, slowlimit, prenan):
     a, b, m = 0.0962, 0.5769, x.size
     p_w, smp_w, smp_w_c = 0.2, 0.33, 0.67
 
-    wma4 = zeros_like(x)
-    dt, smp = zeros_like(x), zeros_like(x)
-    i1, i2 = zeros_like(x), zeros_like(x)
-    ji, jq = zeros_like(x), zeros_like(x)
-    q1, q2 = zeros_like(x), zeros_like(x)
-    re, im, alpha = zeros_like(x), zeros_like(x), zeros_like(x)
-    period, phase = zeros_like(x), zeros_like(x)
-    mama, fama = zeros_like(x), zeros_like(x)
+    wma4 = zeros_like(x, dtype=x.dtype)
+    dt, smp = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    i1, i2 = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    ji, jq = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    q1, q2 = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    re, im, alpha = (
+        zeros_like(x, dtype=x.dtype),
+        zeros_like(x, dtype=x.dtype),
+        zeros_like(x, dtype=x.dtype),
+    )
+    period, phase = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    mama, fama = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
 
     # Ehler's starts from 6, TV-LB from 3, TALib from 32
     for i in range(3, m):
@@ -102,12 +106,12 @@ def nb_mama(x, fastlimit, slowlimit, prenan):
 
 def mama(
     close: Series,
-    fastlimit: IntFloat = None,
-    slowlimit: IntFloat = None,
-    prenan: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fastlimit: int | float | None = None,
+    slowlimit: int | float | None = None,
+    prenan: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Ehler's MESA Adaptive Moving Average (MAMA)
 
@@ -179,6 +183,6 @@ def mama(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     return df

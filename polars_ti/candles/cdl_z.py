@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.statistics import zscore
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
@@ -10,11 +10,11 @@ def cdl_z(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    full: bool = None,
-    ddof: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    full: bool | None = None,
+    ddof: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Candle Type: Z
 
@@ -74,7 +74,7 @@ def cdl_z(
     df = DataFrame(data, index=close.index)
 
     if full:
-        df.fillna(method="backfill", axis=0, inplace=True)
+        df = df.fillna(method="backfill", axis=0)
 
     # Offset
     if offset != 0:
@@ -82,7 +82,7 @@ def cdl_z(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     # Name and Category
     df.name = f"CDL_Z{_props}"

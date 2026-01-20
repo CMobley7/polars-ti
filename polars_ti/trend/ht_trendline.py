@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import arctan, copy, isnan, nan, rad2deg, zeros, zeros_like
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series, v_talib
 
@@ -11,15 +11,15 @@ from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series, v_talib
 def nb_ht_trendline(x):
     a, b, m = 0.0962, 0.5769, x.size
 
-    wma4, dt = zeros_like(x), zeros_like(x)
-    q1, q2 = zeros_like(x), zeros_like(x)
-    ji, jq = zeros_like(x), zeros_like(x)
-    i1, i2 = zeros_like(x), zeros_like(x)
-    re, im = zeros_like(x), zeros_like(x)
-    period, smp = zeros_like(x), zeros_like(x)
-    i_trend = zeros_like(x)
+    wma4, dt = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    q1, q2 = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    ji, jq = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    i1, i2 = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    re, im = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    period, smp = zeros_like(x, dtype=x.dtype), zeros_like(x, dtype=x.dtype)
+    i_trend = zeros_like(x, dtype=x.dtype)
 
-    result = zeros_like(x)
+    result = zeros_like(x, dtype=x.dtype)
     result[:13] = x[:13]
 
     # Ehler's starts from 6, TALib from 63
@@ -91,10 +91,10 @@ def nb_ht_trendline(x):
 
 def ht_trendline(
     close: Series = None,
-    talib: bool = None,
-    prenan: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    talib: bool | None = None,
+    prenan: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Hilbert Transform TrendLine (HT_TL)
 
@@ -151,7 +151,7 @@ def ht_trendline(
 
     # Fill
     if "fillna" in kwargs:
-        tl.fillna(kwargs["fillna"], inplace=True)
+        tl = tl.fillna(kwargs["fillna"])
 
     tl.name = f"HT_TL"
     tl.category = "trend"

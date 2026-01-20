@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import signed_series, v_offset, v_series, v_talib
 
@@ -8,9 +8,9 @@ from polars_ti.utils import signed_series, v_offset, v_series, v_talib
 def obv(
     close: Series,
     volume: Series,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """On Balance Volume (OBV)
 
@@ -61,7 +61,7 @@ def obv(
 
     # Fill
     if "fillna" in kwargs:
-        obv.fillna(kwargs["fillna"], inplace=True)
+        obv = obv.fillna(kwargs["fillna"])
 
     # Name and Category
     obv.name = f"OBV"

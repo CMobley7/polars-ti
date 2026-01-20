@@ -3,7 +3,8 @@ from datetime import datetime
 from time import localtime, perf_counter
 
 from pandas import DataFrame, Series, Timestamp, to_datetime
-from polars_ti._typing import Float, MaybeSeriesFrame, Optional, Tuple, Union
+
+from polars_ti._typing import Float, MaybeSeriesFrame, Optional, Tuple
 from polars_ti.maps import EXCHANGE_TZ
 
 
@@ -115,7 +116,7 @@ def to_utc(df: DataFrame) -> DataFrame:
     return df
 
 
-def unix_convert(ts: Union[int, Series]) -> Union[datetime, str]:
+def unix_convert(ts: int | Series) -> datetime | str:
     """
     Converts timestamps from polygon to readable datetime strings.
 

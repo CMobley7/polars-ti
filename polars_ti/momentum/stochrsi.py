@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.momentum import rsi
@@ -16,14 +16,14 @@ from polars_ti.utils import (
 
 def stochrsi(
     close: Series,
-    length: Int = None,
-    rsi_length: Int = None,
-    k: Int = None,
-    d: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    rsi_length: int | None = None,
+    k: int | None = None,
+    d: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Stochastic (STOCHRSI)
 
@@ -95,8 +95,8 @@ def stochrsi(
 
     # Fill
     if "fillna" in kwargs:
-        stochrsi_k.fillna(kwargs["fillna"], inplace=True)
-        stochrsi_d.fillna(kwargs["fillna"], inplace=True)
+        stochrsi_k = stochrsi_k.fillna(kwargs["fillna"])
+        stochrsi_d = stochrsi_d.fillna(kwargs["fillna"])
 
     # Name and Category
     _name = "STOCHRSI"

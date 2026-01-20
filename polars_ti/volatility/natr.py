@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import (
     v_bool,
@@ -19,14 +19,14 @@ def natr(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    mamode: str = None,
-    talib: bool = None,
-    prenan: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    prenan: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Normalized Average True Range (NATR)
 
@@ -96,7 +96,7 @@ def natr(
 
     # Fill
     if "fillna" in kwargs:
-        natr.fillna(kwargs["fillna"], inplace=True)
+        natr = natr.fillna(kwargs["fillna"])
 
     # Name and Category
     natr.name = f"NATR_{length}"

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import Series
+
 from polars_ti._typing import Int
 from polars_ti.utils import v_drift, v_series
 

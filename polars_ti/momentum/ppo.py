@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -17,14 +17,14 @@ from polars_ti.utils import (
 
 def ppo(
     close: Series,
-    fast: Int = None,
-    slow: Int = None,
-    signal: Int = None,
-    scalar: IntFloat = None,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    signal: int | None = None,
+    scalar: int | float | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Percentage Price Oscillator (PPO)
 
@@ -91,9 +91,9 @@ def ppo(
 
     # Fill
     if "fillna" in kwargs:
-        ppo.fillna(kwargs["fillna"], inplace=True)
-        histogram.fillna(kwargs["fillna"], inplace=True)
-        signalma.fillna(kwargs["fillna"], inplace=True)
+        ppo = ppo.fillna(kwargs["fillna"])
+        histogram = histogram.fillna(kwargs["fillna"])
+        signalma = signalma.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{fast}_{slow}_{signal}"

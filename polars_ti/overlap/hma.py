@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from numpy import sqrt
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 from .wma import wma
 
 
 def hma(
-    close: Series, length: Int = None, offset: Int = None, **kwargs: DictLike
+    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
     """Hull Moving Average (HMA)
 
@@ -52,7 +52,7 @@ def hma(
 
     # Fill
     if "fillna" in kwargs:
-        hma.fillna(kwargs["fillna"], inplace=True)
+        hma = hma.fillna(kwargs["fillna"])
 
     # Name and Category
     hma.name = f"HMA_{length}"

@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import isnan, nan, uintc, zeros_like
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.ma import ma as _ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -51,14 +51,14 @@ def atrts(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    ma_length: Int = None,
-    multiplier: IntFloat = None,
-    mamode: str = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    ma_length: int | None = None,
+    multiplier: int | float | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """ATR Trailing Stop (ATRTS)
 
@@ -150,7 +150,7 @@ def atrts(
 
     # Fill
     if "fillna" in kwargs:
-        atrts.fillna(kwargs["fillna"], inplace=True)
+        atrts = atrts.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"ATRTS{mamode[0]}{'p' if percent else ''}"

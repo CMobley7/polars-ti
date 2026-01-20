@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_lowerbound, v_offset, v_series, v_talib
 
 
 def variance(
     close: Series,
-    length: Int = None,
-    ddof: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    ddof: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Rolling Variance
 
@@ -65,7 +65,7 @@ def variance(
 
     # Fill
     if "fillna" in kwargs:
-        variance.fillna(kwargs["fillna"], inplace=True)
+        variance = variance.fillna(kwargs["fillna"])
 
     # Name and Category
     variance.name = f"VAR_{length}"

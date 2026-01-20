@@ -2,10 +2,11 @@
 from sys import platform as sys_platform
 
 import numpy as np
-import polars_ti as ti
 from pandas import DataFrame, Series
 from pandas.api.types import is_datetime64_ns_dtype
 from pytest import mark, param
+
+import polars_ti as ti
 
 CROSS_E1 = {
     "zero": [0, 0],
@@ -129,7 +130,7 @@ def test_datetime_ordered(df):
 
     # Test a non-datetime64 index
     original = df.copy()
-    original.reset_index(inplace=True)
+    original = original.reset_index()
     result = original.ti.datetime_ordered()
     assert result is False
 

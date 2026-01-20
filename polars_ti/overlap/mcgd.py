@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
@@ -12,10 +12,10 @@ def _mcgd(x, n, k):
 
 def mcgd(
     close: Series,
-    length: Int = None,
-    c: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    c: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """McGinley Dynamic Indicator
 
@@ -69,7 +69,7 @@ def mcgd(
 
     # Fill
     if "fillna" in kwargs:
-        mcg_ds.fillna(kwargs["fillna"], inplace=True)
+        mcg_ds = mcg_ds.fillna(kwargs["fillna"])
 
     # Name and Category
     mcg_ds.name = f"MCGD_{length}"

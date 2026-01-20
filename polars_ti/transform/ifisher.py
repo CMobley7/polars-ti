@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import exp, isnan, logical_and, max, min
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_int, v_offset, v_scalar, v_series
 
 from .remap import remap
@@ -9,10 +9,10 @@ from .remap import remap
 
 def ifisher(
     close: Series,
-    amp: IntFloat = None,
-    signal_offset: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    amp: int | float | None = None,
+    signal_offset: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """
     Indicator: Inverse Fisher Transform
@@ -81,8 +81,8 @@ def ifisher(
 
     # Fill
     if "fillna" in kwargs:
-        inv_fisher.fillna(kwargs["fillna"], inplace=True)
-        signal.fillna(kwargs["fillna"], inplace=True)
+        inv_fisher = inv_fisher.fillna(kwargs["fillna"])
+        signal = signal.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{amp}"

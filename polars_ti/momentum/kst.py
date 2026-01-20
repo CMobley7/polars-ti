@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series
 
 from .roc import roc
@@ -8,18 +8,18 @@ from .roc import roc
 
 def kst(
     close: Series,
-    signal: Int = None,
-    roc1: Int = None,
-    roc2: Int = None,
-    roc3: Int = None,
-    roc4: Int = None,
-    sma1: Int = None,
-    sma2: Int = None,
-    sma3: Int = None,
-    sma4: Int = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    signal: int | None = None,
+    roc1: int | None = None,
+    roc2: int | None = None,
+    roc3: int | None = None,
+    roc4: int | None = None,
+    sma1: int | None = None,
+    sma2: int | None = None,
+    sma3: int | None = None,
+    sma4: int | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """'Know Sure Thing' (KST)
 
@@ -88,8 +88,8 @@ def kst(
 
     # Fill
     if "fillna" in kwargs:
-        kst.fillna(kwargs["fillna"], inplace=True)
-        kst_signal.fillna(kwargs["fillna"], inplace=True)
+        kst = kst.fillna(kwargs["fillna"])
+        kst_signal = kst_signal.fillna(kwargs["fillna"])
 
     # Name and Category
     kst.name = f"KST_{roc1}_{roc2}_{roc3}_{roc4}_{sma1}_{sma2}_{sma3}_{sma4}"

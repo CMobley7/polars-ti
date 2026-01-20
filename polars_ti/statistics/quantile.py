@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 def quantile(
     close: Series,
-    length: Int = None,
-    q: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    q: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Rolling Quantile
 
@@ -50,7 +50,7 @@ def quantile(
 
     # Fill
     if "fillna" in kwargs:
-        quantile.fillna(kwargs["fillna"], inplace=True)
+        quantile = quantile.fillna(kwargs["fillna"])
 
     # Name and Category
     quantile.name = f"QTL_{length}_{q}"

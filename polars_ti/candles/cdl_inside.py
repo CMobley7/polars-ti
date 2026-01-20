@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import roll, where
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.utils import v_bool, v_offset, v_scalar, v_series
 
 
@@ -18,10 +18,10 @@ def cdl_inside(
     high: Series,
     low: Series,
     close: Series,
-    asbool: bool = None,
-    scalar: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    asbool: bool | None = None,
+    scalar: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Candle Type: Inside Bar
 
@@ -79,7 +79,7 @@ def cdl_inside(
 
     # Fill
     if "fillna" in kwargs:
-        inside.fillna(kwargs["fillna"], inplace=True)
+        inside = inside.fillna(kwargs["fillna"])
     # Name and Category
     inside.name = f"CDL_INSIDE"
     inside.category = "candles"

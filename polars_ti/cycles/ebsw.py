@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from numpy import cos, exp, mean, nan, pi, roll, sin, sqrt, zeros
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 def ebsw(
     close: Series,
-    length: Int = None,
-    bars: Int = None,
+    length: int | None = None,
+    bars: int | None = None,
     initial_version: bool = False,
-    offset: Int = None,
-    **kwargs: DictLike,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Even Better SineWave (EBSW)
 
@@ -149,7 +149,7 @@ def ebsw(
 
     # Fill
     if "fillna" in kwargs:
-        ebsw.fillna(kwargs["fillna"], inplace=True)
+        ebsw = ebsw.fillna(kwargs["fillna"])
     # Name and Category
     ebsw.name = f"EBSW_{length}_{bars}"
     ebsw.category = "cycles"

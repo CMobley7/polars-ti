@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -17,12 +17,12 @@ from polars_ti.utils import (
 def dm(
     high: Series,
     low: Series,
-    length: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Directional Movement (DM)
 
@@ -88,8 +88,8 @@ def dm(
 
     # Fill
     if "fillna" in kwargs:
-        pos.fillna(kwargs["fillna"], inplace=True)
-        neg.fillna(kwargs["fillna"], inplace=True)
+        pos = pos.fillna(kwargs["fillna"])
+        neg = neg.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}"

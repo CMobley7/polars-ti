@@ -2,14 +2,14 @@
 from numba import njit
 from numpy import empty_like, maximum, minimum
 from pandas import DataFrame, Series
-from polars_ti._typing import Array, DictLike, Int
+
 from polars_ti.utils import v_offset, v_series
 
 
 @njit(cache=True)
 def np_ha(np_open, np_high, np_low, np_close):
     ha_close = 0.25 * (np_open + np_high + np_low + np_close)
-    ha_open = empty_like(ha_close)
+    ha_open = empty_like(ha_close, dtype=np_open.dtype)
     ha_open[0] = 0.5 * (np_open[0] + np_close[0])
 
     m = np_close.size
@@ -27,8 +27,8 @@ def ha(
     high: Series,
     low: Series,
     close: Series,
-    offset: Int = None,
-    **kwargs: DictLike
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Heikin Ashi Candles (HA)
 
@@ -87,7 +87,7 @@ def ha(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     # Name and Category
     df.name = "Heikin-Ashi"

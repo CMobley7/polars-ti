@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat, Union
+
 from polars_ti.trend import tsignals
 from polars_ti.utils import cross_value, v_offset, v_series
 
 
 def xsignals(
     signal: Series,
-    xa: Union[IntFloat, Series],
-    xb: Union[IntFloat, Series],
+    xa: int | float | Series,
+    xb: int | float | Series,
     above: bool = True,
     long: bool = True,
-    asbool: bool = None,
-    trend_reset: Int = 0,
-    trade_offset: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    asbool: bool | None = None,
+    trend_reset: int = 0,
+    trade_offset: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Cross Signals (XSIGNALS)
 
@@ -95,11 +95,9 @@ def xsignals(
     trades = entries + exits
 
     # Modify trades to fill gaps for trends
-    trades.replace({0: nan}, inplace=True)
-    trades.ffill(
-        limit_area="inside", inplace=True
-    )  # or trades.bfill(limit_area="inside", inplace=True)
-    trades.fillna(0, inplace=True)
+    trades.replace({0: nan})
+    trades.ffill(limit_area="inside")
+    trades.fillna(0)
 
     trends = (trades > 0).astype(int)
     if not long:
@@ -118,7 +116,7 @@ def xsignals(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     # Name and Category
     df.name = f"XS"

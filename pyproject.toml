@@ -33,11 +33,10 @@ keywords = [
 ]
 
 dependencies = [
-    "numba==0.59.1",
-    "numpy==1.26.4",
-    "pandas==2.2.2",
-    "pandas-datareader==0.10.0",
-    "scipy==1.13.1",
+    "numba~=0.63.1",
+    "numpy~=2.3.5",
+    "pandas~=2.3.3",
+    "scipy~=1.16.3",
 ]
 
 [project.urls]
@@ -49,7 +48,7 @@ dependencies = [
 full = [
     "polars-ti[test]", # Include test dependencies in full
     "vectorbt",
-    "matplotlib==3.8.2",
+    "matplotlib~=3.10.8",
     "alpha-vantage",
     "mplfinance",
     "python-dotenv",
@@ -59,7 +58,7 @@ full = [
     "tqdm",
 ]
 test = [
-    "TA-Lib==0.6.4",
-    "yfinance==0.2.40",
-    "pytest==7.1.2",
+    "TA-Lib~=0.6.4",
+    "yfinance~=1.0",
+    "pytest~=9.0.2",
 ]

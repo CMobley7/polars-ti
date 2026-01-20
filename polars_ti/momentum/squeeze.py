@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import ema, linreg, sma
 from polars_ti.trend import decreasing, increasing
 from polars_ti.utils import (
@@ -22,17 +22,17 @@ def squeeze(
     high: Series,
     low: Series,
     close: Series,
-    bb_length: Int = None,
-    bb_std: IntFloat = None,
-    kc_length: Int = None,
-    kc_scalar: IntFloat = None,
-    mom_length: Int = None,
-    mom_smooth: Int = None,
-    use_tr: bool = None,
-    mamode: str = None,
-    prenan: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    bb_length: int | None = None,
+    bb_std: int | float | None = None,
+    kc_length: int | None = None,
+    kc_scalar: int | float | None = None,
+    mom_length: int | None = None,
+    mom_smooth: int | None = None,
+    use_tr: bool | None = None,
+    mamode: str | None = None,
+    prenan: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Squeeze (SQZ)
 
@@ -141,10 +141,10 @@ def squeeze(
 
     # Fill
     if "fillna" in kwargs:
-        squeeze.fillna(kwargs["fillna"], inplace=True)
-        squeeze_on.fillna(kwargs["fillna"], inplace=True)
-        squeeze_off.fillna(kwargs["fillna"], inplace=True)
-        no_squeeze.fillna(kwargs["fillna"], inplace=True)
+        squeeze = squeeze.fillna(kwargs["fillna"])
+        squeeze_on = squeeze_on.fillna(kwargs["fillna"])
+        squeeze_off = squeeze_off.fillna(kwargs["fillna"])
+        no_squeeze = no_squeeze.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = "" if use_tr else "hlr"
@@ -186,24 +186,24 @@ def squeeze(
         neg_dec *= squeeze
         neg_inc *= squeeze
 
-        pos_inc.replace(0, nan, inplace=True)
-        pos_dec.replace(0, nan, inplace=True)
-        neg_dec.replace(0, nan, inplace=True)
-        neg_inc.replace(0, nan, inplace=True)
+        pos_inc = pos_inc.replace(0, nan)
+        pos_dec = pos_dec.replace(0, nan)
+        neg_dec = neg_dec.replace(0, nan)
+        neg_inc = neg_inc.replace(0, nan)
 
         sqz_inc = squeeze * increasing(squeeze)
         sqz_dec = squeeze * decreasing(squeeze)
-        sqz_inc.replace(0, nan, inplace=True)
-        sqz_dec.replace(0, nan, inplace=True)
+        sqz_inc = sqz_inc.replace(0, nan)
+        sqz_dec = sqz_dec.replace(0, nan)
 
         # Handle fills
         if "fillna" in kwargs:
-            sqz_inc.fillna(kwargs["fillna"], inplace=True)
-            sqz_dec.fillna(kwargs["fillna"], inplace=True)
-            pos_inc.fillna(kwargs["fillna"], inplace=True)
-            pos_dec.fillna(kwargs["fillna"], inplace=True)
-            neg_dec.fillna(kwargs["fillna"], inplace=True)
-            neg_inc.fillna(kwargs["fillna"], inplace=True)
+            sqz_inc = sqz_inc.fillna(kwargs["fillna"])
+            sqz_dec = sqz_dec.fillna(kwargs["fillna"])
+            pos_inc = pos_inc.fillna(kwargs["fillna"])
+            pos_dec = pos_dec.fillna(kwargs["fillna"])
+            neg_dec = neg_dec.fillna(kwargs["fillna"])
+            neg_inc = neg_inc.fillna(kwargs["fillna"])
 
         df[f"SQZ_INC"] = sqz_inc
         df[f"SQZ_DEC"] = sqz_dec

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import ema, sma
 from polars_ti.utils import v_offset, v_pos_default, v_series
 from polars_ti.volatility import atr
@@ -10,9 +10,9 @@ def pgo(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Pretty Good Oscillator (PGO)
 
@@ -59,7 +59,7 @@ def pgo(
 
     # Fill
     if "fillna" in kwargs:
-        pgo.fillna(kwargs["fillna"], inplace=True)
+        pgo = pgo.fillna(kwargs["fillna"])
 
     # Name and Category
     pgo.name = f"PGO_{length}"

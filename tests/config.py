@@ -2,10 +2,10 @@
 import datetime
 from pathlib import Path
 
-import pandas_datareader as pdr
-import polars_ti
 from numpy import array
 from pandas import DataFrame, DatetimeIndex, read_csv
+
+import polars_ti
 from polars_ti._typing import DictLike, IntFloat
 
 sample_adx_data = read_csv(
@@ -64,7 +64,9 @@ def load(**kwargs: DictLike):
         print(f"{ALERT} {err}")
         if kwargs["verbose"]:
             print(f"{INFO} Downloading: {kwargs['ticker']} from YF")
-        df = pdr.get_data_yahoo(kwargs["ticker"], interval=kwargs["interval"])
+        import yfinance as yf
+
+        df = yf.download(kwargs["ticker"], interval=kwargs["interval"])
         df.to_csv(Path(fpath), mode="a")
         _mode = "Downloading"
 

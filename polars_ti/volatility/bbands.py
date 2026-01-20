@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.statistics import stdev
@@ -17,13 +17,13 @@ from polars_ti.utils import (
 
 def bbands(
     close: Series,
-    length: Int = None,
-    std: IntFloat = None,
-    ddof: Int = 0,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    std: int | float | None = None,
+    ddof: int = 0,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Bollinger Bands (BBANDS)
 
@@ -93,11 +93,11 @@ def bbands(
 
     # Fill
     if "fillna" in kwargs:
-        lower.fillna(kwargs["fillna"], inplace=True)
-        mid.fillna(kwargs["fillna"], inplace=True)
-        upper.fillna(kwargs["fillna"], inplace=True)
-        bandwidth.fillna(kwargs["fillna"], inplace=True)
-        percent.fillna(kwargs["fillna"], inplace=True)
+        lower = lower.fillna(kwargs["fillna"])
+        mid = mid.fillna(kwargs["fillna"])
+        upper = upper.fillna(kwargs["fillna"])
+        bandwidth = bandwidth.fillna(kwargs["fillna"])
+        percent = percent.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{std}"

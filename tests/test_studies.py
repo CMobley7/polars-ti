@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 from multiprocessing import cpu_count
 
-import polars_ti as ti
 import pytest
 from pandas import DataFrame
+
+import polars_ti as ti
 
 categories = DataFrame().ti.categories() + [
     pytest.param(ti.CommonStudy, id="common"),

@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import copy, cos, exp, zeros_like
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
 
@@ -45,12 +45,12 @@ def nb_ssf_everget(x, n, pi, sqrt2):
 
 def ssf(
     close: Series,
-    length: Int = None,
-    everget: bool = None,
-    pi: IntFloat = None,
-    sqrt2: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    everget: bool | None = None,
+    pi: int | float | None = None,
+    sqrt2: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Ehler's Super Smoother Filter (SSF) © 2013
 
@@ -117,7 +117,7 @@ def ssf(
 
     # Fill
     if "fillna" in kwargs:
-        ssf.fillna(kwargs["fillna"], inplace=True)
+        ssf = ssf.fillna(kwargs["fillna"])
 
     # Name and Category
     ssf.name = f"SSF{'e' if everget else ''}_{length}"

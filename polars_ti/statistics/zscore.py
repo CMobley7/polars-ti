@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import sma
 from polars_ti.statistics import stdev
 from polars_ti.utils import v_lowerbound, v_offset, v_series
@@ -8,10 +8,10 @@ from polars_ti.utils import v_lowerbound, v_offset, v_series
 
 def zscore(
     close: Series,
-    length: Int = None,
-    std: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    std: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Rolling Z Score
 
@@ -50,7 +50,7 @@ def zscore(
 
     # Fill
     if "fillna" in kwargs:
-        zscore.fillna(kwargs["fillna"], inplace=True)
+        zscore = zscore.fillna(kwargs["fillna"])
 
     # Name and Category
     zscore.name = f"ZS_{length}"

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import non_zero_range, v_offset, v_scalar, v_series, v_talib
 
@@ -10,10 +10,10 @@ def bop(
     high: Series,
     low: Series,
     close: Series,
-    scalar: IntFloat = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    scalar: int | float | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Balance of Power (BOP)
 
@@ -63,7 +63,7 @@ def bop(
 
     # Fill
     if "fillna" in kwargs:
-        bop.fillna(kwargs["fillna"], inplace=True)
+        bop = bop.fillna(kwargs["fillna"])
 
     # Name and Category
     bop.name = f"BOP"

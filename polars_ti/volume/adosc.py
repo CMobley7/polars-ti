@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.overlap import ema
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
@@ -12,12 +12,12 @@ def adosc(
     low: Series,
     close: Series,
     volume: Series,
-    open_: Series = None,
-    fast: Int = None,
-    slow: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    open_: Series | None = None,
+    fast: int | None = None,
+    slow: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Accumulation/Distribution Oscillator or Chaikin Oscillator
 
@@ -84,7 +84,7 @@ def adosc(
 
     # Fill
     if "fillna" in kwargs:
-        adosc.fillna(kwargs["fillna"], inplace=True)
+        adosc = adosc.fillna(kwargs["fillna"])
 
     # Name and Category
     adosc.name = f"ADOSC_{fast}_{slow}"

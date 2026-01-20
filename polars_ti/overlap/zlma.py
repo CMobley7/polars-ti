@@ -3,7 +3,7 @@ from sys import modules as sys_modules
 
 from numpy import isnan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
 
 # Available MAs for zlma
@@ -28,10 +28,10 @@ from .wma import wma
 
 def zlma(
     close: Series,
-    length: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Zero Lag Moving Average (ZLMA)
 
@@ -106,7 +106,7 @@ def zlma(
 
     # Fill
     if "fillna" in kwargs:
-        zlma.fillna(kwargs["fillna"], inplace=True)
+        zlma = zlma.fillna(kwargs["fillna"])
 
     # Name and Category
     zlma.name = f"ZL_{zlma.name}"
