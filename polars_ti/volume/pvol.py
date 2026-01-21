@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import signed_series, v_bool, v_offset, v_series
 
 
 def pvol(
     close: Series,
     volume: Series,
-    signed: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    signed: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Price-Volume (PVOL)
 
@@ -45,7 +45,7 @@ def pvol(
 
     # Fill
     if "fillna" in kwargs:
-        pvol.fillna(kwargs["fillna"], inplace=True)
+        pvol = pvol.fillna(kwargs["fillna"])
 
     # Name and Category
     pvol.name = f"PVOL"

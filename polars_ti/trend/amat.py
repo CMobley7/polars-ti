@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
 
@@ -10,12 +10,12 @@ from .short_run import short_run
 
 def amat(
     close: Series,
-    fast: Int = None,
-    slow: Int = None,
-    lookback: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    lookback: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Archer Moving Averages Trends (AMAT)
 
@@ -71,8 +71,8 @@ def amat(
 
     # Fill
     if "fillna" in kwargs:
-        mas_long.fillna(kwargs["fillna"], inplace=True)
-        mas_short.fillna(kwargs["fillna"], inplace=True)
+        mas_long = mas_long.fillna(kwargs["fillna"])
+        mas_short = mas_short.fillna(kwargs["fillna"])
 
     _props = f"_{fast}_{slow}_{lookback}"
     data = {

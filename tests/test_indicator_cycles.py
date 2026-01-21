@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-import polars_ti as ti
 from pandas import Series
+
+import polars_ti as ti
 
 
 # TA Lib style Tests

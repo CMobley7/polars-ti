@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_bool, v_drift, v_int, v_offset, v_series
 
 
 def tsignals(
     trend: Series,
-    asbool: bool = None,
-    trend_reset: Int = None,
-    trade_offset: Int = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    asbool: bool | None = None,
+    trend_reset: int | None = None,
+    trade_offset: int | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Trend Signals
 
@@ -88,7 +88,7 @@ def tsignals(
 
     # Fill
     if "fillna" in kwargs:
-        df.fillna(kwargs["fillna"], inplace=True)
+        df = df.fillna(kwargs["fillna"])
 
     # Name and Category
     df.name = f"TS"

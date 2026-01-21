@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series, v_talib
 
@@ -9,16 +9,16 @@ def uo(
     high: Series,
     low: Series,
     close: Series,
-    fast: Int = None,
-    medium: Int = None,
-    slow: Int = None,
-    fast_w: IntFloat = None,
-    medium_w: IntFloat = None,
-    slow_w: IntFloat = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    medium: int | None = None,
+    slow: int | None = None,
+    fast_w: int | float | None = None,
+    medium_w: int | float | None = None,
+    slow_w: int | float | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Ultimate Oscillator (UO)
 
@@ -97,7 +97,7 @@ def uo(
 
     # Fill
     if "fillna" in kwargs:
-        uo.fillna(kwargs["fillna"], inplace=True)
+        uo = uo.fillna(kwargs["fillna"])
 
     # Name and Category
     uo.name = f"UO_{fast}_{medium}_{slow}"

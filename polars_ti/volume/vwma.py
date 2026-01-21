@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import sma
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
@@ -8,9 +8,9 @@ from polars_ti.utils import v_offset, v_pos_default, v_series
 def vwma(
     close: Series,
     volume: Series,
-    length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Volume Weighted Moving Average (VWMA)
 
@@ -51,7 +51,7 @@ def vwma(
 
     # Fill
     if "fillna" in kwargs:
-        vwma.fillna(kwargs["fillna"], inplace=True)
+        vwma = vwma.fillna(kwargs["fillna"])
 
     # Name and Category
     vwma.name = f"VWMA_{length}"

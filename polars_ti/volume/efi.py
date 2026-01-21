@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_drift, v_mamode, v_offset, v_pos_default, v_series
 
@@ -8,11 +8,11 @@ from polars_ti.utils import v_drift, v_mamode, v_offset, v_pos_default, v_series
 def efi(
     close: Series,
     volume: Series,
-    length: Int = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Elder's Force Index (EFI)
 
@@ -59,7 +59,7 @@ def efi(
 
     # Fill
     if "fillna" in kwargs:
-        efi.fillna(kwargs["fillna"], inplace=True)
+        efi = efi.fillna(kwargs["fillna"])
 
     # Name and Category
     efi.name = f"EFI_{length}"

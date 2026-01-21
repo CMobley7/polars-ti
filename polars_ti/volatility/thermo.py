@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_bool, v_drift, v_mamode, v_offset, v_pos_default, v_series
 
@@ -8,14 +8,14 @@ from polars_ti.utils import v_bool, v_drift, v_mamode, v_offset, v_pos_default, 
 def thermo(
     high: Series,
     low: Series,
-    length: Int = None,
-    long: Int = None,
-    short: Int = None,
-    mamode: str = None,
-    asint: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    long: int | None = None,
+    short: int | None = None,
+    mamode: str | None = None,
+    asint: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Elders Thermometer (THERMO)
 
@@ -83,10 +83,10 @@ def thermo(
 
     # Fill
     if "fillna" in kwargs:
-        thermo.fillna(kwargs["fillna"], inplace=True)
-        thermo_ma.fillna(kwargs["fillna"], inplace=True)
-        thermo_long.fillna(kwargs["fillna"], inplace=True)
-        thermo_short.fillna(kwargs["fillna"], inplace=True)
+        thermo = thermo.fillna(kwargs["fillna"])
+        thermo_ma = thermo_ma.fillna(kwargs["fillna"])
+        thermo_long = thermo_long.fillna(kwargs["fillna"])
+        thermo_short = thermo_short.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{long}_{short}"

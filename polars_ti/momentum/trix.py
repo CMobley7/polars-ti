@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap.ema import ema
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_scalar, v_series
 
 
 def trix(
     close: Series,
-    length: Int = None,
-    signal: Int = None,
-    scalar: IntFloat = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    signal: int | None = None,
+    scalar: int | float | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Trix (TRIX)
 
@@ -74,8 +74,8 @@ def trix(
 
     # Fill
     if "fillna" in kwargs:
-        trix.fillna(kwargs["fillna"], inplace=True)
-        trix_signal.fillna(kwargs["fillna"], inplace=True)
+        trix = trix.fillna(kwargs["fillna"])
+        trix_signal = trix_signal.fillna(kwargs["fillna"])
 
     # Name and Category
     trix.name = f"TRIX_{length}_{signal}"

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.overlap import hlc3
 from polars_ti.utils import (
@@ -19,13 +19,13 @@ def kvo(
     low: Series,
     close: Series,
     volume: Series,
-    fast: Int = None,
-    slow: Int = None,
-    signal: Int = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    signal: int | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Klinger Volume Oscillator (KVO)
 
@@ -89,8 +89,8 @@ def kvo(
 
     # Fill
     if "fillna" in kwargs:
-        kvo.fillna(kwargs["fillna"], inplace=True)
-        kvo_signal.fillna(kwargs["fillna"], inplace=True)
+        kvo = kvo.fillna(kwargs["fillna"])
+        kvo_signal = kvo_signal.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{fast}_{slow}_{signal}"

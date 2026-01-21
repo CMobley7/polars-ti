@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import pandas.testing as pdt
-import polars_ti as ti
 import talib as tal
 from pandas import DataFrame, Series, read_csv
+
+import polars_ti as ti
 
 from .config import CORRELATION, CORRELATION_THRESHOLD, error_analysis
 
@@ -107,8 +108,8 @@ def test_adx(df):
     assert result.name == "ADX_14"
 
     result = result.iloc[13:]
-    result.drop(result.columns[1], axis=1, inplace=True)
-    result.reset_index(drop=True, inplace=True)
+    result = result.drop(result.columns[1], axis=1)
+    result = result.reset_index(drop=True)
     pdt.assert_frame_equal(result, expected_tv_adx)
 
 

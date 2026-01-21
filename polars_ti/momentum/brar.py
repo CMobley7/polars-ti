@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import (
     non_zero_range,
     v_drift,
@@ -16,11 +16,11 @@ def brar(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """BRAR (BRAR)
 
@@ -84,8 +84,8 @@ def brar(
 
     # Fill
     if "fillna" in kwargs:
-        ar.fillna(kwargs["fillna"], inplace=True)
-        br.fillna(kwargs["fillna"], inplace=True)
+        ar = ar.fillna(kwargs["fillna"])
+        br = br.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}"

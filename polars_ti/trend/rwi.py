@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import (
     v_drift,
     v_mamode,
@@ -17,12 +17,12 @@ def rwi(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Random Walk Index (RWI)
 
@@ -82,8 +82,8 @@ def rwi(
 
     # Fill
     if "fillna" in kwargs:
-        rwi_high.fillna(kwargs["fillna"], inplace=True)
-        rwi_low.fillna(kwargs["fillna"], inplace=True)
+        rwi_high = rwi_high.fillna(kwargs["fillna"])
+        rwi_low = rwi_low.fillna(kwargs["fillna"])
 
     # Name and Category
     rwi_high.name = f"RWIh_{length}"

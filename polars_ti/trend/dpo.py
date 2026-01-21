@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import sma
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
 
 def dpo(
     close: Series,
-    length: Int = None,
+    length: int | None = None,
     centered: bool = True,
-    offset: Int = None,
-    **kwargs: DictLike,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Detrend Price Oscillator (DPO)
 
@@ -68,7 +68,7 @@ def dpo(
 
     # Fill
     if "fillna" in kwargs:
-        dpo.fillna(kwargs["fillna"], inplace=True)
+        dpo = dpo.fillna(kwargs["fillna"])
 
     # Name and Category
     dpo.name = f"DPO_{length}"

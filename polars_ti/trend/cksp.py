@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series, v_tradingview
 from polars_ti.volatility import atr
 
@@ -10,13 +10,13 @@ def cksp(
     high: Series,
     low: Series,
     close: Series,
-    p: Int = None,
-    x: IntFloat = None,
-    q: Int = None,
-    tvmode: bool = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    p: int | None = None,
+    x: int | float | None = None,
+    q: int | None = None,
+    tvmode: bool | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Chande Kroll Stop (CKSP)
 
@@ -88,8 +88,8 @@ def cksp(
 
     # Fill
     if "fillna" in kwargs:
-        long_stop.fillna(kwargs["fillna"], inplace=True)
-        short_stop.fillna(kwargs["fillna"], inplace=True)
+        long_stop = long_stop.fillna(kwargs["fillna"])
+        short_stop = short_stop.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{p}_{x}_{q}"

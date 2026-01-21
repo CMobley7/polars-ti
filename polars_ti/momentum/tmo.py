@@ -2,13 +2,13 @@
 from numpy import broadcast_to, isnan, nan, nansum, newaxis, pad, sign, zeros
 from numpy.lib.stride_tricks import sliding_window_view
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_bool, v_mamode, v_offset, v_pos_default, v_series
 
 
 def sum_signed_rolling_deltas(
-    open_: Series, close: Series, length: Int, exclusive: bool = True
+    open_: Series, close: Series, length: int, exclusive: bool = True
 ) -> Series:
     """Sum of signed rolling price deltas
 
@@ -35,12 +35,12 @@ def sum_signed_rolling_deltas(
     >>> close = Series([100, 110, 140,  80,  90,  60,  50,  40, 90, 110])
     >>> open_ = Series([95,   83,  71, 132, 129, 145, 133, 101, 68,  96])
     >>> result = sum_signed_rolling_deltas(close, open_, 4, exclusive=True)
-    >>> expected_result = Series([np.nan, np.nan, np.nan, np.nan, \
+    >>> expected_result = Series([np.nan, np.nan, np.nan, np.nan,
         0.0, -4.0, -4.0, -4.0, -4.0, 0.0])
     >>> np.allclose(result, expected_result, rtol=1e-6, equal_nan=True)
     True
     >>> result = sum_signed_rolling_deltas(close, open_, 4, exclusive=False)
-    >>> expected_result = Series([np.nan, np.nan, np.nan, \
+    >>> expected_result = Series([np.nan, np.nan, np.nan,
         -1.0, 1.0, -3.0, -3.0, -3.0, -3.0, 1.0])
     >>> np.allclose(result, expected_result, rtol=1e-6, equal_nan=True)
     True
@@ -66,15 +66,15 @@ def sum_signed_rolling_deltas(
 def tmo(
     open_: Series,
     close: Series,
-    tmo_length: Int = None,
-    calc_length: Int = None,
-    smooth_length: Int = None,
+    tmo_length: int | None = None,
+    calc_length: int | None = None,
+    smooth_length: int | None = None,
     momentum: bool = False,
     normalize: bool = False,
     exclusive: bool = True,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """True Momentum Oscillator (TMO)
 
@@ -174,10 +174,10 @@ def tmo(
 
     # Fill
     if "fillna" in kwargs:
-        main.fillna(kwargs["fillna"], inplace=True)
-        smooth.fillna(kwargs["fillna"], inplace=True)
-        mom_main.fillna(kwargs["fillna"], inplace=True)
-        mom_smooth.fillna(kwargs["fillna"], inplace=True)
+        main = main.fillna(kwargs["fillna"])
+        smooth = smooth.fillna(kwargs["fillna"])
+        mom_main = mom_main.fillna(kwargs["fillna"])
+        mom_smooth = mom_smooth.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{tmo_length}_{calc_length}_{smooth_length}"

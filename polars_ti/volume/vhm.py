@@ -2,18 +2,18 @@
 from statistics import pstdev
 
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
 
 
 def vhm(
     volume: Series,
-    length: Int = None,
+    length: int | None = None,
     slength=None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Volume Heatmap (VHM)
 
@@ -67,7 +67,7 @@ def vhm(
 
     # Fill
     if "fillna" in kwargs:
-        vhm.fillna(kwargs["fillna"], inplace=True)
+        vhm = vhm.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"VHM_{length}"

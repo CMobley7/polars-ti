@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.overlap import rma
 from polars_ti.utils import (
@@ -15,12 +15,12 @@ from polars_ti.utils import (
 
 def cmo(
     close: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Chande Momentum Oscillator (CMO)
 
@@ -82,7 +82,7 @@ def cmo(
 
     # Fill
     if "fillna" in kwargs:
-        cmo.fillna(kwargs["fillna"], inplace=True)
+        cmo = cmo.fillna(kwargs["fillna"])
 
     # Name and Category
     cmo.name = f"CMO_{length}"

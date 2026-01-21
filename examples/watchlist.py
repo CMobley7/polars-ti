@@ -11,10 +11,11 @@ from pandas_datareader import data as pdr
 yf.pdr_override()  # <== that's all it takes :-)
 
 import alphaVantageAPI as AV  # pip install alphaVantage-api
-import polars_ti as ti  # pip install polars_ti
 from numpy import append as npAppend
 from numpy import arange as npArange
 from numpy import array as npArray
+
+import polars_ti as ti  # pip install polars_ti
 
 
 def colors(colors: str = None, default: str = "GrRd"):

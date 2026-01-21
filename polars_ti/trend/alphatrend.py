@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import isnan, nan, zeros_like
 from pandas import DataFrame, Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.momentum import rsi
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series, v_str, v_talib
 from polars_ti.volatility import atr
@@ -12,7 +12,7 @@ from polars_ti.volume.mfi import mfi
 @njit(cache=True)
 def nb_alpha(low_atr, high_atr, momo_threshold):
     m = momo_threshold.size
-    result = zeros_like(low_atr)
+    result = zeros_like(low_atr, dtype=low_atr.dtype)
 
     for i in range(1, m):
         if momo_threshold[i]:
@@ -35,16 +35,16 @@ def alphatrend(
     high: Series,
     low: Series,
     close: Series,
-    volume: Series = None,
-    src: str = None,
-    length: int = None,
-    multiplier: IntFloat = None,
-    threshold: IntFloat = None,
-    lag: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    volume: Series | None = None,
+    src: str | None = None,
+    length: int | None = None,
+    multiplier: int | float | None = None,
+    threshold: int | float | None = None,
+    lag: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ):
     """Alpha Trend (alphatrend)
 
@@ -146,8 +146,8 @@ def alphatrend(
 
     # Fill
     if "fillna" in kwargs:
-        at.fillna(kwargs["fillna"], inplace=True)
-        atl.fillna(kwargs["fillna"], inplace=True)
+        at.fillna(kwargs["fillna"])
+        atl.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{multiplier}_{threshold}"

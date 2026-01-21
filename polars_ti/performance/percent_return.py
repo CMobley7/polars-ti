@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from numpy import nan, roll
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
 
 def percent_return(
     close: Series,
-    length: Int = None,
-    cumulative: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    cumulative: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Percent Return
 
@@ -58,7 +58,7 @@ def percent_return(
 
     # Fill
     if "fillna" in kwargs:
-        pct_return.fillna(kwargs["fillna"], inplace=True)
+        pct_return = pct_return.fillna(kwargs["fillna"])
 
     # Name and Category
     pct_return.name = f"{'CUM' if cumulative else ''}PCTRET_{length}"

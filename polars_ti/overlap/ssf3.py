@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import copy, cos, exp, zeros_like
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
@@ -31,11 +31,11 @@ def nb_ssf3(x, n, pi, sqrt3):
 
 def ssf3(
     close: Series,
-    length: Int = None,
-    pi: IntFloat = None,
-    sqrt3: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    pi: int | float | None = None,
+    sqrt3: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ):
     """Ehler's 3 Pole Super Smoother Filter (SSF) © 2013
 
@@ -91,7 +91,7 @@ def ssf3(
 
     # Fill
     if "fillna" in kwargs:
-        ssf.fillna(kwargs["fillna"], inplace=True)
+        ssf = ssf.fillna(kwargs["fillna"])
 
     # Name and Category
     ssf.name = f"SSF3_{length}"

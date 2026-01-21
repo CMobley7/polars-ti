@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
 
 
@@ -9,10 +9,10 @@ def cmf(
     low: Series,
     close: Series,
     volume: Series,
-    open_: Series = None,
-    length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    open_: Series | None = None,
+    length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Chaikin Money Flow (CMF)
 
@@ -74,7 +74,7 @@ def cmf(
 
     # Fill
     if "fillna" in kwargs:
-        cmf.fillna(kwargs["fillna"], inplace=True)
+        cmf = cmf.fillna(kwargs["fillna"])
 
     # Name and Category
     cmf.name = f"CMF_{length}"

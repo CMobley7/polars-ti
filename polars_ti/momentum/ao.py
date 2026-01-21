@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import sma
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
@@ -8,10 +8,10 @@ from polars_ti.utils import v_offset, v_pos_default, v_series
 def ao(
     high: Series,
     low: Series,
-    fast: Int = None,
-    slow: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Awesome Oscillator (AO)
 
@@ -62,7 +62,7 @@ def ao(
 
     # Fill
     if "fillna" in kwargs:
-        ao.fillna(kwargs["fillna"], inplace=True)
+        ao = ao.fillna(kwargs["fillna"])
     # Name and Category
     ao.name = f"AO_{fast}_{slow}"
     ao.category = "momentum"

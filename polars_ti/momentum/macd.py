@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series, concat
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.overlap import ema
 from polars_ti.utils import signals, v_offset, v_pos_default, v_series, v_talib
@@ -8,12 +8,12 @@ from polars_ti.utils import signals, v_offset, v_pos_default, v_series, v_talib
 
 def macd(
     close: Series,
-    fast: Int = None,
-    slow: Int = None,
-    signal: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    signal: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Moving Average Convergence Divergence (MACD)
 
@@ -87,9 +87,9 @@ def macd(
 
     # Fill
     if "fillna" in kwargs:
-        macd.fillna(kwargs["fillna"], inplace=True)
-        histogram.fillna(kwargs["fillna"], inplace=True)
-        signalma.fillna(kwargs["fillna"], inplace=True)
+        macd = macd.fillna(kwargs["fillna"])
+        histogram = histogram.fillna(kwargs["fillna"])
+        signalma = signalma.fillna(kwargs["fillna"])
 
     # Name and Category
     _asmode = "AS" if as_mode else ""

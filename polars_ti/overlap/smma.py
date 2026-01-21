@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series, v_talib
 
 
 def smma(
     close: Series,
-    length: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """SMoothed Moving Average (SMMA)
 
@@ -76,7 +76,7 @@ def smma(
 
     # Fill
     if "fillna" in kwargs:
-        smma.fillna(kwargs["fillna"], inplace=True)
+        smma = smma.fillna(kwargs["fillna"])
 
     # Name and Category
     smma.name = f"SMMA_{length}"

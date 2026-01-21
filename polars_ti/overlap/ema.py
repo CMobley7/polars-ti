@@ -2,18 +2,18 @@
 from numba import njit
 from numpy import nan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series, v_talib
 
 
 def ema(
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    presma: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    presma: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Exponential Moving Average (EMA)
 
@@ -75,7 +75,7 @@ def ema(
 
     # Fill
     if "fillna" in kwargs:
-        ema.fillna(kwargs["fillna"], inplace=True)
+        ema = ema.fillna(kwargs["fillna"])
 
     # Name and Category
     ema.name = f"EMA_{length}"

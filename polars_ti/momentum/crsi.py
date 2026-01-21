@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from numpy import concatenate, diff, full, nan, nanmean, newaxis, sign
+from numpy import concatenate, diff, full, nan, nanmean, ndarray, newaxis, sign
 from numpy.lib.stride_tricks import sliding_window_view
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.momentum.rsi import rsi
 from polars_ti.utils import (
@@ -15,7 +15,7 @@ from polars_ti.utils import (
 )
 
 
-def consecutive_streak(x: Array) -> Array:
+def consecutive_streak(x: ndarray) -> ndarray:
     """Calculate the streak of consecutive price increases or decreases.
 
     This function computes the streak of consecutive daily price increases
@@ -45,7 +45,7 @@ def consecutive_streak(x: Array) -> Array:
     return concatenate(([0], sign(diff(x))))
 
 
-def percent_rank(x: Series, lookback: Int) -> Series:
+def percent_rank(x: Series, lookback: int) -> Series:
     """Calculate the Percent Rank of daily returns over given period.
 
     The Percent Rank compares today's return with the one-day returns from each
@@ -91,14 +91,14 @@ def percent_rank(x: Series, lookback: Int) -> Series:
 
 def crsi(
     close: Series,
-    length_rsi: Int = None,
-    length_streak: Int = None,
-    length_rank: Int = None,
-    scalar: IntFloat = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length_rsi: int | None = None,
+    length_streak: int | None = None,
+    length_rank: int | None = None,
+    scalar: int | float | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Connors Relative Strength Index (RSI)
 
@@ -189,7 +189,7 @@ def crsi(
 
     # Fill
     if "fillna" in kwargs:
-        crsi.fillna(kwargs["fillna"], inplace=True)
+        crsi = crsi.fillna(kwargs["fillna"])
 
     # Name and Category
     crsi.name = f"CRSI_{length_rsi}_{length_streak}_{length_rank}"

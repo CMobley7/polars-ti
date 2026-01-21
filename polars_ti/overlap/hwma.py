@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_offset, v_series
 
 
 def hwma(
     close: Series,
-    na: IntFloat = None,
-    nb: IntFloat = None,
-    nc: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    na: int | float | None = None,
+    nb: int | float | None = None,
+    nc: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """HWMA (Holt-Winter Moving Average)
 
@@ -67,7 +67,7 @@ def hwma(
 
     # Fill
     if "fillna" in kwargs:
-        hwma.fillna(kwargs["fillna"], inplace=True)
+        hwma = hwma.fillna(kwargs["fillna"])
 
     # Name and Category
     hwma.name = f"HWMA_{na}_{nb}_{nc}"

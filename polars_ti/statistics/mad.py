@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import fabs
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
@@ -11,7 +11,7 @@ def mad_(series: Series):
 
 
 def mad(
-    close: Series, length: Int = None, offset: Int = None, **kwargs: DictLike
+    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
     """Rolling Mean Absolute Deviation
 
@@ -50,7 +50,7 @@ def mad(
 
     # Fill
     if "fillna" in kwargs:
-        mad.fillna(kwargs["fillna"], inplace=True)
+        mad = mad.fillna(kwargs["fillna"])
 
     # Name and Category
     mad.name = f"MAD_{length}"

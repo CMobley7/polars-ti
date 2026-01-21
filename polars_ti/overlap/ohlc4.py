@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_series
 
 
@@ -9,8 +9,8 @@ def ohlc4(
     high: Series,
     low: Series,
     close: Series,
-    offset: Int = None,
-    **kwargs: DictLike
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """OHLC4
 
@@ -49,7 +49,7 @@ def ohlc4(
 
         # Fill
         if "fillna" in kwargs:
-            ohlc4.fillna(kwargs["fillna"], inplace=True)
+            ohlc4 = ohlc4.fillna(kwargs["fillna"])
 
     # Name and Category
     ohlc4.name = "OHLC4"

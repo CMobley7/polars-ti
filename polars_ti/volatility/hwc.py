@@ -3,20 +3,20 @@ from sys import float_info as sflt
 
 from numpy import sqrt
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
 
 def hwc(
     close: Series,
-    scalar: IntFloat = None,
-    channels: bool = None,
-    na: IntFloat = None,
-    nb: IntFloat = None,
-    nc: IntFloat = None,
-    nd: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    scalar: int | float | None = None,
+    channels: bool | None = None,
+    na: int | float | None = None,
+    nb: int | float | None = None,
+    nc: int | float | None = None,
+    nd: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """HWC (Holt-Winter Channel)
 
@@ -114,12 +114,12 @@ def hwc(
 
     # Fill
     if "fillna" in kwargs:
-        hwc.fillna(kwargs["fillna"], inplace=True)
-        hwc_upper.fillna(kwargs["fillna"], inplace=True)
-        hwc_lower.fillna(kwargs["fillna"], inplace=True)
+        hwc = hwc.fillna(kwargs["fillna"])
+        hwc_upper = hwc_upper.fillna(kwargs["fillna"])
+        hwc_lower = hwc_lower.fillna(kwargs["fillna"])
         if channels:
-            hwc_width.fillna(kwargs["fillna"], inplace=True)
-            hwc_pctwidth.fillna(kwargs["fillna"], inplace=True)
+            hwc_width = hwc_width.fillna(kwargs["fillna"])
+            hwc_pctwidth = hwc_pctwidth.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{scalar}"

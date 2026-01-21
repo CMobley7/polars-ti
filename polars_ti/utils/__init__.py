@@ -3,7 +3,6 @@ from polars_ti.utils._candles import candle_color, high_low_range, real_body
 from polars_ti.utils._core import (
     camelCase2Title,
     category_files,
-    client_exists,
     ms2secs,
     nb_non_zero_range,
     non_zero_range,
@@ -112,7 +111,6 @@ __all__ = [
     "real_body",
     "camelCase2Title",
     "category_files",
-    "client_exists",
     "ms2secs",
     "nb_non_zero_range",
     "non_zero_range",

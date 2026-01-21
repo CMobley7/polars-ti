@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numba import njit
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import nb_idiff, v_offset, v_pos_default, v_series, v_talib
 
@@ -13,10 +13,10 @@ def nb_mom(x, n):
 
 def mom(
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Momentum (MOM)
 
@@ -65,7 +65,7 @@ def mom(
 
     # Fill
     if "fillna" in kwargs:
-        mom.fillna(kwargs["fillna"], inplace=True)
+        mom = mom.fillna(kwargs["fillna"])
 
     # Name and Category
     mom.name = f"MOM_{length}"

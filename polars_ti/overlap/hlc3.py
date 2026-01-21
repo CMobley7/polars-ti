@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_series, v_talib
 
@@ -9,9 +9,9 @@ def hlc3(
     high: Series,
     low: Series,
     close: Series,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """HLC3
 
@@ -55,7 +55,7 @@ def hlc3(
 
         # Fill
         if "fillna" in kwargs:
-            hlc3.fillna(kwargs["fillna"], inplace=True)
+            hlc3 = hlc3.fillna(kwargs["fillna"])
 
     # Name and Category
     hlc3.name = "HLC3"

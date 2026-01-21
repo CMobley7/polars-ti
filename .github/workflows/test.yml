@@ -28,23 +28,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install TA-lib C library and dependencies
-        shell: bash
+      - name: Install dependencies
         run: |
-          # Build TA-Lib C library
-          wget https://raw.githubusercontent.com/mrjbq7/ta-lib/master/tools/build_talib_from_source.bash
-          chmod +x build_talib_from_source.bash
-          ./build_talib_from_source.bash ${{ github.workspace }}/dependencies
-
-          # Set environment variables for TA-Lib Python package build
-          export TA_INCLUDE_PATH=${{ github.workspace }}/dependencies/include
-          export TA_LIBRARY_PATH=${{ github.workspace }}/dependencies/lib
-
-          # Install all dependencies, including TA-Lib Python package
-          uv pip sync requirements.lock
-
-      - name: Install polars-ti
-        run: uv pip install --no-deps -e .
+          # TA-Lib 0.6.5+ provides binary wheels that include the C library
+          uv pip install -e .[full,test]
 
       - name: Run tests
-        run: make tests
+        run: |
+          source .venv/bin/activate
+          pytest -vvv

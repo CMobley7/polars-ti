@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
@@ -9,10 +9,10 @@ def willr(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """William's Percent R (WILLR)
 
@@ -71,7 +71,7 @@ def willr(
 
     # Fill
     if "fillna" in kwargs:
-        willr.fillna(kwargs["fillna"], inplace=True)
+        willr = willr.fillna(kwargs["fillna"])
 
     # Name and Category
     willr.name = f"WILLR_{length}"

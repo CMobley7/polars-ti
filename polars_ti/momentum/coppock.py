@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # from numpy import isnan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import wma
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
@@ -10,11 +10,11 @@ from .roc import roc
 
 def coppock(
     close: Series,
-    length: Int = None,
-    fast: Int = None,
-    slow: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    fast: int | None = None,
+    slow: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Coppock Curve (COPC)
 
@@ -62,7 +62,7 @@ def coppock(
 
     # Fill
     if "fillna" in kwargs:
-        coppock.fillna(kwargs["fillna"], inplace=True)
+        coppock = coppock.fillna(kwargs["fillna"])
 
     # Name and Category
     coppock.name = f"COPC_{fast}_{slow}_{length}"

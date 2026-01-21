@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import (
     recent_maximum_index,
@@ -16,11 +16,11 @@ from polars_ti.utils import (
 def aroon(
     high: Series,
     low: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Aroon & Aroon Oscillator (AROON)
 
@@ -80,9 +80,9 @@ def aroon(
 
     # Fill
     if "fillna" in kwargs:
-        aroon_up.fillna(kwargs["fillna"], inplace=True)
-        aroon_down.fillna(kwargs["fillna"], inplace=True)
-        aroon_osc.fillna(kwargs["fillna"], inplace=True)
+        aroon_up = aroon_up.fillna(kwargs["fillna"])
+        aroon_down = aroon_down.fillna(kwargs["fillna"])
+        aroon_osc = aroon_osc.fillna(kwargs["fillna"])
 
     # Name and Category
     aroon_up.name = f"AROONU_{length}"

@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import floor, isnan, nan, zeros, zeros_like
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
 
@@ -121,13 +121,13 @@ def nb_map_zigzag(idx, swing, value, deviation, n):
 def zigzag(
     high: Series,
     low: Series,
-    close: Series = None,
-    legs: int = None,
-    deviation: IntFloat = None,
-    retrace: bool = None,
-    last_extreme: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    close: Series | None = None,
+    legs: int | None = None,
+    deviation: int | float | None = None,
+    retrace: bool | None = None,
+    last_extreme: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ):
     """Zigzag (ZIGZAG)
 
@@ -196,13 +196,13 @@ def zigzag(
 
     # Fill
     if "fillna" in kwargs:
-        zz_swing.fillna(kwargs["fillna"], inplace=True)
-        zz_value.fillna(kwargs["fillna"], inplace=True)
-        zz_dev.fillna(kwargs["fillna"], inplace=True)
+        zz_swing = zz_swing.fillna(kwargs["fillna"])
+        zz_value = zz_value.fillna(kwargs["fillna"])
+        zz_dev = zz_dev.fillna(kwargs["fillna"])
     if "fill_method" in kwargs:
-        zz_swing.fillna(method=kwargs["fill_method"], inplace=True)
-        zz_value.fillna(method=kwargs["fill_method"], inplace=True)
-        zz_dev.fillna(method=kwargs["fill_method"], inplace=True)
+        zz_swing = zz_swing.fillna(method=kwargs["fill_method"])
+        zz_value = zz_value.fillna(method=kwargs["fill_method"])
+        zz_dev = zz_dev.fillna(method=kwargs["fill_method"])
 
     _props = f"_{deviation}%_{legs}"
     data = {

@@ -3,7 +3,7 @@ from sys import float_info as sflt
 
 from numpy import convolve, maximum, nan, ones, roll, where
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.overlap import hlc3
 from polars_ti.utils import (
@@ -21,11 +21,11 @@ def mfi(
     low: Series,
     close: Series,
     volume: Series,
-    length: Int = None,
-    talib: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Money Flow Index (MFI)
 
@@ -92,7 +92,7 @@ def mfi(
 
     # Fill
     if "fillna" in kwargs:
-        mfi.fillna(kwargs["fillna"], inplace=True)
+        mfi = mfi.fillna(kwargs["fillna"])
 
     # Name and Category
     mfi.name = f"MFI_{length}"

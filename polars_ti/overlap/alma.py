@@ -2,17 +2,17 @@
 from numpy import append, arange, array, exp, floor, nan, tensordot
 from numpy.version import version as np_version
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.utils import strided_window, v_offset, v_pos_default, v_series
 
 
 def alma(
     close: Series,
-    length: Int = None,
-    sigma: IntFloat = None,
-    dist_offset: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    sigma: int | float | None = None,
+    dist_offset: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Arnaud Legoux Moving Average (ALMA)
 
@@ -78,7 +78,7 @@ def alma(
 
     # Fill
     if "fillna" in kwargs:
-        alma.fillna(kwargs["fillna"], inplace=True)
+        alma = alma.fillna(kwargs["fillna"])
 
     # Name and Category
     alma.name = f"ALMA_{length}_{sigma}_{offset_}"

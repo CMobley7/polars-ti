@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import linreg
 from polars_ti.utils import (
     v_bool,
@@ -17,17 +17,17 @@ from polars_ti.volatility import rvi
 
 def inertia(
     close: Series,
-    high: Series = None,
-    low: Series = None,
-    length: Int = None,
-    rvi_length: Int = None,
-    scalar: IntFloat = None,
-    refined: bool = None,
-    thirds: bool = None,
-    drift: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    high: Series | None = None,
+    low: Series | None = None,
+    length: int | None = None,
+    rvi_length: int | None = None,
+    scalar: int | float | None = None,
+    refined: bool | None = None,
+    thirds: bool | None = None,
+    drift: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Inertia (INERTIA)
 
@@ -122,7 +122,7 @@ def inertia(
 
     # Fill
     if "fillna" in kwargs:
-        inertia.fillna(kwargs["fillna"], inplace=True)
+        inertia = inertia.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{rvi_length}"

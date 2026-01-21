@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_series, v_talib
 
@@ -9,9 +9,9 @@ def wcp(
     high: Series,
     low: Series,
     close: Series,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Weighted Closing Price (WCP)
 
@@ -62,7 +62,7 @@ def wcp(
 
     # Fill
     if "fillna" in kwargs:
-        wcp.fillna(kwargs["fillna"], inplace=True)
+        wcp = wcp.fillna(kwargs["fillna"])
 
     # Name and Category
     wcp.name = "WCP"

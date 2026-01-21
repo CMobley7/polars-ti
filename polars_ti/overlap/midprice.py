@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
@@ -8,10 +8,10 @@ from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 def midprice(
     high: Series,
     low: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Midprice
 
@@ -63,7 +63,7 @@ def midprice(
 
     # Fill
     if "fillna" in kwargs:
-        midprice.fillna(kwargs["fillna"], inplace=True)
+        midprice = midprice.fillna(kwargs["fillna"])
 
     # Name and Category
     midprice.name = f"MIDPRICE_{length}"

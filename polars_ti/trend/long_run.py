@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 from .decreasing import decreasing
@@ -10,9 +10,9 @@ from .increasing import increasing
 def long_run(
     fast: Series,
     slow: Series,
-    length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Long Run
 
@@ -65,7 +65,7 @@ def long_run(
 
     # Fill
     if "fillna" in kwargs:
-        long_run.fillna(kwargs["fillna"], inplace=True)
+        long_run = long_run.fillna(kwargs["fillna"])
 
     # Name and Category
     long_run.name = f"LR_{length}"

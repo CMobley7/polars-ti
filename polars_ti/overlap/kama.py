@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import (
     non_zero_range,
@@ -15,13 +15,13 @@ from polars_ti.utils import (
 
 def kama(
     close: Series,
-    length: Int = None,
-    fast: Int = None,
-    slow: Int = None,
-    mamode: str = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    fast: int | None = None,
+    slow: int | None = None,
+    mamode: str | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Kaufman's Adaptive Moving Average (KAMA)
 
@@ -93,7 +93,7 @@ def kama(
 
     # Fill
     if "fillna" in kwargs:
-        kama.fillna(kwargs["fillna"], inplace=True)
+        kama = kama.fillna(kwargs["fillna"])
 
     # Name and Category
     kama.name = f"KAMA_{length}_{fast}_{slow}"

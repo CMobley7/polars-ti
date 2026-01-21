@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 def rma(
-    close: Series, length: Int = None, offset: Int = None, **kwargs: DictLike
+    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
     """wildeR's Moving Average (RMA)
 
@@ -45,7 +45,7 @@ def rma(
 
     # Fill
     if "fillna" in kwargs:
-        rma.fillna(kwargs["fillna"], inplace=True)
+        rma = rma.fillna(kwargs["fillna"])
 
     # Name and Category
     rma.name = f"RMA_{length}"

@@ -3,7 +3,7 @@ from sys import float_info as sflt
 
 from numpy import isnan, maximum, minimum, nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.ma import ma
 from polars_ti.utils import (
     v_bool,
@@ -21,17 +21,17 @@ def smc(
     high: Series,
     low: Series,
     close: Series,
-    abr_length: Int = None,
-    close_length: Int = None,
-    vol_length: Int = None,
-    percent: Int = None,
-    vol_ratio: IntFloat = None,
-    asint: bool = None,
-    mamode: str = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
-) -> DictLike:
+    abr_length: int | None = None,
+    close_length: int | None = None,
+    vol_length: int | None = None,
+    percent: int | None = None,
+    vol_ratio: int | float | None = None,
+    asint: bool | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
+) -> dict:
     """Smart Money Comcept (SMC)
 
     The Smart Money concept combines several techniques to identify significant
@@ -125,8 +125,8 @@ def smc(
         df = df.shift(offset)
 
     # Fill
-    df.ffill(inplace=True)
-    df.bfill(inplace=True)
+    df = df.ffill()
+    df = df.bfill()
 
     # Name and Category
     df.name = f"SMC{_props}"

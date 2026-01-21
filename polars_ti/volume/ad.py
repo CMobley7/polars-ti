@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import non_zero_range, v_offset, v_series, v_talib
 
@@ -10,10 +10,10 @@ def ad(
     low: Series,
     close: Series,
     volume: Series,
-    open_: Series = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike
+    open_: Series | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Accumulation/Distribution (AD)
 
@@ -69,7 +69,7 @@ def ad(
 
     # Fill
     if "fillna" in kwargs:
-        ad.fillna(kwargs["fillna"], inplace=True)
+        ad = ad.fillna(kwargs["fillna"])
 
     # Name and Category
     ad.name = "AD" if open_ is None else "ADo"

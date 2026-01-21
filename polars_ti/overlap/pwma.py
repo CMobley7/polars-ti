@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # from numpy.version import version as np_version
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import (
     pascals_triangle,
     v_ascending,
@@ -14,10 +14,10 @@ from polars_ti.utils import (
 
 def pwma(
     close: Series,
-    length: Int = None,
-    asc: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    asc: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Pascal's Weighted Moving Average (PWMA)
 
@@ -58,7 +58,7 @@ def pwma(
 
     # Fill
     if "fillna" in kwargs:
-        pwma.fillna(kwargs["fillna"], inplace=True)
+        pwma = pwma.fillna(kwargs["fillna"])
 
     # Name and Category
     pwma.name = f"PWMA_{length}"

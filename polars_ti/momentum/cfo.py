@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import linreg
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_scalar, v_series
 
 
 def cfo(
     close: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Chande Forcast Oscillator (CFO)
 
@@ -56,7 +56,7 @@ def cfo(
 
     # Fill
     if "fillna" in kwargs:
-        cfo.fillna(kwargs["fillna"], inplace=True)
+        cfo = cfo.fillna(kwargs["fillna"])
 
     # Name and Category
     cfo.name = f"CFO_{length}"

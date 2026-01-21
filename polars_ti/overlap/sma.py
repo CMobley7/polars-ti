@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import convolve, ones
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import nb_prepend, v_offset, v_pos_default, v_series, v_talib
 
@@ -16,10 +16,10 @@ def nb_sma(x, n):
 
 def sma(
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Simple Moving Average (SMA)
 
@@ -74,7 +74,7 @@ def sma(
 
     # Fill
     if "fillna" in kwargs:
-        sma.fillna(kwargs["fillna"], inplace=True)
+        sma = sma.fillna(kwargs["fillna"])
 
     # Name and Category
     sma.name = f"SMA_{length}"

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numba import njit
 from pandas import Series
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+
 from polars_ti.maps import Imports
 from polars_ti.utils import (
     nb_idiff,
@@ -23,11 +23,11 @@ def nb_roc(x, n, k):
 
 def roc(
     close: Series,
-    length: Int = None,
-    scalar: IntFloat = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | float | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Rate of Change (ROC)
 
@@ -82,7 +82,7 @@ def roc(
 
     # Fill
     if "fillna" in kwargs:
-        roc.fillna(kwargs["fillna"], inplace=True)
+        roc = roc.fillna(kwargs["fillna"])
 
     # Name and Category
     roc.name = f"ROC_{length}"

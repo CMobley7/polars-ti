@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import sma
 from polars_ti.utils import (
     high_low_range,
@@ -18,12 +18,12 @@ def cdl_doji(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    factor: IntFloat = None,
-    scalar: IntFloat = None,
+    length: int | None = None,
+    factor: int | float | None = None,
+    scalar: int | float | None = None,
     asint: bool = True,
-    offset: Int = None,
-    **kwargs: DictLike,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Candle Type: Doji
 
@@ -85,7 +85,7 @@ def cdl_doji(
 
     # Fill
     if "fillna" in kwargs:
-        doji.fillna(kwargs["fillna"], inplace=True)
+        doji = doji.fillna(kwargs["fillna"])
 
     # Name and Category
     doji.name = f"CDL_DOJI_{length}_{0.01 * factor}"

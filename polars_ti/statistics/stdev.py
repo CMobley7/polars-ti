@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import sqrt
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
@@ -10,11 +10,11 @@ from .variance import variance
 
 def stdev(
     close: Series,
-    length: Int = None,
-    ddof: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    ddof: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Rolling Standard Deviation
 
@@ -65,7 +65,7 @@ def stdev(
 
     # Fill
     if "fillna" in kwargs:
-        stdev.fillna(kwargs["fillna"], inplace=True)
+        stdev = stdev.fillna(kwargs["fillna"])
 
     # Name and Category
     stdev.name = f"STDEV_{length}"

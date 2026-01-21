@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from numpy import sqrt
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import sma
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 def ui(
     close: Series,
-    length: Int = None,
-    scalar: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    scalar: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Ulcer Index (UI)
 
@@ -68,7 +68,7 @@ def ui(
 
     # Fill
     if "fillna" in kwargs:
-        ui.fillna(kwargs["fillna"], inplace=True)
+        ui = ui.fillna(kwargs["fillna"])
 
     # Name and Category
     ui.name = f"UI{'' if not everget else 'e'}_{length}"

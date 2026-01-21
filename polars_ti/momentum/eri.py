@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import ema
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
@@ -9,9 +9,9 @@ def eri(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Elder Ray Index (ERI)
 
@@ -63,8 +63,8 @@ def eri(
 
     # Fill
     if "fillna" in kwargs:
-        bull.fillna(kwargs["fillna"], inplace=True)
-        bear.fillna(kwargs["fillna"], inplace=True)
+        bull = bull.fillna(kwargs["fillna"])
+        bear = bear.fillna(kwargs["fillna"])
 
     # Name and Category
     bull.name = f"BULLP_{length}"

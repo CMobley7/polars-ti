@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import hlc3, sma
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
@@ -11,10 +11,10 @@ def aberration(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    atr_length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    atr_length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Aberration (ABER)
 
@@ -68,10 +68,10 @@ def aberration(
 
     # Fill
     if "fillna" in kwargs:
-        zg.fillna(kwargs["fillna"], inplace=True)
-        sg.fillna(kwargs["fillna"], inplace=True)
-        xg.fillna(kwargs["fillna"], inplace=True)
-        atr_.fillna(kwargs["fillna"], inplace=True)
+        zg = zg.fillna(kwargs["fillna"])
+        sg = sg.fillna(kwargs["fillna"])
+        xg = xg.fillna(kwargs["fillna"])
+        atr_ = atr_.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{atr_length}"

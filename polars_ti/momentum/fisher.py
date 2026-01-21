@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan, log, nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import hl2
 from polars_ti.utils import high_low_range, v_offset, v_pos_default, v_series
 
@@ -9,10 +9,10 @@ from polars_ti.utils import high_low_range, v_offset, v_pos_default, v_series
 def fisher(
     high: Series,
     low: Series,
-    length: Int = None,
-    signal: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    signal: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Fisher Transform (FISHT)
 
@@ -82,8 +82,8 @@ def fisher(
 
     # Fill
     if "fillna" in kwargs:
-        fisher.fillna(kwargs["fillna"], inplace=True)
-        signalma.fillna(kwargs["fillna"], inplace=True)
+        fisher = fisher.fillna(kwargs["fillna"])
+        signalma = signalma.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{length}_{signal}"

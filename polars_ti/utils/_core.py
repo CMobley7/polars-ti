@@ -8,9 +8,9 @@ from sys import float_info as sflt
 from numba import njit
 from numpy import argmax, argmin, finfo, float64
 from pandas import DataFrame, Series
-from polars_ti._typing import Array, Int, IntFloat, ListStr, Union
+
 from polars_ti.maps import Imports
-from polars_ti.utils._validate import v_bool, v_pos_default, v_series
+from polars_ti.utils._validate import v_bool, v_dataframe, v_pos_default, v_series
 
 
 def camelCase2Title(x: str):
@@ -26,18 +26,6 @@ def category_files(category: str) -> list:
         if x.stem != "__init__"
     ]
     return files
-
-
-def client_exists():
-    if Imports["urllib"]:
-        from urllib.request import urlopen
-
-        if urlopen("https://8.8.8.8", timeout=1).status == 200:
-            from socket import gethostbyname, gethostname
-
-            la = gethostbyname(gethostname())
-            pa = urlopen("https://ident.me", timeout=1).read().decode("utf8")
-            return f"{pa}:{la}"
 
 
 def non_zero_range(high: Series, low: Series) -> Series:
@@ -57,21 +45,21 @@ def nb_non_zero_range(x, y):
     return diff
 
 
-def recent_maximum_index(x) -> Int:
+def recent_maximum_index(x) -> int:
     return int(argmax(x[::-1]))
 
 
-def recent_minimum_index(x) -> Int:
+def recent_minimum_index(x) -> int:
     return int(argmin(x[::-1]))
 
 
-def rma_pandas(series: Series, length: Int):
+def rma_pandas(series: Series, length: int):
     series = v_series(series)
     alpha = (1.0 / length) if length > 0 else 0.5
     return series.ewm(alpha=alpha, min_periods=length).mean()
 
 
-def signed_series(series: Series, initial: Int, lag: Int = None) -> Series:
+def signed_series(series: Series, initial: int, lag: int | None = None) -> Series:
     """Returns a Signed Series with or without an initial value
 
     Default Example:
@@ -91,12 +79,12 @@ def signed_series(series: Series, initial: Int, lag: Int = None) -> Series:
     return sign
 
 
-def simplify_columns(df, n: Int = 3) -> ListStr:
+def simplify_columns(df, n: int = 3) -> list[str]:
     df.columns = df.columns.str.lower()
     return [c.split("_")[0][n - 1 : n] for c in df.columns]
 
 
-def tal_ma(name: str) -> Int:
+def tal_ma(name: str) -> int:
     """Helper Function that returns the Enum value for TA Lib's MA Type"""
     if Imports["talib"] and isinstance(name, str) and len(name) > 1:
         from talib import MA_Type
@@ -124,8 +112,8 @@ def tal_ma(name: str) -> Int:
 
 
 def unsigned_differences(
-    series: Series, lag: Int = None, **kwargs
-) -> Union[Series, Series]:
+    series: Series, lag: int | None = None, **kwargs
+) -> tuple[Series, Series]:
     """Unsigned Differences
     Returns two Series, an unsigned positive and unsigned negative series based
     on the differences of the original series. The positive series are only the
@@ -138,7 +126,7 @@ def unsigned_differences(
     """
     lag = int(lag) if lag is not None else 1
     negative = series.diff(lag)
-    negative.fillna(0, inplace=True)
+    negative = negative.fillna(0)
     positive = negative.copy()
 
     positive[positive <= 0] = 0
@@ -154,17 +142,17 @@ def unsigned_differences(
     return positive, negative
 
 
-def ms2secs(ms, p: Int) -> IntFloat:
+def ms2secs(ms, p: int) -> float:
     return round(0.001 * ms, p)
 
 
 def _speed_group(
     df: DataFrame,
-    group: ListStr = [],
+    group: list[str] = [],
     talib: bool = False,
     index_name: str = "Indicator",
-    p: Int = 4,
-) -> ListStr:
+    p: int = 4,
+) -> list[dict]:
     result = []
     for i in group:
         r = df.ti(i, talib=talib, timed=True)
@@ -178,18 +166,18 @@ def _speed_group(
 
 def speed_test(
     df: DataFrame,
-    only: ListStr = None,
-    excluded: ListStr = None,
-    top: Int = None,
+    only: list[str] | None = None,
+    excluded: list[str] | None = None,
+    top: int | None = None,
     talib: bool = False,
     ascending: bool = False,
     sortby: str = "secs",
     gradient: bool = False,
-    places: Int = 5,
+    places: int = 5,
     stats: bool = False,
     verbose: bool = False,
     silent: bool = False,
-) -> DataFrame:
+) -> DataFrame | tuple[DataFrame, DataFrame]:
     """Speed Test
 
     Given a standard ohlcv DataFrame, the Speed Test calculates the
@@ -247,8 +235,8 @@ def speed_test(
         _this.close()
 
     tdf = DataFrame.from_dict(data)
-    tdf.set_index(_iname, inplace=True)
-    tdf.sort_values(by=sortby, ascending=ascending, inplace=True)
+    tdf = tdf.set_index(_iname)
+    tdf = tdf.sort_values(by=sortby, ascending=ascending)
 
     total_timedf = DataFrame(tdf.describe().loc[["min", "50%", "mean", "max"]]).T
     total_timedf["total"] = tdf.sum(axis=0).T

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import ema
 from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
 
@@ -9,10 +9,10 @@ from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
 def massi(
     high: Series,
     low: Series,
-    fast: Int = None,
-    slow: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    fast: int | None = None,
+    slow: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Mass Index (MASSI)
 
@@ -72,7 +72,7 @@ def massi(
 
     # Fill
     if "fillna" in kwargs:
-        massi.fillna(kwargs["fillna"], inplace=True)
+        massi = massi.fillna(kwargs["fillna"])
 
     # Name and Category
     massi.name = f"MASSI_{fast}_{slow}"

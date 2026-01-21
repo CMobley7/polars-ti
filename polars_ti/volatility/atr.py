@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan, nan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.maps import Imports
 from polars_ti.utils import (
@@ -20,13 +20,13 @@ def atr(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    mamode: str = None,
-    talib: bool = None,
-    prenan: bool = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    talib: bool | None = None,
+    prenan: bool | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Average True Range (ATR)
 
@@ -104,7 +104,7 @@ def atr(
 
     # Fill
     if "fillna" in kwargs:
-        atr.fillna(kwargs["fillna"], inplace=True)
+        atr = atr.fillna(kwargs["fillna"])
 
     # Name and Category
     atr.name = f"ATR{mamode[0]}{'p' if percent else ''}_{length}"

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import (
     symmetric_triangle,
     v_offset,
@@ -11,7 +11,7 @@ from polars_ti.utils import (
 
 
 def swma(
-    close: Series, length: Int = None, offset: Int = None, **kwargs: DictLike
+    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
     """Symmetric Weighted Moving Average (SWMA)
 
@@ -53,7 +53,7 @@ def swma(
 
     # Fill
     if "fillna" in kwargs:
-        swma.fillna(kwargs["fillna"], inplace=True)
+        swma = swma.fillna(kwargs["fillna"])
 
     # Name and Category
     swma.name = f"SWMA_{length}"

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import (
     fibonacci,
     v_ascending,
@@ -13,10 +13,10 @@ from polars_ti.utils import (
 
 def fwma(
     close: Series,
-    length: Int = None,
-    asc: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    asc: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Fibonacci's Weighted Moving Average (FWMA)
 
@@ -57,7 +57,7 @@ def fwma(
 
     # Fill
     if "fillna" in kwargs:
-        fwma.fillna(kwargs["fillna"], inplace=True)
+        fwma = fwma.fillna(kwargs["fillna"])
 
     # Name and Category
     fwma.name = f"FWMA_{length}"

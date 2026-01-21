@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series, v_talib
 
 
 def vidya(
     close: Series,
-    length: Int = None,
-    drift: Int = None,
-    offset: Int = None,
-    talib: bool = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    talib: bool | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Variable Index Dynamic Average (VIDYA)
 
@@ -65,7 +65,7 @@ def vidya(
         vidya.iloc[i] = alpha * abs_cmo.iloc[i] * close.iloc[i] + vidya.iloc[i - 1] * (
             1 - alpha * abs_cmo.iloc[i]
         )
-    vidya.replace({0: nan}, inplace=True)
+    vidya = vidya.replace({0: nan})
 
     # Offset
     if offset != 0:
@@ -73,7 +73,7 @@ def vidya(
 
     # Fill
     if "fillna" in kwargs:
-        vidya.fillna(kwargs["fillna"], inplace=True)
+        vidya = vidya.fillna(kwargs["fillna"])
 
     # Name and Category
     vidya.name = f"VIDYA_{length}"

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
+
 from polars_ti.utils._core import non_zero_range
 
 

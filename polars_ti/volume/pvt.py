@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.momentum import roc
 from polars_ti.utils import v_drift, v_offset, v_series
 
@@ -8,9 +8,9 @@ from polars_ti.utils import v_drift, v_offset, v_series
 def pvt(
     close: Series,
     volume: Series,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Price-Volume Trend (PVT)
 
@@ -53,7 +53,7 @@ def pvt(
 
     # Fill
     if "fillna" in kwargs:
-        pvt.fillna(kwargs["fillna"], inplace=True)
+        pvt = pvt.fillna(kwargs["fillna"])
 
     # Name and Category
     pvt.name = f"PVT"

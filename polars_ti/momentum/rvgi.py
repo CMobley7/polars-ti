@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import isnan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.overlap import swma
 from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
 
@@ -11,10 +11,10 @@ def rvgi(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    swma_length: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    swma_length: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Relative Vigor Index (RVGI)
 
@@ -75,8 +75,8 @@ def rvgi(
 
     # Fill
     if "fillna" in kwargs:
-        rvgi.fillna(kwargs["fillna"], inplace=True)
-        signal.fillna(kwargs["fillna"], inplace=True)
+        rvgi = rvgi.fillna(kwargs["fillna"])
+        signal = signal.fillna(kwargs["fillna"])
 
     # Name and Category
     rvgi.name = f"RVGI_{length}_{swma_length}"

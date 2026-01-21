@@ -4,7 +4,7 @@ from sys import float_info as sflt
 from numpy import arctan, nan, pi, zeros_like
 from numpy.version import version as np_version
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import (
     strided_window,
@@ -18,10 +18,10 @@ from polars_ti.utils import (
 
 def linreg(
     close: Series,
-    length: Int = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Linear Regression Moving Average (linreg)
 
@@ -148,7 +148,7 @@ def linreg(
 
     # Fill
     if "fillna" in kwargs:
-        linreg.fillna(kwargs["fillna"], inplace=True)
+        linreg = linreg.fillna(kwargs["fillna"])
 
     # Name and Category
     linreg.name = f"LINREG"

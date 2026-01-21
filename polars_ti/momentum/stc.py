@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int, IntFloat
+
 from polars_ti.overlap import ema
 from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
 
 
 def stc(
     close: Series,
-    tclength: Int = None,
-    fast: Int = None,
-    slow: Int = None,
-    factor: IntFloat = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    tclength: int | None = None,
+    fast: int | None = None,
+    slow: int | None = None,
+    factor: int | float | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Schaff Trend Cycle (STC)
 
@@ -125,9 +125,9 @@ def stc(
 
     # Fill
     if "fillna" in kwargs:
-        stc.fillna(kwargs["fillna"], inplace=True)
-        macd.fillna(kwargs["fillna"], inplace=True)
-        stoch.fillna(kwargs["fillna"], inplace=True)
+        stc = stc.fillna(kwargs["fillna"])
+        macd = macd.fillna(kwargs["fillna"])
+        stoch = stoch.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{tclength}_{fast}_{slow}_{factor}"

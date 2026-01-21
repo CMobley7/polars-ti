@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import non_zero_range, v_mamode, v_offset, v_pos_default, v_series
 
@@ -8,10 +8,10 @@ from polars_ti.utils import non_zero_range, v_mamode, v_offset, v_pos_default, v
 def qstick(
     open_: Series,
     close: Series,
-    length: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Q Stick
 
@@ -55,7 +55,7 @@ def qstick(
 
     # Fill
     if "fillna" in kwargs:
-        qstick.fillna(kwargs["fillna"], inplace=True)
+        qstick = qstick.fillna(kwargs["fillna"])
 
     # Name and Category
     qstick.name = f"QS_{length}"

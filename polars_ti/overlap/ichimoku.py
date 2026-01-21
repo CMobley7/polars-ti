@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, RangeIndex, Series, Timedelta, concat, date_range
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_offset, v_pos_default, v_series
 
 from .midprice import midprice
@@ -10,12 +10,12 @@ def ichimoku(
     high: Series,
     low: Series,
     close: Series,
-    tenkan: Int = None,
-    kijun: Int = None,
-    senkou: Int = None,
+    tenkan: int | None = None,
+    kijun: int | None = None,
+    senkou: int | None = None,
     include_chikou: bool = True,
-    offset: Int = None,
-    **kwargs: DictLike,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Ichimoku Kinkō Hyō (ichimoku)
 
@@ -90,9 +90,9 @@ def ichimoku(
 
     # Fill
     if "fillna" in kwargs:
-        span_a.fillna(kwargs["fillna"], inplace=True)
-        span_b.fillna(kwargs["fillna"], inplace=True)
-        chikou_span.fillna(kwargs["fillna"], inplace=True)
+        span_a = span_a.fillna(kwargs["fillna"])
+        span_b = span_b.fillna(kwargs["fillna"])
+        chikou_span = chikou_span.fillna(kwargs["fillna"])
 
     # Name and Category
     span_a.name = f"ISA_{tenkan}"

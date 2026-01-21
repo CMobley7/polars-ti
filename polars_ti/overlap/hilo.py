@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import nan
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
 
@@ -10,11 +10,11 @@ def hilo(
     high: Series,
     low: Series,
     close: Series,
-    high_length: Int = None,
-    low_length: Int = None,
-    mamode: str = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    high_length: int | None = None,
+    low_length: int | None = None,
+    mamode: str | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Gann HiLo Activator(HiLo)
 
@@ -90,9 +90,9 @@ def hilo(
 
     # Fill
     if "fillna" in kwargs:
-        hilo.fillna(kwargs["fillna"], inplace=True)
-        long.fillna(kwargs["fillna"], inplace=True)
-        short.fillna(kwargs["fillna"], inplace=True)
+        hilo = hilo.fillna(kwargs["fillna"])
+        long = long.fillna(kwargs["fillna"])
+        short = short.fillna(kwargs["fillna"])
 
     # Name and Category
     _props = f"_{high_length}_{low_length}"

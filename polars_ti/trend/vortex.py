@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series
 from polars_ti.volatility import true_range
 
@@ -9,10 +9,10 @@ def vortex(
     high: Series,
     low: Series,
     close: Series,
-    length: Int = None,
-    drift: Int = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    drift: int | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Vortex
 
@@ -69,8 +69,8 @@ def vortex(
 
     # Fill
     if "fillna" in kwargs:
-        vip.fillna(kwargs["fillna"], inplace=True)
-        vim.fillna(kwargs["fillna"], inplace=True)
+        vip = vip.fillna(kwargs["fillna"])
+        vim = vim.fillna(kwargs["fillna"])
 
     # Name and Category
     vip.name = f"VTXP_{length}"

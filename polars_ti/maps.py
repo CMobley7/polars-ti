@@ -1,22 +1,17 @@
 # -*- coding: utf-8 -*-
+from importlib.metadata import PackageNotFoundError, version
 from importlib.util import find_spec
 from pathlib import Path
 
-from pkg_resources import DistributionNotFound, get_distribution
-
 from polars_ti._typing import Dict, IntFloat, ListStr
 
-_dist = get_distribution("polars-ti")
 try:
-    # Normalize case for Windows systems
-    _here = Path(_dist.location) / __file__
-    if not _here.exists():
-        # not installed, but there is another version that *is*
-        raise DistributionNotFound
-except DistributionNotFound:
+    __version__ = version("polars-ti")
+except PackageNotFoundError:
+    # package is not installed
     __version__ = "Please install this project with pip"
 
-version = __version__ = _dist.version
+version = __version__
 
 Imports: Dict[str, bool] = {
     "alphaVantage-api": find_spec("alphaVantageAPI") is not None,

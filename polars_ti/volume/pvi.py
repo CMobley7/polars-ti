@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import empty, float64, zeros_like
 from pandas import DataFrame, Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.ma import ma
 from polars_ti.utils import v_bool, v_mamode, v_offset, v_pos_default, v_series
 
@@ -25,12 +25,12 @@ def nb_pvi(np_close, np_volume, initial):
 def pvi(
     close: Series,
     volume: Series,
-    length: Int = None,
-    initial: Int = None,
-    mamode: str = None,
-    overlay: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    initial: int | None = None,
+    mamode: str | None = None,
+    overlay: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> DataFrame:
     """Positive Volume Index (PVI)
 
@@ -87,11 +87,11 @@ def pvi(
 
     # Fill
     if "fillna" in kwargs:
-        pvi.fillna(kwargs["fillna"], inplace=True)
-        pvi_ma.fillna(kwargs["fillna"], inplace=True)
+        pvi = pvi.fillna(kwargs["fillna"])
+        pvi_ma = pvi_ma.fillna(kwargs["fillna"])
     if "fill_method" in kwargs:
-        pvi.fillna(method=kwargs["fill_method"], inplace=True)
-        pvi_ma.fillna(method=kwargs["fill_method"], inplace=True)
+        pvi = pvi.fillna(method=kwargs["fill_method"])
+        pvi_ma = pvi_ma.fillna(method=kwargs["fill_method"])
 
     # Name and Category
     _mode = mamode.lower()[0] if len(mamode) else ""

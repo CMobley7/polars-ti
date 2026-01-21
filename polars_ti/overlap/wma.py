@@ -2,7 +2,7 @@
 from numba import njit
 from numpy import arange, dot, float64, nan, zeros_like
 from pandas import Series
-from polars_ti._typing import DictLike, Int
+
 from polars_ti.maps import Imports
 from polars_ti.utils import v_ascending, v_offset, v_pos_default, v_series, v_talib
 
@@ -11,7 +11,7 @@ from polars_ti.utils import v_ascending, v_offset, v_pos_default, v_series, v_ta
 def nb_wma(x, n, asc, prenan):
     m = x.size
     w = arange(1, n + 1, dtype=float64)
-    result = zeros_like(x, dtype=float64)
+    result = zeros_like(x, dtype=x.dtype)
 
     if not asc:
         w = w[::-1]
@@ -28,11 +28,11 @@ def nb_wma(x, n, asc, prenan):
 
 def wma(
     close: Series,
-    length: Int = None,
-    asc: bool = None,
-    talib: bool = None,
-    offset: Int = None,
-    **kwargs: DictLike,
+    length: int | None = None,
+    asc: bool | None = None,
+    talib: bool | None = None,
+    offset: int | None = None,
+    **kwargs: dict,
 ) -> Series:
     """Weighted Moving Average (WMA)
 
@@ -83,7 +83,7 @@ def wma(
 
     # Fill
     if "fillna" in kwargs:
-        wma.fillna(kwargs["fillna"], inplace=True)
+        wma = wma.fillna(kwargs["fillna"])
 
     # Name and Category
     wma.name = f"WMA_{length}"
