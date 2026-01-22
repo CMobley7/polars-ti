@@ -38,7 +38,7 @@ Category: Dict[str, ListStr] = {
     # Candles
     "candles": ["cdl_pattern", "cdl_z", "ha"],
     # Cycles
-    "cycles": ["ebsw", "reflex"],
+    "cycles": ["dsp", "ebsw", "reflex"],
     # Momentum
     "momentum": [
         "ao",
@@ -53,6 +53,7 @@ Category: Dict[str, ListStr] = {
         "coppock",
         "crsi",
         "cti",
+        "dm",
         "er",
         "eri",
         "exhc",
@@ -60,9 +61,11 @@ Category: Dict[str, ListStr] = {
         "inertia",
         "kdj",
         "kst",
+        "lrsi",
         "macd",
         "mom",
         "pgo",
+        "po",
         "ppo",
         "psl",
         "qqe",
@@ -81,8 +84,10 @@ Category: Dict[str, ListStr] = {
         "stochrsi",
         "tmo",
         "trix",
+        "trixh",
         "tsi",
         "uo",
+        "vwmacd",
         "willr",
     ],
     # Overlap
@@ -105,9 +110,11 @@ Category: Dict[str, ListStr] = {
         "mcgd",
         "midpoint",
         "midprice",
+        "mmar",
         "ohlc4",
         "pivots",
         "pwma",
+        "rainbow",
         "rma",
         "sinwma",
         "sma",
@@ -125,7 +132,7 @@ Category: Dict[str, ListStr] = {
         "zlma",
     ],
     # Performance
-    "performance": ["log_return", "percent_return"],
+    "performance": ["drawdown", "log_return", "percent_return"],
     # Statistics
     "statistics": [
         "entropy",
@@ -155,12 +162,14 @@ Category: Dict[str, ListStr] = {
         "ht_trendline",
         "increasing",
         "long_run",
+        "pmax",
         "psar",
         "qstick",
         "rwi",
         "short_run",
         "trendflex",
         "tsignals",
+        "ttm_trend",
         "vhf",
         "vortex",
         "xsignals",
@@ -203,6 +212,7 @@ Category: Dict[str, ListStr] = {
         "pvol",
         "pvr",
         "pvt",
+        "vfi",
         "vhm",
         "vwap",
         "vwma",

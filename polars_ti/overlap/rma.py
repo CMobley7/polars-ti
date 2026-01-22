@@ -7,9 +7,9 @@ from polars_ti.utils import v_offset, v_pos_default, v_series
 def rma(
     close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
 ) -> Series:
-    """wildeR's Moving Average (RMA)
+    """Wilder's Moving Average (RMA)
 
-    The WildeR's Moving Average is simply an EMA with a modified
+    Wilder's Moving Average is simply an EMA with a modified
     alpha = 1 / length.
 
     Sources:

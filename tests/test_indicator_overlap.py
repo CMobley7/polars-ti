@@ -577,6 +577,26 @@ def test_zlma(df):
     assert result.name == "ZL_EMA_10"
 
 
+def test_mmar(df):
+    result = ti.mmar(df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "MMAR_10_5_6"
+
+    result = ti.mmar(df.close, length=5, step=3, num_ribbons=4)
+    assert isinstance(result, DataFrame)
+    assert result.name == "MMAR_5_3_4"
+
+
+def test_rainbow(df):
+    result = ti.rainbow(df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "RAINBOW_2_10"
+
+    result = ti.rainbow(df.close, length=3, num_ribbons=5)
+    assert isinstance(result, DataFrame)
+    assert result.name == "RAINBOW_3_5"
+
+
 # DataFrame Extension Tests
 def test_ext_alligator(df):
     df.ti.alligator(append=True)

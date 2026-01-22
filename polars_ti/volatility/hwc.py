@@ -1,10 +1,49 @@
 # -*- coding: utf-8 -*-
 from sys import float_info as sflt
 
-from numpy import sqrt
+import numpy as np
+from numba import njit
 from pandas import DataFrame, Series
 
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
+
+
+@njit(cache=True)
+def nb_hwc(close, na, nb, nc, nd, scalar):
+    m = close.size
+    result = np.zeros(m)
+    upper = np.zeros(m)
+    lower = np.zeros(m)
+
+    last_a = last_v = last_var = 0.0
+    last_f = last_price = last_result = float(close[0])
+
+    for i in range(m):
+        F = (1.0 - na) * (last_f + last_v + 0.5 * last_a) + na * close[i]
+        V = (1.0 - nb) * (last_v + last_a) + nb * (F - last_f)
+        A = (1.0 - nc) * last_a + nc * (V - last_v)
+
+        # Current result
+        curr_res = F + V + 0.5 * A
+        result[i] = curr_res
+
+        var = (1.0 - nd) * last_var + nd * (last_price - last_result) * (
+            last_price - last_result
+        )
+        stddev = np.sqrt(last_var)
+
+        upper[i] = curr_res + scalar * stddev
+        lower[i] = curr_res - scalar * stddev
+
+        # update values
+        last_price = close[i]
+        last_a = A
+        last_f = F
+        last_v = V
+        last_var = var
+        last_result = curr_res
+
+    return result, upper, lower
 
 
 def hwc(
@@ -60,48 +99,16 @@ def hwc(
         return
 
     # Calculate Result
-    last_a = last_v = last_var = 0
-    last_f = last_price = last_result = close.iloc[0]
-    lower, result, upper = [], [], []
-    chan_pct_width, chan_width = [], []
-
-    m = close.size
-    for i in range(m):
-        F = (1.0 - na) * (last_f + last_v + 0.5 * last_a) + na * close.iloc[i]
-        V = (1.0 - nb) * (last_v + last_a) + nb * (F - last_f)
-        A = (1.0 - nc) * last_a + nc * (V - last_v)
-        result.append((F + V + 0.5 * A))
-
-        var = (1.0 - nd) * last_var + nd * (last_price - last_result) * (
-            last_price - last_result
-        )
-        stddev = sqrt(last_var)
-        upper.append(result[i] + scalar * stddev)
-        lower.append(result[i] - scalar * stddev)
-
-        if channels:
-            # channel width
-            chan_width.append(upper[i] - lower[i])
-            # channel percentage price position
-            chan_pct_width.append(
-                (close.iloc[i] - lower[i]) / (upper[i] - lower[i] + sflt.epsilon)
-            )
-
-        # update values
-        last_price = close.iloc[i]
-        last_a = A
-        last_f = F
-        last_v = V
-        last_var = var
-        last_result = result[i]
+    np_close = close.to_numpy(dtype=np.float64)
+    result, upper, lower = nb_hwc(np_close, na, nb, nc, nd, scalar)
 
     # Aggregate
     hwc = Series(result, index=close.index)
     hwc_upper = Series(upper, index=close.index)
     hwc_lower = Series(lower, index=close.index)
     if channels:
-        hwc_width = Series(chan_width, index=close.index)
-        hwc_pctwidth = Series(chan_pct_width, index=close.index)
+        hwc_width = hwc_upper - hwc_lower
+        hwc_pctwidth = (close - hwc_lower) / (hwc_width + sflt.epsilon)
 
     # Offset
     if offset != 0:

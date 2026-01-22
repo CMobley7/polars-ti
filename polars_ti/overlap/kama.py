@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import Series
 
 from polars_ti.ma import ma
@@ -81,7 +81,7 @@ def kama(
 
     m = close.size
     ma0 = ma(mamode, close.iloc[:length], length=length, **kwargs).iloc[-1]
-    result = [nan for _ in range(0, length - 1)] + [ma0]
+    result = [np.nan for _ in range(0, length - 1)] + [ma0]
     for i in range(length, m):
         result.append(sc.iat[i] * close.iat[i] + (1 - sc.iat[i]) * result[i - 1])
 

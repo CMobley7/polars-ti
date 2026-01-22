@@ -17,9 +17,11 @@ from polars_ti.overlap.mama import mama
 from polars_ti.overlap.mcgd import mcgd
 from polars_ti.overlap.midpoint import midpoint
 from polars_ti.overlap.midprice import midprice
+from polars_ti.overlap.mmar import mmar
 from polars_ti.overlap.ohlc4 import ohlc4
 from polars_ti.overlap.pivots import pivots
 from polars_ti.overlap.pwma import pwma
+from polars_ti.overlap.rainbow import rainbow
 from polars_ti.overlap.rma import rma
 from polars_ti.overlap.sinwma import sinwma
 from polars_ti.overlap.sma import sma
@@ -55,9 +57,11 @@ __all__ = [
     "mcgd",
     "midpoint",
     "midprice",
+    "mmar",
     "ohlc4",
     "pivots",
     "pwma",
+    "rainbow",
     "rma",
     "sinwma",
     "sma",

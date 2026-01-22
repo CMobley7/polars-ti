@@ -25,7 +25,7 @@ from polars_ti._typing import (
 )
 from polars_ti.candles import cdl_doji, cdl_inside, cdl_pattern, cdl_z, ha
 from polars_ti.custom import create_dir, import_dir
-from polars_ti.cycles import ebsw, reflex
+from polars_ti.cycles import dsp, ebsw, reflex
 from polars_ti.ma import ma
 from polars_ti.maps import EXCHANGE_TZ, RATE, Category, Imports, version
 from polars_ti.momentum import (
@@ -49,9 +49,11 @@ from polars_ti.momentum import (
     inertia,
     kdj,
     kst,
+    lrsi,
     macd,
     mom,
     pgo,
+    po,
     ppo,
     psl,
     qqe,
@@ -70,8 +72,10 @@ from polars_ti.momentum import (
     stochrsi,
     tmo,
     trix,
+    trixh,
     tsi,
     uo,
+    vwmacd,
     willr,
 )
 from polars_ti.overlap import (
@@ -93,9 +97,11 @@ from polars_ti.overlap import (
     mcgd,
     midpoint,
     midprice,
+    mmar,
     ohlc4,
     pivots,
     pwma,
+    rainbow,
     rma,
     sinwma,
     sma,
@@ -139,12 +145,14 @@ from polars_ti.trend import (
     ht_trendline,
     increasing,
     long_run,
+    pmax,
     psar,
     qstick,
     rwi,
     short_run,
     trendflex,
     tsignals,
+    ttm_trend,
     vhf,
     vortex,
     xsignals,
@@ -193,6 +201,7 @@ from polars_ti.volume import (
     pvol,
     pvr,
     pvt,
+    vfi,
     vhm,
     vp,
     vwap,
@@ -1100,6 +1109,49 @@ class TechnicalIndicators(object):
         )
         return self._post_process(result, **kwargs)
 
+    def cdl_doji(
+        self,
+        length=None,
+        factor=None,
+        scalar=None,
+        drift=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        open_ = self._get_column(kwargs.pop("open", "open"))
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = cdl_doji(
+            open_=open_,
+            high=high,
+            low=low,
+            close=close,
+            length=length,
+            factor=factor,
+            scalar=scalar,
+            drift=drift,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
+    def cdl_inside(self, asbool=False, offset=None, **kwargs: DictLike):
+        open_ = self._get_column(kwargs.pop("open", "open"))
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = cdl_inside(
+            open_=open_,
+            high=high,
+            low=low,
+            close=close,
+            asbool=asbool,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
     def cdl_z(self, full=None, offset=None, **kwargs: DictLike):
         open_ = self._get_column(kwargs.pop("open", "open"))
         high = self._get_column(kwargs.pop("high", "high"))
@@ -1154,6 +1206,11 @@ class TechnicalIndicators(object):
             offset=offset,
             **kwargs,
         )
+        return self._post_process(result, **kwargs)
+
+    def dsp(self, length=None, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = dsp(close=close, length=length, offset=offset, **kwargs)
         return self._post_process(result, **kwargs)
 
     # Momentum
@@ -1902,6 +1959,46 @@ class TechnicalIndicators(object):
         )
         return self._post_process(result, **kwargs)
 
+    def lrsi(self, gamma=None, length=None, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = lrsi(close=close, gamma=gamma, length=length, offset=offset, **kwargs)
+        return self._post_process(result, **kwargs)
+
+    def po(self, length=None, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = po(close=close, length=length, offset=offset, **kwargs)
+        return self._post_process(result, **kwargs)
+
+    def trixh(
+        self, length=None, signal=None, scalar=None, offset=None, **kwargs: DictLike
+    ):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = trixh(
+            close=close,
+            length=length,
+            signal=signal,
+            scalar=scalar,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
+    def vwmacd(
+        self, fast=None, slow=None, signal=None, offset=None, **kwargs: DictLike
+    ):
+        close = self._get_column(kwargs.pop("close", "close"))
+        volume = self._get_column(kwargs.pop("volume", "volume"))
+        result = vwmacd(
+            close=close,
+            volume=volume,
+            fast=fast,
+            slow=slow,
+            signal=signal,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
     # Overlap
     def alligator(
         self, jaw=None, teeth=None, lips=None, offset=None, **kwargs: DictLike
@@ -2075,6 +2172,20 @@ class TechnicalIndicators(object):
         result = midprice(high=high, low=low, length=length, offset=offset, **kwargs)
         return self._post_process(result, **kwargs)
 
+    def mmar(
+        self, length=None, step=None, num_ribbons=None, offset=None, **kwargs: DictLike
+    ):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = mmar(
+            close=close,
+            length=length,
+            step=step,
+            num_ribbons=num_ribbons,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
     def ohlc4(self, offset=None, **kwargs: DictLike):
         open_ = self._get_column(kwargs.pop("open", "open"))
         high = self._get_column(kwargs.pop("high", "high"))
@@ -2104,6 +2215,17 @@ class TechnicalIndicators(object):
     def pwma(self, length=None, offset=None, **kwargs: DictLike):
         close = self._get_column(kwargs.pop("close", "close"))
         result = pwma(close=close, length=length, offset=offset, **kwargs)
+        return self._post_process(result, **kwargs)
+
+    def rainbow(self, length=None, num_ribbons=None, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = rainbow(
+            close=close,
+            length=length,
+            num_ribbons=num_ribbons,
+            offset=offset,
+            **kwargs,
+        )
         return self._post_process(result, **kwargs)
 
     def rma(self, length=None, offset=None, **kwargs: DictLike):
@@ -2221,6 +2343,11 @@ class TechnicalIndicators(object):
         return self._post_process(result, **kwargs)
 
     # Performance
+    def drawdown(self, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = drawdown(close=close, offset=offset, **kwargs)
+        return self._post_process(result, **kwargs)
+
     def log_return(
         self,
         length=None,
@@ -2562,6 +2689,29 @@ class TechnicalIndicators(object):
             )
             return self._post_process(result, **kwargs)
 
+    def pmax(
+        self,
+        length=None,
+        multiplier=None,
+        mamode=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = pmax(
+            high=high,
+            low=low,
+            close=close,
+            length=length,
+            multiplier=multiplier,
+            mamode=mamode,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
     def psar(
         self, af0=None, af=None, max_af=None, tv=False, offset=None, **kwargs: DictLike
     ):
@@ -2697,6 +2847,20 @@ class TechnicalIndicators(object):
                 **kwargs,
             )
             return self._post_process(result, **kwargs)
+
+    def ttm_trend(self, length=None, offset=None, **kwargs: DictLike):
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = ttm_trend(
+            high=high,
+            low=low,
+            close=close,
+            length=length,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
 
     def vhf(self, length=None, drift=None, offset=None, **kwargs: DictLike):
         close = self._get_column(kwargs.pop("close", "close"))
@@ -3316,6 +3480,19 @@ class TechnicalIndicators(object):
         close = self._get_column(kwargs.pop("close", "close"))
         volume = self._get_column(kwargs.pop("volume", "volume"))
         result = pvt(close=close, volume=volume, offset=offset, **kwargs)
+        return self._post_process(result, **kwargs)
+
+    def vfi(self, length=None, smoothing=None, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        volume = self._get_column(kwargs.pop("volume", "volume"))
+        result = vfi(
+            close=close,
+            volume=volume,
+            length=length,
+            smoothing=smoothing,
+            offset=offset,
+            **kwargs,
+        )
         return self._post_process(result, **kwargs)
 
     def vhm(self, length=None, slength=None, offset=None, **kwargs: DictLike):

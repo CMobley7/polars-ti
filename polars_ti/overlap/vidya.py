@@ -1,9 +1,27 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
+from numba import njit
 from pandas import Series
 
 from polars_ti.maps import Imports
 from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series, v_talib
+
+
+@njit(cache=True)
+def nb_vidya(close, abs_cmo, alpha, length):
+    """Numba-optimized VIDYA calculation.
+
+    State-dependent loop: each VIDYA value depends on previous VIDYA value.
+    Values before 'length' are left as 0 and converted to NaN later.
+    """
+    m = close.size
+    vidya = np.zeros(m)
+
+    for i in range(length, m):
+        vidya[i] = alpha * abs_cmo[i] * close[i] + vidya[i - 1] * (
+            1 - alpha * abs_cmo[i]
+        )
+    return vidya
 
 
 def vidya(
@@ -49,23 +67,34 @@ def vidya(
     offset = v_offset(offset)
 
     # Calculate
-    m = close.size
     alpha = 2 / (length + 1)
 
     if Imports["talib"] and mode_tal:
-        from talib import CMO
+        try:
+            from talib import CMO
 
-        cmo_ = CMO(close, length)
+            cmo_ = CMO(close, length)
+        except ImportError:
+            # Lazy import to avoid circular dependency
+            from polars_ti.momentum.cmo import cmo
+
+            cmo_ = cmo(close, length=length, drift=drift, talib=mode_tal)
     else:
-        cmo_ = _cmo(close, length, drift)
+        # Lazy import to avoid circular dependency
+        from polars_ti.momentum.cmo import cmo
+
+        cmo_ = cmo(close, length=length, drift=drift, talib=mode_tal)
+
     abs_cmo = cmo_.abs().astype(float)
 
-    vidya = Series(0.0, index=close.index)
-    for i in range(length, m):
-        vidya.iloc[i] = alpha * abs_cmo.iloc[i] * close.iloc[i] + vidya.iloc[i - 1] * (
-            1 - alpha * abs_cmo.iloc[i]
-        )
-    vidya = vidya.replace({0: nan})
+    # Use Numba
+    np_close = close.to_numpy(dtype=np.float64)
+    np_abs_cmo = abs_cmo.to_numpy(dtype=np.float64)
+
+    result = nb_vidya(np_close, np_abs_cmo, alpha, length)
+
+    vidya = Series(result, index=close.index)
+    vidya = vidya.replace({0: np.nan})
 
     # Offset
     if offset != 0:
@@ -80,18 +109,3 @@ def vidya(
     vidya.category = "overlap"
 
     return vidya
-
-
-def _cmo(source: Series, n: int, d: int):
-    """Chande Momentum Oscillator (CMO) Patch
-    For some reason: from polars_ti.momentum import cmo causes
-    polars_ti.momentum.coppock to not be able to import it's
-    wma like from polars_ti.overlap import wma?
-    Weird Circular TypeError!?
-    """
-    mom = source.diff(d)
-    positive = mom.copy().clip(lower=0)
-    negative = mom.copy().clip(upper=0).abs()
-    pos_sum = positive.rolling(n).sum()
-    neg_sum = negative.rolling(n).sum()
-    return (pos_sum - neg_sum) / (pos_sum + neg_sum)

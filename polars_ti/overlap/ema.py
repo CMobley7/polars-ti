@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
+import numpy as np
 from numba import njit
-from numpy import nan
 from pandas import Series
 
 from polars_ti.maps import Imports
@@ -65,7 +65,7 @@ def ema(
         if presma:  # TA Lib implementation
             close = close.copy()
             sma_nth = close.iloc[0:length].mean()
-            close.iloc[: length - 1] = nan
+            close.iloc[: length - 1] = np.nan
             close.iloc[length - 1] = sma_nth
         ema = close.ewm(span=length, adjust=adjust).mean()
 

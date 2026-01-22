@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import DataFrame, Series
 
 from polars_ti.overlap import hl2
@@ -64,7 +64,7 @@ def supertrend(
     # Calculate
     m = close.size
     dir_, trend = [1] * m, [0] * m
-    long, short = [nan] * m, [nan] * m
+    long, short = [np.nan] * m, [np.nan] * m
 
     hl2_ = hl2(high, low)
     matr = multiplier * atr(high, low, close, atr_length, mamode=atr_mamode)
@@ -88,8 +88,8 @@ def supertrend(
         else:
             trend[i] = short[i] = ub.iat[i]
 
-    trend[0] = nan
-    dir_[:length] = [nan] * length
+    trend[0] = np.nan
+    dir_[:length] = [np.nan] * length
 
     _props = f"_{length}_{multiplier}"
     data = {

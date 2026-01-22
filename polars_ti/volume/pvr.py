@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import Series
 
 from polars_ti._typing import Int
@@ -43,7 +43,7 @@ def pvr(
     close_diff = close.diff(drift).fillna(0)
     volume_diff = volume.diff(drift).fillna(0)
 
-    pvr = Series(nan, index=close.index)
+    pvr = Series(np.nan, index=close.index)
 
     pvr.loc[(close_diff >= 0) & (volume_diff >= 0)] = 1
     pvr.loc[(close_diff >= 0) & (volume_diff < 0)] = 2

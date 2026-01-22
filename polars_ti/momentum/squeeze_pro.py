@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import DataFrame, Series
 
 from polars_ti.ma import ma
@@ -194,11 +194,11 @@ def squeeze_pro(
 
     if prenan:
         nanlength = max(bb_length, kc_length) - 2
-        squeeze_on_wide[:nanlength] = nan
-        squeeze_on_narrow[:nanlength] = nan
-        squeeze_on_normal[:nanlength] = nan
-        squeeze_off_wide[:nanlength] = nan
-        no_squeeze[:nanlength] = nan
+        squeeze_on_wide[:nanlength] = np.nan
+        squeeze_on_narrow[:nanlength] = np.nan
+        squeeze_on_normal[:nanlength] = np.nan
+        squeeze_off_wide[:nanlength] = np.nan
+        no_squeeze[:nanlength] = np.nan
 
     data = {
         squeeze.name: squeeze,
@@ -225,15 +225,15 @@ def squeeze_pro(
         neg_dec *= squeeze
         neg_inc *= squeeze
 
-        pos_inc = pos_inc.replace(0, nan)
-        pos_dec = pos_dec.replace(0, nan)
-        neg_dec = neg_dec.replace(0, nan)
-        neg_inc = neg_inc.replace(0, nan)
+        pos_inc = pos_inc.replace(0, np.nan)
+        pos_dec = pos_dec.replace(0, np.nan)
+        neg_dec = neg_dec.replace(0, np.nan)
+        neg_inc = neg_inc.replace(0, np.nan)
 
         sqz_inc = squeeze * increasing(squeeze)
         sqz_dec = squeeze * decreasing(squeeze)
-        sqz_inc = sqz_inc.replace(0, nan)
-        sqz_dec = sqz_dec.replace(0, nan)
+        sqz_inc = sqz_inc.replace(0, np.nan)
+        sqz_dec = sqz_dec.replace(0, np.nan)
 
         # Fill
         if "fillna" in kwargs:

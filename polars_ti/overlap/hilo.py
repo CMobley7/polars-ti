@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import DataFrame, Series
 
 from polars_ti.ma import ma
@@ -66,9 +66,9 @@ def hilo(
 
     # Calculate
     m = close.size
-    hilo = Series(nan, index=close.index)
-    long = Series(nan, index=close.index)
-    short = Series(nan, index=close.index)
+    hilo = Series(np.nan, index=close.index)
+    long = Series(np.nan, index=close.index)
+    short = Series(np.nan, index=close.index)
 
     high_ma = ma(mamode, high, length=high_length)
     low_ma = ma(mamode, low, length=low_length)
