@@ -64,14 +64,18 @@ def hilo(
     mamode = v_mamode(mamode, "sma")
     offset = v_offset(offset)
 
+    # Pop length from kwargs to avoid passing it twice to ma()
+    if "length" in kwargs:
+        kwargs.pop("length")
+
     # Calculate
     m = close.size
     hilo = Series(np.nan, index=close.index)
     long = Series(np.nan, index=close.index)
     short = Series(np.nan, index=close.index)
 
-    high_ma = ma(mamode, high, length=high_length)
-    low_ma = ma(mamode, low, length=low_length)
+    high_ma = ma(mamode, high, length=high_length, **kwargs)
+    low_ma = ma(mamode, low, length=low_length, **kwargs)
 
     for i in range(1, m):
         if close.iat[i] > high_ma.iat[i - 1]:

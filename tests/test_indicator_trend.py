@@ -360,6 +360,17 @@ def test_zigzag(df):
     assert all_pivotsdf.shape[0] == low_pivotsdf.shape[0] + high_pivotsdf.shape[0]
 
 
+def test_trama(df):
+    result = ti.trama(df.close)
+    assert isinstance(result, Series)
+    assert result.name == "TRAMA_10"
+
+    # Test with custom parameters
+    result = ti.trama(df.close, length=20, lookback=5)
+    assert isinstance(result, Series)
+    assert result.name == "TRAMA_20"
+
+
 # DataFrame Extension Tests
 def test_ext_adx(df):
     df.ti.adx(append=True)
@@ -493,3 +504,8 @@ def test_ext_zigzag(df):
         "ZIGZAGv_5.0%_10",
         "ZIGZAGd_5.0%_10",
     ]
+
+
+def test_ext_trama(df):
+    df.ti.trama(append=True)
+    assert df.columns[-1] == "TRAMA_10"

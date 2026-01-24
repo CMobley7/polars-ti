@@ -87,7 +87,7 @@ def tsi(
     tsi = scalar * fast_slow_ema / abs_fast_slow_ema
     if all(isnan(tsi)):
         return  # Emergency Break
-    tsi_signal = ma(mamode, tsi, length=signal)
+    tsi_signal = ma(mamode, tsi, length=signal, **kwargs)
 
     # Offset
     if offset != 0:

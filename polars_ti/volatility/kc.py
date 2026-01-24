@@ -68,8 +68,8 @@ def kc(
 
     # Calculate
     range_ = true_range(high, low, close) if tr else high_low_range(high, low)
-    basis = ma(mamode, close, length=length)
-    band = ma(mamode, range_, length=length)
+    basis = ma(mamode, close, length=length, **kwargs)
+    band = ma(mamode, range_, length=length, **kwargs)
 
     lower = basis - scalar * band
     upper = basis + scalar * band

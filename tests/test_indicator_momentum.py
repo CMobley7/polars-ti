@@ -392,6 +392,17 @@ def test_rsx(df):
     assert result.name == "RSX_14"
 
 
+def test_rmi(df):
+    result = ti.rmi(df.close)
+    assert isinstance(result, Series)
+    assert result.name == "RMI_14_5"
+
+    # Test with custom parameters
+    result = ti.rmi(df.close, length=20, momentum=10)
+    assert isinstance(result, Series)
+    assert result.name == "RMI_20_10"
+
+
 def test_rvgi(df):
     result = ti.rvgi(df.open, df.high, df.low, df.close)
     assert isinstance(result, DataFrame)
@@ -798,6 +809,11 @@ def test_ext_rsi(df):
 def test_ext_rsx(df):
     df.ti.rsx(append=True)
     assert df.columns[-1] == "RSX_14"
+
+
+def test_ext_rmi(df):
+    df.ti.rmi(append=True)
+    assert df.columns[-1] == "RMI_14_5"
 
 
 def test_ext_rvgi(df):

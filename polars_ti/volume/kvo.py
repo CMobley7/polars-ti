@@ -70,15 +70,21 @@ def kvo(
     drift = v_drift(drift)
     offset = v_offset(offset)
 
+    # Pop length from kwargs to avoid passing it twice to ma()
+    if "length" in kwargs:
+        kwargs.pop("length")
+
     # Calculate
     signed_volume = volume * signed_series(hlc3(high, low, close), -1)
     sv = signed_volume.loc[signed_volume.first_valid_index() :,]
 
-    kvo = ma(mamode, sv, length=fast) - ma(mamode, sv, length=slow)
+    kvo = ma(mamode, sv, length=fast, **kwargs) - ma(mamode, sv, length=slow, **kwargs)
     if kvo is None or all(isnan(kvo.to_numpy())):
         return  # Emergency Break
 
-    kvo_signal = ma(mamode, kvo.loc[kvo.first_valid_index() :,], length=signal)
+    kvo_signal = ma(
+        mamode, kvo.loc[kvo.first_valid_index() :,], length=signal, **kwargs
+    )
     if kvo_signal is None or all(isnan(kvo_signal.to_numpy())):
         return  # Emergency Break
 

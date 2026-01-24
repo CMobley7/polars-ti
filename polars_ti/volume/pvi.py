@@ -78,7 +78,7 @@ def pvi(
     _pvi = nb_pvi(np_close, np_volume, initial)
 
     pvi = Series(_pvi, index=close.index)
-    pvi_ma = ma(mamode, pvi, length=length)
+    pvi_ma = ma(mamode, pvi, length=length, **kwargs)
 
     # Offset
     if offset != 0:

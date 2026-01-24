@@ -68,9 +68,9 @@ def accbands(
     _lower = low * (1 - hl_ratio)
     _upper = high * (1 + hl_ratio)
 
-    lower = ma(mamode, _lower, length=length)
-    mid = ma(mamode, close, length=length)
-    upper = ma(mamode, _upper, length=length)
+    lower = ma(mamode, _lower, length=length, **kwargs)
+    mid = ma(mamode, close, length=length, **kwargs)
+    upper = ma(mamode, _upper, length=length, **kwargs)
 
     # Offset
     if offset != 0:

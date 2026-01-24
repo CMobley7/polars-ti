@@ -65,7 +65,7 @@ def thermo(
     thermo = thermo.where(thermoH < thermoL, thermoH)
     thermo.index = high.index
 
-    thermo_ma = ma(mamode, thermo, length=length)
+    thermo_ma = ma(mamode, thermo, length=length, **kwargs)
     thermo_long = thermo < (thermo_ma * long)
     thermo_short = thermo > (thermo_ma * short)
 

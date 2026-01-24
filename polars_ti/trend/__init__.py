@@ -16,6 +16,7 @@ from polars_ti.trend.psar import psar
 from polars_ti.trend.qstick import qstick
 from polars_ti.trend.rwi import rwi
 from polars_ti.trend.short_run import short_run
+from polars_ti.trend.trama import trama
 from polars_ti.trend.trendflex import trendflex
 from polars_ti.trend.tsignals import tsignals
 from polars_ti.trend.ttm_trend import ttm_trend
@@ -42,6 +43,7 @@ __all__ = [
     "qstick",
     "rwi",
     "short_run",
+    "trama",
     "trendflex",
     "tsignals",
     "ttm_trend",
