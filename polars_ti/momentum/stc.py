@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import DataFrame, Series
 
 from polars_ti.overlap import ema
@@ -109,13 +109,13 @@ def stc(
         xmacd = fastma - slowma
         pff, pf = schaff_tc(close, xmacd, tclength, factor)
 
-    pf[: _length - 1] = nan
+    pf[: _length - 1] = np.nan
 
     stc = Series(pff, index=close.index)
     macd = Series(xmacd, index=close.index)
     stoch = Series(pf, index=close.index)
 
-    stc.iloc[: _length - 1] = nan
+    stc.iloc[: _length - 1] = np.nan
 
     # Offset
     if offset != 0:

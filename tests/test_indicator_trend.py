@@ -266,6 +266,18 @@ def test_long_run(df):
     assert result.name == "LR_2"
 
 
+def test_pmax(df):
+    result = ti.pmax(df.high, df.low, df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "PMAX_10_3.0"
+    assert len(result.columns) == 4
+
+    # Test with different mamode
+    result = ti.pmax(df.high, df.low, df.close, mamode="sma")
+    assert isinstance(result, DataFrame)
+    assert result.name == "PMAX_10_3.0"
+
+
 def test_psar(df):
     result = ti.psar(df.high, df.low, talib=False)
     assert isinstance(result, DataFrame)
@@ -426,6 +438,12 @@ def test_ext_long_run(df):
     fast, slow = df.ti.ema(8), df.ti.ema(21)
     df.ti.long_run(fast, slow, append=True)
     assert df.columns[-1] == "LR_2"
+
+
+def test_ext_pmax(df):
+    df.ti.pmax(append=True)
+    expected = ["PMAX_10_3.0", "PMAXd_10_3.0", "PMAXl_10_3.0", "PMAXs_10_3.0"]
+    assert list(df.columns[-4:]) == expected
 
 
 def test_ext_psar(df):

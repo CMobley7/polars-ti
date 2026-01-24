@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from numpy import nan, roll
+import numpy as np
+from numpy import roll
 from pandas import Series
 
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
@@ -49,7 +50,7 @@ def percent_return(
         pr = (np_close / np_close[0]) - 1
     else:
         pr = (np_close / roll(np_close, length)) - 1
-        pr[:length] = nan
+        pr[:length] = np.nan
     pct_return = Series(pr, index=close.index)
 
     # Offset

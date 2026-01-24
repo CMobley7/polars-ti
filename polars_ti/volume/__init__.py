@@ -14,6 +14,7 @@ from polars_ti.volume.pvo import pvo
 from polars_ti.volume.pvol import pvol
 from polars_ti.volume.pvr import pvr
 from polars_ti.volume.pvt import pvt
+from polars_ti.volume.vfi import vfi
 from polars_ti.volume.vhm import vhm
 from polars_ti.volume.vp import vp
 from polars_ti.volume.vwap import vwap
@@ -36,6 +37,7 @@ __all__ = [
     "pvol",
     "pvr",
     "pvt",
+    "vfi",
     "vhm",
     "vp",
     "vwap",

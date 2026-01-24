@@ -206,6 +206,16 @@ def test_wb_tsv(df):
     assert result.name == "TSV_18_10"
 
 
+def test_vfi(df):
+    result = ti.vfi(df.close, df.volume)
+    assert isinstance(result, Series)
+    assert result.name == "VFI_130"
+
+    result = ti.vfi(df.close, df.volume, length=50)
+    assert isinstance(result, Series)
+    assert result.name == "VFI_50"
+
+
 # DataFrame Extension Tests
 def test_ext_ad(df):
     df.ti.ad(talib=False, append=True)

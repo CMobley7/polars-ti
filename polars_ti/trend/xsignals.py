@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import DataFrame, Series
 
 from polars_ti.trend import tsignals
@@ -95,7 +95,7 @@ def xsignals(
     trades = entries + exits
 
     # Modify trades to fill gaps for trends
-    trades.replace({0: nan})
+    trades.replace({0: np.nan})
     trades.ffill(limit_area="inside")
     trades.fillna(0)
 

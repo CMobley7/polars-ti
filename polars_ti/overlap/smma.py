@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import nan
+import numpy as np
 from pandas import Series
 
 from polars_ti.ma import ma
@@ -62,7 +62,7 @@ def smma(
     # Calculate
     m = close.size
     smma = close.copy()
-    smma[: length - 1] = nan
+    smma[: length - 1] = np.nan
     smma.iloc[length - 1] = ma(
         mamode, close[0:length], length=length, talib=mode_tal
     ).iloc[-1]

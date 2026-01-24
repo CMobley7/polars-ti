@@ -36,14 +36,14 @@ _Polars Technical Indicators_ (**Polars TI**) is an easy to use library that lev
 - [DataFrame Methods](#dataframe-methods)
 - [Indicators by Category](#indicators-by-category)
   - [Candles](#candles-64)
-  - [Cycles](#cycles-2)
-  - [Momentum](#momentum-43)
-  - [Overlap](#overlap-36)
+  - [Cycles](#cycles-3)
+  - [Momentum](#momentum-47)
+  - [Overlap](#overlap-38)
   - [Performance](#performance-3)
   - [Statistics](#statistics-10)
-  - [Trend](#trend-24)
+  - [Trend](#trend-25)
   - [Volatility](#volatility-16)
-  - [Volume](#volume-20)
+  - [Volume](#volume-21)
 - [Performance Metrics](#performance-metrics)
 - [Changes](#changes)
   - [General](#general)
@@ -59,7 +59,7 @@ _Polars Technical Indicators_ (**Polars TI**) is an easy to use library that lev
 # **Features**
 
 - A Free & Open Source library with a LARGE flat library structure similar to TA Lib.
-  - [150+ indicators](#indicators-by-category) and utilities.
+  - [158+ indicators](#indicators-by-category) and utilities.
   - [60+ Candelstick Patterns](#candles-64) with [TA Lib](https://ta-lib.org/) installed.
 - Performance improvements with [numba](https://github.com/numba/numba)
 - A [Pandas DataFrame Extension](https://pandas.pydata.org/docs/development/extending.html) named "ti", that provides additional properties, methods, and indicators to simplify time series calculations of `ohlcv` columns.
@@ -773,14 +773,15 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 
 <br/>
 
-### **Cycles** (2)
+### **Cycles** (3)
 
+- _Detrended Synthetic Price_: **dsp**
 - _Even Better Sinewave_: **ebsw**
 - _Reflex_: **reflex**
 
 <br/>
 
-### **Momentum** (43)
+### **Momentum** (47)
 
 - _Awesome Oscillator_: **ao**
 - _Absolute Price Oscillator_: **apo**
@@ -802,10 +803,12 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 - _Inertia_: **inertia**
 - _KDJ_: **kdj**
 - _KST Oscillator_: **kst**
+- _Laguerre RSI_: **lrsi**
 - _Moving Average Convergence Divergence_: **macd**
 - _Momentum_: **mom**
 - _Pretty Good Oscillator_: **pgo**
 - _Percentage Price Oscillator_: **ppo**
+- _Projection Oscillator_: **po**
 - _Psychological Line_: **psl**
 - _Quantitative Qualitative Estimation_: **qqe**
 - _Rate of Change_: **roc**
@@ -824,13 +827,15 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 - _Stochastic RSI_: **stochrsi**
 - _True Momentum Oscillator_: **tmo**
 - _Trix_: **trix**
+- _TRIX Histogram_: **trixh**
 - _True Strength Index_: **tsi**
 - _Ultimate Oscillator_: **uo**
+- _Volume Weighted MACD_: **vwmacd**
 - _Williams %R_: **willr**
 
 <br/>
 
-### **Overlap** (36)
+### **Overlap** (38)
 
 - _Bill Williams Alligator_: **alligator**
 - _Arnaud Legoux Moving Average_: **alma**
@@ -853,9 +858,11 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 - _McGinley Dynamic_: **mcgd**
 - _Midpoint_: **midpoint**
 - _Midprice_: **midprice**
+- _Madrid Moving Average Ribbon_: **mmar**
 - _Open-High-Low-Close Average_: **ohlc4**
 - _Pivot Points_: **pivots**
 - _Pascal's Weighted Moving Average_: **pwma**
+- _Rainbow Charts_: **rainbow**
 - _WildeR's Moving Average_: **rma**
 - _Sine Weighted Moving Average_: **sinwma**
 - _Simple Moving Average_: **sma**
@@ -899,7 +906,7 @@ Use parameter: cumulative=**True** for cumulative results.
 
 <br/>
 
-### **Trend** (24)
+### **Trend** (25)
 
 - _Average Directional Movement Index_: **adx**
   - Also includes **dmp** and **dmn** in the resultant DataFrame.
@@ -917,6 +924,7 @@ Use parameter: cumulative=**True** for cumulative results.
 - _Increasing_: **increasing**
 - _Long Run_: **long_run**
 - _Parabolic Stop and Reverse_: **psar**
+- _PMAX_: **pmax**
 - _Q Stick_: **qstick**
 - _Random Walk Index_: **rwi**
 - _Short Run_: **short_run**
@@ -951,7 +959,7 @@ Use parameter: cumulative=**True** for cumulative results.
 
 <br/>
 
-### **Volume** (20)
+### **Volume** (21)
 
 - _Accumulation/Distribution Index_: **ad**
 - _Accumulation/Distribution Oscillator_: **adosc**
@@ -968,6 +976,7 @@ Use parameter: cumulative=**True** for cumulative results.
 - _Price-Volume_: **pvol**
 - _Price Volume Rank_: **pvr**
 - _Price Volume Trend_: **pvt**
+- _Volume Flow Indicator_: **vfi**
 - _Volume Heatmap_: **vhm**
 - _Volume Profile_: **vp**
 - _Volume Weighted Average Price_: **vwap**

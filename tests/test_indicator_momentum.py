@@ -614,6 +614,34 @@ def test_willr(df):
     assert result.name == "WILLR_14"
 
 
+def test_lrsi(df):
+    result = ti.lrsi(df.close)
+    assert isinstance(result, Series)
+    assert result.name == "LRSI_14"
+
+    result = ti.lrsi(df.close, gamma=0.7)
+    assert isinstance(result, Series)
+    assert result.name == "LRSI_14"
+
+
+def test_po(df):
+    result = ti.po(df.close)
+    assert isinstance(result, Series)
+    assert result.name == "PO_14"
+
+
+def test_trixh(df):
+    result = ti.trixh(df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "TRIXH_18_9"
+
+
+def test_vwmacd(df):
+    result = ti.vwmacd(df.close, df.volume)
+    assert isinstance(result, DataFrame)
+    assert result.name == "VWMACD_12_26_9"
+
+
 # DataFrame Extension Tests
 def test_ext_ao(df):
     df.ti.ao(append=True)

@@ -17,6 +17,12 @@ def test_reflex(df):
     assert result.name == "REFLEX_20_20_0.04"
 
 
+def test_dsp(df):
+    result = ti.dsp(df.close)
+    assert isinstance(result, Series)
+    assert result.name == "DSP_14"
+
+
 # DataFrame Extension Tests
 def test_ext_ebsw(df):
     df.ti.ebsw(append=True)

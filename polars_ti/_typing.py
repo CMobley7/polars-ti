@@ -5,12 +5,15 @@ from pathlib import Path
 from sys import float_info as sflt
 from typing import *
 
+import numpy as np
 from numpy import argmax, argmin
 from numpy import floating as np_floating
 from numpy import generic as np_generic
 from numpy import integer as np_integer
-from numpy import nan, ndarray, recarray, void
+from numpy import ndarray, recarray, void
 from pandas import DataFrame, Series
+
+nan = np.nan  # NumPy 2.0+ compatible
 
 # Generic types
 T = TypeVar("T")

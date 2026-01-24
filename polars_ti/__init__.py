@@ -14,7 +14,7 @@ from polars_ti.core import TechnicalIndicators
 # Custom External Directory Commands. See help(import_dir)
 from polars_ti.custom import create_dir, import_dir
 from polars_ti.cycles import __all__ as cycles_all
-from polars_ti.cycles import ebsw, reflex
+from polars_ti.cycles import dsp, ebsw, reflex
 
 # Common Averages useful for Indicators
 # with a mamode argument, like ti.adx()
@@ -44,9 +44,11 @@ from polars_ti.momentum import (
     inertia,
     kdj,
     kst,
+    lrsi,
     macd,
     mom,
     pgo,
+    po,
     ppo,
     psl,
     qqe,
@@ -65,8 +67,10 @@ from polars_ti.momentum import (
     stochrsi,
     tmo,
     trix,
+    trixh,
     tsi,
     uo,
+    vwmacd,
     willr,
 )
 from polars_ti.overlap import __all__ as overlap_all
@@ -89,9 +93,11 @@ from polars_ti.overlap import (
     mcgd,
     midpoint,
     midprice,
+    mmar,
     ohlc4,
     pivots,
     pwma,
+    rainbow,
     rma,
     sinwma,
     sma,
@@ -139,12 +145,14 @@ from polars_ti.trend import (
     ht_trendline,
     increasing,
     long_run,
+    pmax,
     psar,
     qstick,
     rwi,
     short_run,
     trendflex,
     tsignals,
+    ttm_trend,
     vhf,
     vortex,
     xsignals,
@@ -282,6 +290,7 @@ from polars_ti.volume import (
     pvol,
     pvr,
     pvt,
+    vfi,
     vhm,
     vp,
     vwap,

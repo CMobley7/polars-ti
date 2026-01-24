@@ -2,7 +2,7 @@
 from pandas import Series
 
 from polars_ti.maps import Imports
-from polars_ti.overlap import rma
+from polars_ti.overlap.rma import rma
 from polars_ti.utils import (
     v_drift,
     v_offset,

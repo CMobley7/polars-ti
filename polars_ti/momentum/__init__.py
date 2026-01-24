@@ -19,9 +19,11 @@ from polars_ti.momentum.fisher import fisher
 from polars_ti.momentum.inertia import inertia
 from polars_ti.momentum.kdj import kdj
 from polars_ti.momentum.kst import kst
+from polars_ti.momentum.lrsi import lrsi
 from polars_ti.momentum.macd import macd
 from polars_ti.momentum.mom import mom
 from polars_ti.momentum.pgo import pgo
+from polars_ti.momentum.po import po
 from polars_ti.momentum.ppo import ppo
 from polars_ti.momentum.psl import psl
 from polars_ti.momentum.qqe import qqe
@@ -40,8 +42,10 @@ from polars_ti.momentum.stochf import stochf
 from polars_ti.momentum.stochrsi import stochrsi
 from polars_ti.momentum.tmo import tmo
 from polars_ti.momentum.trix import trix
+from polars_ti.momentum.trixh import trixh
 from polars_ti.momentum.tsi import tsi
 from polars_ti.momentum.uo import uo
+from polars_ti.momentum.vwmacd import vwmacd
 from polars_ti.momentum.willr import willr
 
 __all__ = [
@@ -65,9 +69,11 @@ __all__ = [
     "inertia",
     "kdj",
     "kst",
+    "lrsi",
     "macd",
     "mom",
     "pgo",
+    "po",
     "ppo",
     "psl",
     "qqe",
@@ -86,7 +92,9 @@ __all__ = [
     "stochrsi",
     "tmo",
     "trix",
+    "trixh",
     "tsi",
     "uo",
+    "vwmacd",
     "willr",
 ]
