@@ -58,7 +58,7 @@ def vhm(
     offset = v_offset(offset)
 
     # Calculate
-    mu = ma(mamode, volume, length=length)
+    mu = ma(mamode, volume, length=length, **kwargs)
     vhm = (volume - mu) / pstdev(volume, slength)
 
     # Offset

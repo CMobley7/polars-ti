@@ -214,6 +214,29 @@ def test_ui(df):
     assert result.name == "UIe_14"
 
 
+def test_avsl(df):
+    result = ti.avsl(df.close, df.low, df.volume)
+    assert isinstance(result, Series)
+    assert result.name == "AVSL_12_26"
+
+    # Test with custom parameters
+    result = ti.avsl(df.close, df.low, df.volume, fast_period=10, slow_period=20)
+    assert isinstance(result, Series)
+    assert result.name == "AVSL_10_20"
+
+
+def test_halftrend(df):
+    result = ti.halftrend(df.high, df.low, df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "HT_14_2_2"
+    assert len(result.columns) == 6
+
+    # Test with custom parameters
+    result = ti.halftrend(df.high, df.low, df.close, amplitude=3, channel_deviation=3)
+    assert isinstance(result, DataFrame)
+    assert result.name == "HT_14_3_3"
+
+
 # DataFrame Extension Tests
 def test_ext_aberration(df):
     df.ti.aberration(append=True)
@@ -310,3 +333,21 @@ def test_ext_ui(df):
 
     df.ti.ui(everget=True, append=True)
     assert df.columns[-1] == "UIe_14"
+
+
+def test_ext_avsl(df):
+    df.ti.avsl(append=True)
+    assert df.columns[-1] == "AVSL_12_26"
+
+
+def test_ext_halftrend(df):
+    df.ti.halftrend(append=True)
+    columns = [
+        "HT_atr_high_14_2_2",
+        "HT_atr_low_14_2_2",
+        "HT_close_14_2_2",
+        "HT_direction_14_2_2",
+        "HT_arr_up_14_2_2",
+        "HT_arr_down_14_2_2",
+    ]
+    assert list(df.columns[-6:]) == columns

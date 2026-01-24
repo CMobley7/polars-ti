@@ -75,7 +75,7 @@ def wb_tsv(
     tsv = cvd.rolling(length).sum()
     if all(isnan(tsv)):
         return  # Emergency Break
-    signal_ = ma(mamode, tsv, length=signal)
+    signal_ = ma(mamode, tsv, length=signal, **kwargs)
     ratio = tsv / signal_
 
     # Offset

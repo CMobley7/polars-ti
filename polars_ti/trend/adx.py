@@ -138,15 +138,15 @@ def adx(
         dx.iloc[length - 1] = dx[:length].sum()
         dx[: length - 1] = 0
 
-        adx = ma(mamode, dx, length=lensig)
+        adx = ma(mamode, dx, length=lensig, **kwargs)
         # Rollback shifted rows.
         adx[: length - 1] = nan
         adx = adx.shift(length)
     else:
-        dmp = k * ma(mamode, pos, length=length)
-        dmn = k * ma(mamode, neg, length=length)
+        dmp = k * ma(mamode, pos, length=length, **kwargs)
+        dmn = k * ma(mamode, neg, length=length, **kwargs)
         dx = scalar * (dmp - dmn).abs() / (dmp + dmn)
-        adx = ma(mamode, dx, length=lensig)
+        adx = ma(mamode, dx, length=lensig, **kwargs)
 
     adxr = 0.5 * (adx + adx.shift(adxr_length))
 

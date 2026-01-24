@@ -145,15 +145,15 @@ def tmo(
     if all(isnan(signed_diff_sum)):
         return None  # Emergency Break
 
-    initial_ma = ma(mamode, signed_diff_sum, length=calc_length)
+    initial_ma = ma(mamode, signed_diff_sum, length=calc_length, **kwargs)
     if all(isnan(initial_ma)):
         return None  # Emergency Break
 
-    main = ma(mamode, initial_ma, length=smooth_length)
+    main = ma(mamode, initial_ma, length=smooth_length, **kwargs)
     if all(isnan(main)):
         return None  # Emergency Break
 
-    smooth = ma(mamode, main, length=smooth_length)
+    smooth = ma(mamode, main, length=smooth_length, **kwargs)
     if all(isnan(smooth)):
         return None  # Emergency Break
 

@@ -57,6 +57,7 @@ from polars_ti.momentum import (
     ppo,
     psl,
     qqe,
+    rmi,
     roc,
     rsi,
     rsx,
@@ -150,6 +151,7 @@ from polars_ti.trend import (
     qstick,
     rwi,
     short_run,
+    trama,
     trendflex,
     tsignals,
     ttm_trend,
@@ -172,9 +174,11 @@ from polars_ti.volatility import (
     accbands,
     atr,
     atrts,
+    avsl,
     bbands,
     chandelier_exit,
     donchian,
+    halftrend,
     hwc,
     kc,
     massi,
@@ -1575,6 +1579,27 @@ class TechnicalIndicators(object):
         result = roc(close=close, length=length, offset=offset, **kwargs)
         return self._post_process(result, **kwargs)
 
+    def rmi(
+        self,
+        length=None,
+        momentum=None,
+        scalar=None,
+        mamode=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = rmi(
+            close=close,
+            length=length,
+            momentum=momentum,
+            scalar=scalar,
+            mamode=mamode,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
     def rsi(
         self, length=None, scalar=None, drift=None, offset=None, **kwargs: DictLike
     ):
@@ -2802,6 +2827,13 @@ class TechnicalIndicators(object):
         )
         return self._post_process(result, **kwargs)
 
+    def trama(self, length=None, mamode=None, offset=None, **kwargs: DictLike):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = trama(
+            close=close, length=length, mamode=mamode, offset=offset, **kwargs
+        )
+        return self._post_process(result, **kwargs)
+
     def trendflex(
         self,
         close=None,
@@ -3006,6 +3038,54 @@ class TechnicalIndicators(object):
             mamode=mamode,
             talib=talib,
             drift=drift,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
+    def avsl(
+        self,
+        fast_period=None,
+        slow_period=None,
+        scalar=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        close = self._get_column(kwargs.pop("close", "close"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        volume = self._get_column(kwargs.pop("volume", "volume"))
+        result = avsl(
+            close=close,
+            low=low,
+            volume=volume,
+            fast_period=fast_period,
+            slow_period=slow_period,
+            scalar=scalar,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
+    def halftrend(
+        self,
+        atr_length=None,
+        amplitude=None,
+        channel_deviation=None,
+        smoothing=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = halftrend(
+            high=high,
+            low=low,
+            close=close,
+            atr_length=atr_length,
+            amplitude=amplitude,
+            channel_deviation=channel_deviation,
+            smoothing=smoothing,
             offset=offset,
             **kwargs,
         )

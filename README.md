@@ -37,12 +37,12 @@ _Polars Technical Indicators_ (**Polars TI**) is an easy to use library that lev
 - [Indicators by Category](#indicators-by-category)
   - [Candles](#candles-64)
   - [Cycles](#cycles-3)
-  - [Momentum](#momentum-47)
+  - [Momentum](#momentum-48)
   - [Overlap](#overlap-38)
   - [Performance](#performance-3)
   - [Statistics](#statistics-10)
-  - [Trend](#trend-25)
-  - [Volatility](#volatility-16)
+  - [Trend](#trend-26)
+  - [Volatility](#volatility-18)
   - [Volume](#volume-21)
 - [Performance Metrics](#performance-metrics)
 - [Changes](#changes)
@@ -781,7 +781,7 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 
 <br/>
 
-### **Momentum** (47)
+### **Momentum** (48)
 
 - _Awesome Oscillator_: **ao**
 - _Absolute Price Oscillator_: **apo**
@@ -813,6 +813,7 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 - _Quantitative Qualitative Estimation_: **qqe**
 - _Rate of Change_: **roc**
 - _Relative Strength Index_: **rsi**
+- _Relative Momentum Index_: **rmi**
 - _Relative Strength Xtra_: **rsx**
 - _Relative Vigor Index_: **rvgi**
 - _Slope_: **slope**
@@ -906,7 +907,7 @@ Use parameter: cumulative=**True** for cumulative results.
 
 <br/>
 
-### **Trend** (25)
+### **Trend** (26)
 
 - _Average Directional Movement Index_: **adx**
   - Also includes **dmp** and **dmn** in the resultant DataFrame.
@@ -934,11 +935,12 @@ Use parameter: cumulative=**True** for cumulative results.
 - _Vertical Horizontal Filter_: **vhf**
 - _Vortex_: **vortex**
 - _Cross Signals_: **xsignals**
+- _Trend Regulated Adaptive Moving Average_: **trama**
 - _Zigzag_: **zigzag**
 
 <br/>
 
-### **Volatility** (16)
+### **Volatility** (18)
 
 - _Aberration_: **aberration**
 - _Acceleration Bands_: **accbands**
@@ -956,6 +958,8 @@ Use parameter: cumulative=**True** for cumulative results.
 - _Elder's Thermometer_: **thermo**
 - _True Range_: **true_range**
 - _Ulcer Index_: **ui**
+- _Anti-Volume Stop Loss_: **avsl**
+- _HalfTrend_: **halftrend**
 
 <br/>
 

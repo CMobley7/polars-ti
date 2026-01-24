@@ -118,7 +118,7 @@ def chandelier_exit(
     if offset != 0:
         long = long.shift(offset)
         short = short.shift(offset)
-        direction = short.shift(offset)
+        direction = direction.shift(offset)
 
     # Fill
     if "fillna" in kwargs:

@@ -89,7 +89,7 @@ def atr(
             sma_nth = tr[0:length].mean()
             tr[: length - 1] = nan
             tr.iloc[length - 1] = sma_nth
-        atr = ma(mamode, tr, length=length, talib=mode_tal)
+        atr = ma(mamode, tr, length=length, talib=mode_tal, **kwargs)
 
     if all(isnan(atr)):
         return  # Emergency Break
