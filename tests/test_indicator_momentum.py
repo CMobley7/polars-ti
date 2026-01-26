@@ -204,6 +204,16 @@ def test_fisher(df):
     assert result.name == "FISHERT_9_1"
 
 
+def test_imi(df):
+    result = ti.imi(df.open, df.close)
+    assert isinstance(result, Series)
+    assert result.name == "IMI_14"
+
+    # IMI values should be between 0 and 100
+    valid_values = result.dropna()
+    assert (valid_values >= 0).all() and (valid_values <= 100).all()
+
+
 def test_inertia(df):
     result = ti.inertia(df.close)
     assert isinstance(result, Series)

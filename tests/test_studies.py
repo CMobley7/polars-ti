@@ -12,7 +12,7 @@ categories = DataFrame().ti.categories() + [
 ]
 
 # +/- when adding/removing indicators
-ALL_COLUMNS = 375
+ALL_COLUMNS = 384
 
 
 def test_all_study_props(all_study):
@@ -38,14 +38,14 @@ def test_common_study_props(common_study):
     [
         ("candles", 70),
         ("cycles", 3),
-        ("momentum", 96),
-        ("overlap", 72),
+        ("momentum", 97),
+        ("overlap", 75),
         ("performance", 5),
         ("statistics", 16),
         ("transform", 5),
         ("trend", 39),
-        ("volatility", 43),
-        ("volume", 28),
+        ("volatility", 46),
+        ("volume", 30),
         pytest.param(ti.AllStudy, ALL_COLUMNS, id=f"all-{ALL_COLUMNS}"),
         pytest.param(ti.CommonStudy, 5, id="common-5"),
     ],
@@ -102,7 +102,7 @@ def test_study_custom_e_talib(df, custom_study_e, talib):
 
 @pytest.mark.parametrize("talib", [False, True])
 def test_study_all_multirun_talib(df, all_study, talib):
-    new_columns = 691  # +/- when adding/removing indicators
+    new_columns = 708  # +/- when adding/removing indicators
     initial_columns = df.shape[1]
     df.ti.study(all_study, length=10, cores=0, talib=talib)
     df.ti.study(all_study, length=50, cores=0, talib=talib)

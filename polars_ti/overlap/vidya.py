@@ -73,7 +73,7 @@ def vidya(
         try:
             from talib import CMO
 
-            cmo_ = CMO(close, length)
+            cmo_ = CMO(close, length) / 100
         except ImportError:
             # Lazy import to avoid circular dependency
             from polars_ti.momentum.cmo import cmo

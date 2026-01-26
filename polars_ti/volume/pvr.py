@@ -10,6 +10,7 @@ def pvr(
     close: Series,
     volume: Series,
     drift: Int = None,
+    **kwargs: dict,
 ) -> Series:
     """Price Volume Rank
 

@@ -46,6 +46,7 @@ from polars_ti.momentum import (
     eri,
     exhc,
     fisher,
+    imi,
     inertia,
     kdj,
     kst,
@@ -100,6 +101,7 @@ from polars_ti.overlap import (
     midprice,
     mmar,
     ohlc4,
+    ott,
     pivots,
     pwma,
     rainbow,
@@ -178,6 +180,7 @@ from polars_ti.volatility import (
     bbands,
     chandelier_exit,
     donchian,
+    fvg,
     halftrend,
     hwc,
     kc,
@@ -193,6 +196,7 @@ from polars_ti.volume import (
     ad,
     adosc,
     aobv,
+    avwap,
     cmf,
     efi,
     eom,
@@ -1395,6 +1399,12 @@ class TechnicalIndicators(object):
         )
         return self._post_process(result, **kwargs)
 
+    def imi(self, length=None, offset=None, **kwargs: DictLike):
+        open_ = self._get_column(kwargs.pop("open", "open"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = imi(open_=open_, close=close, length=length, offset=offset, **kwargs)
+        return self._post_process(result, **kwargs)
+
     def inertia(
         self,
         length=None,
@@ -2218,6 +2228,25 @@ class TechnicalIndicators(object):
         close = self._get_column(kwargs.pop("close", "close"))
         result = ohlc4(
             open_=open_, high=high, low=low, close=close, offset=offset, **kwargs
+        )
+        return self._post_process(result, **kwargs)
+
+    def ott(
+        self,
+        length=None,
+        multiplier=None,
+        mamode=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = ott(
+            close=close,
+            length=length,
+            multiplier=multiplier,
+            mamode=mamode,
+            offset=offset,
+            **kwargs,
         )
         return self._post_process(result, **kwargs)
 
@@ -3152,6 +3181,22 @@ class TechnicalIndicators(object):
         )
         return self._post_process(result, **kwargs)
 
+    def fvg(self, min_gap=None, offset=None, **kwargs: DictLike):
+        open_ = self._get_column(kwargs.pop("open", "open"))
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        result = fvg(
+            open_=open_,
+            high=high,
+            low=low,
+            close=close,
+            min_gap=min_gap,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
     def hwc(
         self,
         na=None,
@@ -3372,6 +3417,29 @@ class TechnicalIndicators(object):
             mamode=mamode,
             max_lookback=max_lookback,
             min_lookback=min_lookback,
+            offset=offset,
+            **kwargs,
+        )
+        return self._post_process(result, **kwargs)
+
+    def avwap(
+        self,
+        left_strength=None,
+        right_strength=None,
+        offset=None,
+        **kwargs: DictLike,
+    ):
+        high = self._get_column(kwargs.pop("high", "high"))
+        low = self._get_column(kwargs.pop("low", "low"))
+        close = self._get_column(kwargs.pop("close", "close"))
+        volume = self._get_column(kwargs.pop("volume", "volume"))
+        result = avwap(
+            high=high,
+            low=low,
+            close=close,
+            volume=volume,
+            left_strength=left_strength,
+            right_strength=right_strength,
             offset=offset,
             **kwargs,
         )

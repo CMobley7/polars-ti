@@ -20,11 +20,20 @@ def supertrend(
 ) -> DataFrame:
     """Supertrend (supertrend)
 
-    Supertrend is an overlap indicator. It is used to help identify trend
-    direction, setting stop loss, identify support and resistance, and/or
-    generate buy & sell signals.
+    Supertrend is an overlap indicator created by Olivier Seban. It is used
+    to help identify trend direction, setting stop loss, identify support
+    and resistance, and/or generate buy & sell signals.
+
+    The indicator combines trend detection and volatility using ATR. Band
+    preservation logic per TradingView:
+        upperBand = basicUpperBand < prev upperBand or prev close > prev upperBand
+                    ? basicUpperBand : prev upperBand
+        lowerBand = basicLowerBand > prev lowerBand or prev close < prev lowerBand
+                    ? basicLowerBand : prev lowerBand
 
     Sources:
+        https://www.tradingview.com/support/solutions/43000634738-supertrend/
+        https://www.investopedia.com/supertrend-indicator-7976167
         http://www.freebsensetips.com/blog/detail/7/What-is-supertrend-indicator-its-calculation
 
     Args:
@@ -78,10 +87,12 @@ def supertrend(
             dir_[i] = -1
         else:
             dir_[i] = dir_[i - 1]
-            if dir_[i] > 0 and lb.iat[i] < lb.iat[i - 1]:
-                lb.iat[i] = lb.iat[i - 1]
-            if dir_[i] < 0 and ub.iat[i] > ub.iat[i - 1]:
-                ub.iat[i] = ub.iat[i - 1]
+
+        # Preserve bands in trend direction (moved outside else for TV match)
+        if dir_[i] > 0 and lb.iat[i] < lb.iat[i - 1]:
+            lb.iat[i] = lb.iat[i - 1]
+        if dir_[i] < 0 and ub.iat[i] > ub.iat[i - 1]:
+            ub.iat[i] = ub.iat[i - 1]
 
         if dir_[i] > 0:
             trend[i] = long[i] = lb.iat[i]

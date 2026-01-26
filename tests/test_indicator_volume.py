@@ -64,6 +64,12 @@ def test_aobv(df):
     assert result.name == "AOBVe_4_12_2_2_2"
 
 
+def test_avwap(df):
+    result = ti.avwap(df.high, df.low, df.close, df.volume)
+    assert isinstance(result, DataFrame)
+    assert result.name == "AVWAP_5_5"
+
+
 def test_cmf(df):
     result = ti.cmf(df.high, df.low, df.close, df.volume)
     assert isinstance(result, Series)

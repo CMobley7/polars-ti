@@ -2,6 +2,7 @@
 from polars_ti.volume.ad import ad
 from polars_ti.volume.adosc import adosc
 from polars_ti.volume.aobv import aobv
+from polars_ti.volume.avwap import avwap
 from polars_ti.volume.cmf import cmf
 from polars_ti.volume.efi import efi
 from polars_ti.volume.eom import eom
@@ -25,6 +26,7 @@ __all__ = [
     "ad",
     "adosc",
     "aobv",
+    "avwap",
     "cmf",
     "efi",
     "eom",

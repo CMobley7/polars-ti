@@ -7,6 +7,7 @@ from polars_ti.volatility.avsl import avsl
 from polars_ti.volatility.bbands import bbands
 from polars_ti.volatility.chandelier_exit import chandelier_exit
 from polars_ti.volatility.donchian import donchian
+from polars_ti.volatility.fvg import fvg
 from polars_ti.volatility.halftrend import halftrend
 from polars_ti.volatility.hwc import hwc
 from polars_ti.volatility.kc import kc
@@ -27,6 +28,7 @@ __all__ = [
     "bbands",
     "chandelier_exit",
     "donchian",
+    "fvg",
     "halftrend",
     "hwc",
     "kc",

@@ -360,6 +360,25 @@ def test_zigzag(df):
     assert all_pivotsdf.shape[0] == low_pivotsdf.shape[0] + high_pivotsdf.shape[0]
 
 
+def test_zigzag_lookahead(df):
+    """Test zigzag lookahead=False eliminates look-ahead bias."""
+    # Normal mode (uses future data)
+    result_normal = ti.zigzag(df.high, df.low, lookahead=True)
+    assert isinstance(result_normal, DataFrame)
+
+    # No lookahead mode (no look-ahead bias, safer for backtesting)
+    result_no_lookahead = ti.zigzag(df.high, df.low, lookahead=False)
+    assert isinstance(result_no_lookahead, DataFrame)
+    assert result_no_lookahead.name == "ZIGZAG_5.0%_10"
+
+    # Both should return valid DataFrames with same columns
+    assert list(result_normal.columns) == list(result_no_lookahead.columns)
+
+    # No lookahead mode should have at least some swing points
+    notna_backtest = result_no_lookahead.iloc[:, 0].notna()
+    assert notna_backtest.any()
+
+
 def test_trama(df):
     result = ti.trama(df.close)
     assert isinstance(result, Series)
