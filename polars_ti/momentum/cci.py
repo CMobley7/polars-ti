@@ -64,7 +64,9 @@ def cci(
         mean_typical_price = sma(typical_price, length=length, talib=mode_tal)
         mad_typical_price = mad(typical_price, length=length)
 
-        cci = typical_price - mean_typical_price / (c * mad_typical_price)
+        cci = (typical_price - mean_typical_price) / (c * mad_typical_price)
+        # Protect against divide-by-zero when mad is near zero
+        cci[mad_typical_price < 1e-8] = 0
 
     # Offset
     if offset != 0:

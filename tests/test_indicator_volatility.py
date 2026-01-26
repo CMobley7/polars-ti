@@ -110,6 +110,22 @@ def test_donchian(df):
     assert result.name == "DC_10_5"
 
 
+def test_fvg(df):
+    """Test Fair Value Gap indicator."""
+    result = ti.fvg(df.open, df.high, df.low, df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "FVG_0"
+    assert len(result.columns) == 3
+    assert "FVGh_0" in result.columns
+    assert "FVGl_0" in result.columns
+    assert "FVGt_0" in result.columns
+
+    # Test with min_gap parameter
+    result = ti.fvg(df.open, df.high, df.low, df.close, min_gap=1)
+    assert isinstance(result, DataFrame)
+    assert result.name == "FVG_1"
+
+
 def test_hwc(df):
     result = ti.hwc(df.close)
     assert isinstance(result, DataFrame)
@@ -278,6 +294,11 @@ def test_ext_chandelier_exit(df):
 def test_ext_donchian(df):
     df.ti.donchian(append=True)
     assert list(df.columns[-3:]) == ["DCL_20_20", "DCM_20_20", "DCU_20_20"]
+
+
+def test_ext_fvg(df):
+    df.ti.fvg(append=True)
+    assert list(df.columns[-3:]) == ["FVGh_0", "FVGl_0", "FVGt_0"]
 
 
 def test_ext_kc(df):

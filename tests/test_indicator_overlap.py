@@ -341,6 +341,12 @@ def test_ohlc4(df):
     assert result.name == "OHLC4"
 
 
+def test_ott(df):
+    result = ti.ott(df.close)
+    assert isinstance(result, DataFrame)
+    assert result.name == "OTT_5_2.4"
+
+
 @mark.parametrize(
     "method,name,columns",
     [

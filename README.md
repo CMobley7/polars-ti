@@ -7,7 +7,7 @@
 [![Issues](https://img.shields.io/github/issues-raw/CMobley7/polars-ti?style=flat)](#issues)
 [![Closed Issues](https://img.shields.io/github/issues-closed-raw/CMobley7/polars-ti?style=flat)](#closed-issues)
 
-_Polars Technical Indicators_ (**Polars TI**) is an easy to use library that leverages the Pandas package with more than 150+ Indicators and Utility functions and more than 60+ TA-Lib Candlestick Patterns. Many commonly used indicators are included, such as: _Candle Pattern_(**cdl_pattern**), _Simple Moving Average_ (**sma**) _Moving Average Convergence Divergence_ (**macd**), _Hull Exponential Moving Average_ (**hma**), _Bollinger Bands_ (**bbands**), _On-Balance Volume_ (**obv**), _Aroon & Aroon Oscillator_ (**aroon**), _Squeeze_ (**squeeze**) and **_many more_**.
+_Polars Technical Indicators_ (**Polars TI**) is an easy to use library that leverages the Pandas package with more than 175+ Indicators and Utility functions and more than 60+ TA-Lib Candlestick Patterns. Many commonly used indicators are included, such as: _Candle Pattern_(**cdl_pattern**), _Simple Moving Average_ (**sma**) _Moving Average Convergence Divergence_ (**macd**), _Hull Exponential Moving Average_ (**hma**), _Bollinger Bands_ (**bbands**), _On-Balance Volume_ (**obv**), _Aroon & Aroon Oscillator_ (**aroon**), _Squeeze_ (**squeeze**) and **_many more_**.
 
 **Note:** _TA Lib_ must be installed to use **all** the Candlestick Patterns. `pip install TA-Lib`. If _TA Lib_ is not installed, then only the builtin Candlestick Patterns will be available.
 
@@ -42,7 +42,7 @@ _Polars Technical Indicators_ (**Polars TI**) is an easy to use library that lev
   - [Performance](#performance-3)
   - [Statistics](#statistics-10)
   - [Trend](#trend-26)
-  - [Volatility](#volatility-18)
+  - [Volatility](#volatility-19)
   - [Volume](#volume-21)
 - [Performance Metrics](#performance-metrics)
 - [Changes](#changes)
@@ -59,7 +59,7 @@ _Polars Technical Indicators_ (**Polars TI**) is an easy to use library that lev
 # **Features**
 
 - A Free & Open Source library with a LARGE flat library structure similar to TA Lib.
-  - [158+ indicators](#indicators-by-category) and utilities.
+  - [176 indicators](#indicators-by-category) and utilities.
   - [60+ Candelstick Patterns](#candles-64) with [TA Lib](https://ta-lib.org/) installed.
 - Performance improvements with [numba](https://github.com/numba/numba)
 - A [Pandas DataFrame Extension](https://pandas.pydata.org/docs/development/extending.html) named "ti", that provides additional properties, methods, and indicators to simplify time series calculations of `ohlcv` columns.
@@ -691,7 +691,7 @@ help(ti.yf)
 
 # **Indicators** (_by Category_)
 
-### **Candles** (64)
+### **Candles** (65)
 
 Patterns that are **not bold**, require TA-Lib to be installed: `pip install TA-Lib`
 
@@ -781,7 +781,7 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 
 <br/>
 
-### **Momentum** (48)
+### **Momentum** (50)
 
 - _Awesome Oscillator_: **ao**
 - _Absolute Price Oscillator_: **apo**
@@ -801,6 +801,7 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 - _Elder Ray Index_: **eri**
 - _Fisher Transform_: **fisher**
 - _Inertia_: **inertia**
+- _Intraday Momentum Index_: **imi**
 - _KDJ_: **kdj**
 - _KST Oscillator_: **kst**
 - _Laguerre RSI_: **lrsi**
@@ -836,7 +837,7 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 
 <br/>
 
-### **Overlap** (38)
+### **Overlap** (39)
 
 - _Bill Williams Alligator_: **alligator**
 - _Arnaud Legoux Moving Average_: **alma**
@@ -861,6 +862,7 @@ df = df.ti.cdl_pattern(name=["doji", "inside"])
 - _Midprice_: **midprice**
 - _Madrid Moving Average Ribbon_: **mmar**
 - _Open-High-Low-Close Average_: **ohlc4**
+- _Optimized Trend Tracker_: **ott**
 - _Pivot Points_: **pivots**
 - _Pascal's Weighted Moving Average_: **pwma**
 - _Rainbow Charts_: **rainbow**
@@ -907,7 +909,7 @@ Use parameter: cumulative=**True** for cumulative results.
 
 <br/>
 
-### **Trend** (26)
+### **Trend** (25)
 
 - _Average Directional Movement Index_: **adx**
   - Also includes **dmp** and **dmn** in the resultant DataFrame.
@@ -920,8 +922,6 @@ Use parameter: cumulative=**True** for cumulative results.
 - _Decreasing_: **decreasing**
 - _Detrend Price Oscillator_: **dpo**
 - _Hilbert Transform TrendLine_: **ht_trendline**
-- _Detrended Price Oscillator_: **dpo**
-  - Set `lookahead=False` to disable centering and remove potential data leak.
 - _Increasing_: **increasing**
 - _Long Run_: **long_run**
 - _Parabolic Stop and Reverse_: **psar**
@@ -940,7 +940,7 @@ Use parameter: cumulative=**True** for cumulative results.
 
 <br/>
 
-### **Volatility** (18)
+### **Volatility** (19)
 
 - _Aberration_: **aberration**
 - _Acceleration Bands_: **accbands**
@@ -949,6 +949,7 @@ Use parameter: cumulative=**True** for cumulative results.
 - _Bollinger Bands_: **bbands**
 - _Chandelier Exit_: **chandelier_exit**
 - _Donchian Channel_: **donchian**
+- _Fair Value Gap_: **fvg**
 - _Holt-Winter Channel_: **hwc**
 - _Keltner Channel_: **kc**
 - _Mass Index_: **massi**
@@ -963,11 +964,12 @@ Use parameter: cumulative=**True** for cumulative results.
 
 <br/>
 
-### **Volume** (21)
+### **Volume** (22)
 
 - _Accumulation/Distribution Index_: **ad**
 - _Accumulation/Distribution Oscillator_: **adosc**
 - _Archer On-Balance Volume_: **aobv**
+- _Anchored VWAP_: **avwap**
 - _Chaikin Money Flow_: **cmf**
 - _Elder's Force Index_: **efi**
 - _Ease of Movement_: **eom**

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from numba import njit
-from numpy import floor, isnan, nan, zeros, zeros_like
+from numpy import floor, isnan, nan, roll, zeros, zeros_like
 from pandas import DataFrame, Series
 
 from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
@@ -39,7 +39,7 @@ def nb_rolling_hl(np_high, np_low, window_size):
 
 
 @njit(cache=True)
-def nb_find_zigzags(idx, swing, value, deviation):
+def nb_find_zigzags_backward(idx, swing, value, deviation):
     zz_idx = zeros_like(idx)
     zz_swing = zeros_like(swing)
     zz_value = zeros_like(value)
@@ -92,6 +92,97 @@ def nb_find_zigzags(idx, swing, value, deviation):
                     zz_swing[zigzags] = swing[i]
                     zz_value[zigzags] = value[i]
                     zz_dev[zigzags - 1] = 100 * current_dev
+
+    _n = zigzags + 1
+    return zz_idx[:_n], zz_swing[:_n], zz_value[:_n], zz_dev[:_n]
+
+
+@njit(cache=True)
+def nb_find_zigzags_forward(idx, swing, value, deviation):
+    """Calculate zigzag points forward in time for backtest-safe results.
+
+    Unlike nb_find_zigzags which processes backwards (using future data),
+    this function processes forward in time, ensuring swing points are
+    placed at the candle where they would have been detected in real-time.
+    This eliminates look-ahead bias for realistic backtesting.
+
+    Args:
+        idx (1d np array): Pivot indices
+        swing (1d np array): Pivot swing direction (-1 low, 1 high)
+        value (1d np array): Pivot values
+        deviation (float): Deviation percentage for reversal detection
+
+    Returns:
+        tuple: (indices, swings, values, deviations) arrays
+    """
+    zz_idx = zeros_like(idx)
+    zz_swing = zeros_like(swing)
+    zz_value = zeros_like(value)
+    zz_dev = zeros_like(idx)
+
+    zigzags = 0
+    changes = 0
+    zz_idx[zigzags] = idx[0]
+    zz_swing[zigzags] = swing[0]
+    zz_value[zigzags] = value[0]
+    zz_dev[zigzags] = 0
+
+    m = idx.size
+    for i in range(1, m):
+        last_zz_value = zz_value[zigzags]
+        current_dev = (value[i] - last_zz_value) / last_zz_value
+
+        # Last point in zigzag is bottom
+        if zz_swing[zigzags - changes] == -1:
+            if swing[i] == -1:
+                # If the current pivot is lower than the last ZZ bottom:
+                # create a new point and log it as a change
+                if value[i] < zz_value[zigzags]:
+                    if zz_idx[zigzags - changes] == idx[i]:
+                        continue
+                    zigzags += 1
+                    changes += 1
+                    zz_idx[zigzags] = idx[i]
+                    zz_swing[zigzags] = swing[i]
+                    zz_value[zigzags] = value[i]
+                    zz_dev[zigzags] = 100 * current_dev
+            else:
+                # If deviation is great enough, create new ZZ point
+                if current_dev > 0.01 * deviation:
+                    if zz_idx[zigzags - changes] == idx[i]:
+                        continue
+                    zigzags += 1
+                    zz_idx[zigzags] = idx[i]
+                    zz_swing[zigzags] = swing[i]
+                    zz_value[zigzags] = value[i]
+                    zz_dev[zigzags] = 100 * current_dev
+                    changes = 0
+
+        # Last point in zigzag is top
+        else:
+            if swing[i] == 1:
+                # If the current pivot is higher than the last ZZ top:
+                # create a new point and log it as a change
+                if value[i] > zz_value[zigzags]:
+                    if zz_idx[zigzags - changes] == idx[i]:
+                        continue
+                    zigzags += 1
+                    changes += 1
+                    zz_idx[zigzags] = idx[i]
+                    zz_swing[zigzags] = swing[i]
+                    zz_value[zigzags] = value[i]
+                    zz_dev[zigzags] = 100 * current_dev
+            else:
+                # If deviation is great enough, create new ZZ point
+                if current_dev < -0.01 * deviation:
+                    if zz_idx[zigzags - changes] == idx[i]:
+                        continue
+                    zigzags += 1
+                    zz_idx[zigzags] = idx[i]
+                    zz_swing[zigzags] = swing[i]
+                    zz_value[zigzags] = value[i]
+                    zz_dev[zigzags] = 100 * current_dev
+                    changes = 0
 
     _n = zigzags + 1
     return zz_idx[:_n], zz_swing[:_n], zz_value[:_n], zz_dev[:_n]
@@ -158,9 +249,12 @@ def zigzag(
     Kwargs:
         fillna (value, optional): pd.DataFrame.fillna(value)
         fill_method (value, optional): Type of fill method
+        lookahead (bool, optional): If True (default), uses future data for
+            precise swing point placement. If False, eliminates look-ahead
+            bias by processing pivots forward in time - safer for backtesting.
 
     Returns:
-        pd.DataFrame: swing, and swing_type (high or low).
+        pd.DataFrame: ZIGZAGs (swing type), ZIGZAGv (price), ZIGZAGd (deviation).
     """
     # Validate
     legs = v_pos_default(legs, 10)
@@ -185,14 +279,25 @@ def zigzag(
     # Calculation
     np_high, np_low = high.to_numpy(), low.to_numpy()
     hli, hls, hlv = nb_rolling_hl(np_high, np_low, legs)
-    zzi, zzs, zzv, zzd = nb_find_zigzags(hli, hls, hlv, deviation)
+
+    # lookahead=True (default): uses future data for precise placement
+    # lookahead=False: no look-ahead bias, safer for backtesting
+    if kwargs.get("lookahead", True):
+        zzi, zzs, zzv, zzd = nb_find_zigzags_backward(hli, hls, hlv, deviation)
+    else:
+        zzi, zzs, zzv, zzd = nb_find_zigzags_forward(hli, hls, hlv, deviation)
+
     zz_swing, zz_value, zz_dev = nb_map_zigzag(zzi, zzs, zzv, zzd, np_high.size)
 
-    # Offset
+    # Offset (use numpy roll for arrays, shift for Series)
     if offset != 0:
-        zz_swing = zz_swing.shift(offset)
-        zz_value = zz_value.shift(offset)
-        zz_dev = zz_dev.shift(offset)
+        zz_swing = roll(zz_swing, offset)
+        zz_value = roll(zz_value, offset)
+        zz_dev = roll(zz_dev, offset)
+        # Replace rolled-in values with NaN
+        zz_swing[:offset] = nan
+        zz_value[:offset] = nan
+        zz_dev[:offset] = nan
 
     # Fill
     if "fillna" in kwargs:
