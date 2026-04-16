@@ -1,91 +1,35 @@
 # -*- coding: utf-8 -*-
-from numpy import full, nan, zeros
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars PSAR Implementation (Numba kernel)
+# =============================================================================
+import numpy as np
+from numba import njit
+import polars as pl
 
-from polars_ti.utils import v_offset, v_pos_default, v_series, zero
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def psar(
-    high: Series,
-    low: Series,
-    close: Series | None = None,
-    af0: int | float | None = None,
-    af: int | float | None = None,
-    max_af: int | float | None = None,
-    tv=False,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Parabolic Stop and Reverse (psar)
+@njit(cache=True)
+def _nb_psar(high, low, af0, max_af):
+    """Numba kernel for Parabolic SAR."""
+    n = len(high)
+    sar = np.zeros(n)
+    long_arr = np.full(n, np.nan)
+    short_arr = np.full(n, np.nan)
+    af_arr = np.zeros(n)
+    reversal = np.zeros(n, dtype=np.int64)
 
-    Parabolic Stop and Reverse (PSAR) was developed by J. Wells Wilder, that
-    is used to determine trend direction and it's potential reversals in
-    price. PSAR uses a trailing stop and reverse method called "SAR," or stop
-    and reverse, to identify possible entries and exits. It is also known
-    as SAR.
-
-    PSAR indicator typically appears on a chart as a series of dots, either
-    above or below an asset's price, depending on the direction the price is
-    moving. A dot is placed below the price when it is trending upward, and
-    above the price when it is trending downward.
-
-    Sources:
-        https://www.tradingview.com/pine-script-reference/#fun_sar
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=66&Name=Parabolic
-
-    Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series, optional): Series of 'close's. Optional
-        af0 (float): Initial Acceleration Factor. Default: 0.02
-        af (float): Acceleration Factor. Default: 0.02
-        max_af (float): Maximum Acceleration Factor. Default: 0.2
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
-
-    Returns:
-        pd.DataFrame: long, short, af, and reversal columns.
-    """
-    # Validate
-    _length = 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-
-    if high is None or low is None:
-        return
-
-    orig_high = high.copy()
-    orig_low = low.copy()
-    # Numpy arrays offer some performance improvements
-    high, low = high.values, low.values
-
-    paf = v_pos_default(af, 0.02)  # paf is used to keep af from parameters
-    af0 = v_pos_default(af0, paf)
     af = af0
+    af_arr[0] = af0
+    af_arr[1] = af0
 
-    max_af = v_pos_default(max_af, 0.2)
-    offset = v_offset(offset)
-
-    # Set up
-    m = high.size
-    sar = zeros(m)
-    long = full(m, nan)
-    short = full(m, nan)
-    reversal = zeros(m, dtype=int)
-    _af = zeros(m)
-    _af[:2] = af0
-    falling = _falling(orig_high.iloc[:2], orig_low.iloc[:2])
+    # Determine initial direction
+    falling = (low[0] - low[1]) > (high[1] - high[0]) and (low[0] - low[1]) > 0
     ep = low[0] if falling else high[0]
-    if close is not None:
-        close = v_series(close)
-        sar[0] = close.iloc[0]
-    else:
-        sar[0] = high[0] if falling else low[0]
+    sar[0] = high[0] if falling else low[0]
 
-    # Calculate
-    for i in range(1, m):
+    for i in range(1, n):
         sar[i] = sar[i - 1] + af * (ep - sar[i - 1])
 
         if falling:
@@ -107,52 +51,81 @@ def psar(
             falling = not falling
             ep = low[i] if falling else high[i]
 
-        # Separate long/short SAR based on falling
         if falling:
-            short[i] = sar[i]
+            short_arr[i] = sar[i]
         else:
-            long[i] = sar[i]
+            long_arr[i] = sar[i]
 
-        _af[i] = af
-        reversal[i] = int(reverse)
+        af_arr[i] = af
+        reversal[i] = 1 if reverse else 0
 
-    _af = Series(_af, index=orig_high.index)
-    long = Series(long, index=orig_high.index)
-    short = Series(short, index=orig_high.index)
-    reversal = Series(reversal, index=orig_high.index)
-
-    # Offset
-    if offset != 0:
-        _af = _af.shift(offset)
-        long = long.shift(offset)
-        short = short.shift(offset)
-        reversal = reversal.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        _af.fillna(kwargs["fillna"])
-        long.fillna(kwargs["fillna"])
-        short.fillna(kwargs["fillna"])
-        reversal.fillna(kwargs["fillna"])
-
-    _props = f"_{af0}_{max_af}"
-    data = {
-        f"PSARl{_props}": long,
-        f"PSARs{_props}": short,
-        f"PSARaf{_props}": _af,
-        f"PSARr{_props}": reversal,
-    }
-    df = DataFrame(data, index=orig_high.index)
-    df.name = f"PSAR{_props}"
-    df.category = long.category = short.category = "trend"
-
-    return df
+    return long_arr, short_arr, af_arr, reversal
 
 
-def _falling(high, low, drift: int = 1):
-    """Returns the last -DM value"""
-    # Not to be confused with ti.falling()
-    up = high - high.shift(drift)
-    dn = low.shift(drift) - low
-    _dmn = (((dn > up) & (dn > 0)) * dn).apply(zero).iloc[-1]
-    return _dmn > 0
+def pl_psar(
+    high: IntoExpr,
+    low: IntoExpr,
+    af0: float = 0.02,
+    af: float = 0.02,
+    max_af: float = 0.2,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Parabolic Stop and Reverse (PSAR)
+
+    Determines trend direction and potential reversals using a trailing
+    stop and reverse method.
+
+    Args:
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        af0: Initial acceleration factor. Default: 0.02
+        af: Acceleration factor step. Default: 0.02
+        max_af: Maximum acceleration factor. Default: 0.2
+        offset: Shift result. Default: 0
+
+    Returns:
+        pl.Expr: Struct with PSARl, PSARs, PSARaf, PSARr columns
+    """
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    _af0 = af0 if af0 and af0 > 0 else af if af and af > 0 else 0.02
+
+    def _compute(s: pl.Series) -> pl.Series:
+        data = s.struct.unnest()
+        h = data["_h"].to_numpy().astype(np.float64)
+        l_ = data["_l"].to_numpy().astype(np.float64)
+        long_a, short_a, af_a, rev_a = _nb_psar(h, l_, _af0, max_af)
+
+        if offset != 0:
+            for a in [long_a, short_a, af_a]:
+                a[:] = np.roll(a, offset)
+                if offset > 0:
+                    a[:offset] = np.nan
+            rev_a = np.roll(rev_a, offset)
+            if offset > 0:
+                rev_a[:offset] = 0
+
+        _props = f"_{_af0}_{max_af}"
+        n = len(h)
+        return pl.Series(values=[
+            {
+                f"PSARl{_props}": long_a[i],
+                f"PSARs{_props}": short_a[i],
+                f"PSARaf{_props}": af_a[i],
+                f"PSARr{_props}": int(rev_a[i]),
+            }
+            for i in range(n)
+        ])
+
+    _props = f"_{_af0}_{max_af}"
+    fields = [
+        pl.Field(f"PSARl{_props}", pl.Float64),
+        pl.Field(f"PSARs{_props}", pl.Float64),
+        pl.Field(f"PSARaf{_props}", pl.Float64),
+        pl.Field(f"PSARr{_props}", pl.Int64),
+    ]
+    return pl.struct(
+        high_expr.alias("_h"),
+        low_expr.alias("_l"),
+    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"PSAR{_props}")
+

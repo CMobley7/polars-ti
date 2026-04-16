@@ -1,74 +1,41 @@
 # -*- coding: utf-8 -*-
-from numpy import sqrt
-from pandas import Series
+# =============================================================================
+# Polars STDEV Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
-
-from .variance import variance
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def stdev(
-    close: Series,
-    length: int | None = None,
-    ddof: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Rolling Standard Deviation
+def pl_stdev(
+    close: IntoExpr,
+    length: int = 30,
+    ddof: int = 1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Rolling Standard Deviation
 
-    Calculates the Standard Deviation over a rolling period.
+    Calculates Standard Deviation over a rolling period using native Polars.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 30
-        ddof (int): Delta Degrees of Freedom.
-                    The divisor used in calculations is N - ddof,
-                    where N represents the number of elements. The 'talib'
-                    argument must be false for 'ddof' to work. Default: 1
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. TA Lib does not have a 'ddof' argument.
-            Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 30
+        ddof: Delta Degrees of Freedom. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Standard deviation expression
     """
-    # Validate
-    length = v_pos_default(length, 30)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    # Native Polars rolling_std
+    result = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
 
-    ddof = int(ddof) if isinstance(ddof, int) and 0 <= ddof < length else 1
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import STDDEV
-
-        stdev = STDDEV(close, length)
-    else:
-        stdev = variance(close=close, length=length, ddof=ddof, talib=mode_tal).apply(
-            sqrt
-        )
-
-    # Offset
     if offset != 0:
-        stdev = stdev.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        stdev = stdev.fillna(kwargs["fillna"])
+    return result.alias(f"STDEV_{length}")
 
-    # Name and Category
-    stdev.name = f"STDEV_{length}"
-    stdev.category = "statistics"
-
-    return stdev

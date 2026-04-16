@@ -1,87 +1,69 @@
 # -*- coding: utf-8 -*-
-from numpy import append, arange, array, exp, floor, nan, tensordot
-from numpy.version import version as np_version
-from pandas import Series
+# =============================================================================
+# Polars ALMA Implementation (Pure rolling_map)
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.utils import strided_window, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def alma(
-    close: Series,
-    length: int | None = None,
-    sigma: int | float | None = None,
-    dist_offset: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Arnaud Legoux Moving Average (ALMA)
+def pl_alma(
+    close: IntoExpr,
+    length: int = 9,
+    sigma: float = 6.0,
+    dist_offset: float = 0.85,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Arnaud Legoux Moving Average (ALMA)
 
-    The ALMA moving average uses the curve of the Normal (Gauss) distribution,
-    which can be shifted from 0 to 1. This allows regulating the smoothness
-    and high sensitivity of the indicator. Sigma is another parameter that is
-    responsible for the shape of the curve coefficients. This moving average
-    reduces lag of the data in conjunction with smoothing to reduce noise.
-
-    Sources:
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=475&Name=Moving_Average_-_Arnaud_Legoux
-        https://www.prorealcode.com/prorealtime-indicators/alma-arnaud-legoux-moving-average/
+    Uses Gaussian distribution weighting for smoothing.
+    Pure Polars implementation using rolling_map.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period, window size. Default: 9
-        sigma (float): Smoothing value. Default 6.0
-        dist_offset (float): Value to offset the distribution where
-            min 0 (smoother), max 1 (more responsive). Default 0.85
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 9
+        sigma: Smoothing value. Default: 6.0
+        dist_offset: Distribution offset (0=smooth, 1=responsive). Default: 0.85
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: ALMA expression
     """
-    # Validate
-    length = v_pos_default(length, 9)
-    close = v_series(close, length)
-
-    if close is None:
-        return
-
-    sigma = v_pos_default(sigma, 6.0)
-
-    if isinstance(dist_offset, float) and 0 <= dist_offset <= 1:
-        offset_ = float(dist_offset)
-    else:
-        offset_ = 0.85
-
-    offset = v_offset(offset)
-
-    # Calculate
-    np_close = close.to_numpy()
-    x = arange(length)
-    k = floor(offset_ * (length - 1))
-    weights = exp(-0.5 * ((sigma / length) * (x - k)) ** 2)
-    weights /= weights.sum()
-
-    if np_version >= "1.20.0":
-        from numpy.lib.stride_tricks import sliding_window_view
-
-        window = sliding_window_view(np_close, length)
-    else:
-        window = strided_window(np_close, length)
-    result = append(array([nan] * (length - 1)), tensordot(window, weights, axes=1))
-    alma = Series(result, index=close.index)
-
-    # Offset
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+    
+    # Pre-compute Gaussian weights
+    x = np.arange(length, dtype=np.float64)
+    k = np.floor(dist_offset * (length - 1))
+    weights = np.exp(-0.5 * ((sigma / length) * (x - k)) ** 2)
+    weights = weights / weights.sum()
+    weights_list = weights.tolist()
+    
+    _length = length
+    _weights = weights_list
+    
+    def gaussian_weighted_mean(s: pl.Series) -> float:
+        vals = s.to_numpy()
+        if len(vals) < _length:
+            return float('nan')
+        # Check for NaN in window
+        if np.isnan(vals).any():
+            return float('nan')
+        return (vals * _weights).sum()
+    
+    alma_expr = close_expr.rolling_map(
+        function=gaussian_weighted_mean,
+        window_size=length,
+        min_samples=length
+    )
+    
+    # Apply offset
     if offset != 0:
-        alma = alma.shift(offset)
+        alma_expr = alma_expr.shift(offset)
+    
+    return alma_expr.alias(f"ALMA_{length}_{sigma}_{dist_offset}")
 
-    # Fill
-    if "fillna" in kwargs:
-        alma = alma.fillna(kwargs["fillna"])
 
-    # Name and Category
-    alma.name = f"ALMA_{length}_{sigma}_{offset_}"
-    alma.category = "overlap"
-
-    return alma

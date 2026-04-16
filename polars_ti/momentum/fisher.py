@@ -1,99 +1,97 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan, log, nan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars Fisher Transform Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.overlap import hl2
-from polars_ti.utils import high_low_range, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def fisher(
-    high: Series,
-    low: Series,
-    length: int | None = None,
-    signal: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Fisher Transform (FISHT)
-
-    Attempts to identify significant price reversals by normalizing prices
-    over a user-specified number of periods. A reversal signal is suggested
-    when the the two lines cross.
-
-    Sources:
-        TradingView (Correlation >99%)
-
-    Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        length (int): Fisher period. Default: 9
-        signal (int): Fisher Signal period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
-
-    Returns:
-        pd.DataFrame: fisher and signal columns
-    """
-    # Validate
-    length = v_pos_default(length, 9)
-    signal = v_pos_default(signal, 1)
-    _length = max(length, signal)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-
-    if high is None or low is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    hl2_ = hl2(high, low)
-    highest_hl2 = hl2_.rolling(length).max()
-    lowest_hl2 = hl2_.rolling(length).min()
-
-    hlr = high_low_range(highest_hl2, lowest_hl2)
-    hlr[hlr < 0.001] = 0.001
-
-    position = ((hl2_ - lowest_hl2) / hlr) - 0.5
-
-    v = 0
-    m = high.size
-    result = [nan for _ in range(0, length - 1)] + [0]
-    for i in range(length, m):
-        v = 0.66 * position.iat[i] + 0.67 * v
+@njit(cache=True)
+def nb_fisher(hl2_arr: np.ndarray, lowest: np.ndarray, hlr: np.ndarray, length: int) -> np.ndarray:
+    """Numba: Fisher Transform with recursive EMA-like smoothing."""
+    n = len(hl2_arr)
+    result = np.full(n, np.nan)
+    
+    # Initialize: result[length-1] = 0 (matches Pandas)
+    result[length - 1] = 0.0
+    
+    v = 0.0
+    # Loop from i=length to n-1 (matches Pandas: for i in range(length, m))
+    for i in range(length, n):
+        position = ((hl2_arr[i] - lowest[i]) / hlr[i]) - 0.5
+        v = 0.66 * position + 0.67 * v
         if v < -0.99:
             v = -0.999
         if v > 0.99:
             v = 0.999
-        result.append(0.5 * (log((1 + v) / (1 - v)) + result[i - 1]))
+        result[i] = 0.5 * (np.log((1 + v) / (1 - v)) + result[i - 1])
+    
+    return result
 
-    fisher = Series(result, index=high.index)
-    if all(isnan(fisher)):
-        return  # Emergency Break
 
-    signalma = fisher.shift(signal)
+def pl_fisher(
+    high: IntoExpr,
+    low: IntoExpr,
+    length: int = 9,
+    signal: int = 1,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Fisher Transform (FISHT)
 
-    # Offset
+    Identifies price reversals by normalizing prices over N periods.
+
+    Args:
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        length: Fisher period. Default: 9
+        signal: Signal period (shift). Default: 1
+        offset: Shift result. Default: 0
+
+    Returns:
+        list[pl.Expr]: [FISHERT, FISHERTs] expressions
+    """
+    from polars_ti.overlap.hl2 import pl_hl2
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    _length = length
+    
+    def compute_fisher(s: pl.Series) -> pl.Series:
+        df = s.struct.unnest()
+        high_arr = df["high"].to_numpy().astype(np.float64)
+        low_arr = df["low"].to_numpy().astype(np.float64)
+        
+        # HL2
+        hl2_arr = (high_arr + low_arr) / 2.0
+        
+        # Rolling max/min of HL2
+        n = len(hl2_arr)
+        highest = np.full(n, np.nan)
+        lowest = np.full(n, np.nan)
+        for i in range(_length - 1, n):
+            window = hl2_arr[i - _length + 1:i + 1]
+            highest[i] = np.max(window)
+            lowest[i] = np.min(window)
+        
+        # High-low range with floor
+        hlr = highest - lowest
+        hlr = np.maximum(hlr, 0.001)
+        
+        result = nb_fisher(hl2_arr, lowest, hlr, _length)
+        return pl.Series(result)
+    
+    struct_expr = pl.struct(high=high_expr, low=low_expr)
+    fisher_expr = struct_expr.map_batches(compute_fisher, return_dtype=pl.Float64)
+    
+    signal_expr = fisher_expr.shift(signal)
+    
     if offset != 0:
-        fisher = fisher.shift(offset)
-        signalma = signalma.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        fisher = fisher.fillna(kwargs["fillna"])
-        signalma = signalma.fillna(kwargs["fillna"])
-
-    # Name and Category
+        fisher_expr = fisher_expr.shift(offset)
+        signal_expr = signal_expr.shift(offset)
+    
     _props = f"_{length}_{signal}"
-    fisher.name = f"FISHERT{_props}"
-    signalma.name = f"FISHERTs{_props}"
-    fisher.category = signalma.category = "momentum"
-
-    data = {fisher.name: fisher, signalma.name: signalma}
-    df = DataFrame(data, index=high.index)
-    df.name = f"FISHERT{_props}"
-    df.category = fisher.category
-
-    return df
+    return [fisher_expr.alias(f"FISHERT{_props}"), signal_expr.alias(f"FISHERTs{_props}")]

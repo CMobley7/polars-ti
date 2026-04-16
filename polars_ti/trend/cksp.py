@@ -1,105 +1,64 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars CKSP Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series, v_tradingview
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def cksp(
-    high: Series,
-    low: Series,
-    close: Series,
-    p: int | None = None,
-    x: int | float | None = None,
-    q: int | None = None,
-    tvmode: bool | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Chande Kroll Stop (CKSP)
+def pl_cksp(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    p: int = 10,
+    x: float = 1.0,
+    q: int = 9,
+    mamode: str = "rma",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Chande Kroll Stop (CKSP)
 
-    The Tushar Chande and Stanley Kroll in their book
-    “The New Technical Trader”. It is a trend-following indicator,
-    identifying your stop by calculating the average true range of
-    the recent market volatility. The indicator defaults to the implementation
-    found on tradingview but it provides the original book implementation as
-    well, which differs by the default periods and moving average mode. While
-    the trading view implementation uses the Welles Wilder moving average, the
-    book uses a simple moving average.
+    Trend-following indicator using ATR-based stops.
 
-    Defaults:
-    Book:         p=10, x=3, q=20, ma=sma
-    Trading View: p=10, x=1, q=9,  ma=rma
-
-    Sources:
-        https://www.multicharts.com/discussion/viewtopic.php?t=48914
-        "The New Technical Trader", Wiley 1st ed. ISBN 9780471597803, page 95
+    Formula:
+        long_stop = rolling_max(high, p) - x * ATR(p)  -> rolling_max(q)
+        short_stop = rolling_min(low, p) + x * ATR(p)  -> rolling_min(q)
 
     Args:
-        close (pd.Series): Series of 'close's
-        p (int): ATR and first stop period. Default: 10 in both modes
-        x (float): ATR scalar. Default: 1 in TV mode, 3 otherwise
-        q (int): Second stop period. Default: 9 in TV mode, 20 otherwise
-        tvmode (bool): Trading View or book implementation mode. Default: True
-        mamode (str): See ``help(ti.ma)``. Default: None
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        p: ATR period. Default: 10
+        x: ATR multiplier. Default: 1
+        q: Second stop period. Default: 9
+        mamode: MA mode for ATR. Default: 'rma'
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: long and short columns.
+        pl.Expr: Struct with CKSPl and CKSPs columns
     """
-    # Validate
-    mode_tv = v_tradingview(tvmode)
-    p = v_pos_default(p, 10)
-    # TODO: clean up x and q
-    x = float(x) if isinstance(x, float) and x > 0 else 1 if tvmode is True else 3
-    q = int(q) if isinstance(q, float) and q > 0 else 9 if tvmode is True else 20
-    _length = p + q
+    from polars_ti.volatility.atr import pl_atr
 
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if high is None or low is None or close is None:
-        return
+    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=p, talib=False)
 
-    mamode = v_mamode(mamode, "rma") if mode_tv else v_mamode(mamode, "sma")
-    offset = v_offset(offset)
+    long_stop_ = high_expr.rolling_max(window_size=p) - x * atr_expr
+    long_stop = long_stop_.rolling_max(window_size=q)
 
-    # Calculate
-    atr_ = atr(high=high, low=low, close=close, length=p, mamode=mamode)
-    if atr_ is None or all(isnan(atr_)):
-        return
+    short_stop_ = low_expr.rolling_min(window_size=p) + x * atr_expr  
+    short_stop = short_stop_.rolling_min(window_size=q)
 
-    long_stop_ = high.rolling(p).max() - x * atr_
-    long_stop = long_stop_.rolling(q).max()
-
-    short_stop_ = low.rolling(p).min() + x * atr_
-    short_stop = short_stop_.rolling(q).min()
-
-    # Offset
     if offset != 0:
         long_stop = long_stop.shift(offset)
         short_stop = short_stop.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        long_stop = long_stop.fillna(kwargs["fillna"])
-        short_stop = short_stop.fillna(kwargs["fillna"])
-
-    # Name and Category
     _props = f"_{p}_{x}_{q}"
-    long_stop.name = f"CKSPl{_props}"
-    short_stop.name = f"CKSPs{_props}"
-    long_stop.category = short_stop.category = "trend"
-
-    data = {long_stop.name: long_stop, short_stop.name: short_stop}
-    df = DataFrame(data, index=close.index)
-    df.name = f"CKSP{_props}"
-    df.category = long_stop.category
-
-    return df
+    return pl.struct(
+        long_stop.alias(f"CKSPl{_props}"),
+        short_stop.alias(f"CKSPs{_props}"),
+    ).alias(f"CKSP{_props}")

@@ -1,19 +1,22 @@
 # -*- coding: utf-8 -*-
-from numpy import arctan, pi, rad2deg
-from pandas import Series
+# =============================================================================
+# Polars SLOPE Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.utils import nb_idiff, v_bool, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def slope(
-    close: Series,
-    length: int | None = None,
-    as_angle: bool | None = None,
-    to_degrees: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Slope
+def pl_slope(
+    close: IntoExpr,
+    length: int = 1,
+    as_angle: bool = False,
+    to_degrees: bool = False,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Slope
 
     Returns the slope of a series of length n. Can convert the slope to angle.
     Default: slope.
@@ -21,54 +24,38 @@ def slope(
     Source: Algebra
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 1
-        as_angle (value, optional): Converts slope to an angle in radians
-            per np.arctan(). Default: False
-        to_degrees (value, optional): If as_angle=True, it converts the slope
-            angle to degrees. Default: False
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Lookback period. Default: 1
+        as_angle: If True, converts slope to an angle in radians. Default: False
+        to_degrees: If as_angle=True, converts angle to degrees. Default: False
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Slope expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 1)
-    close = v_series(close, length + 1)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    as_angle = v_bool(as_angle, False)
-    to_degrees = v_bool(to_degrees, False)
-    offset = v_offset(offset)
-
-    # Calculate
-    np_close = close.values
-    _slope = nb_idiff(np_close, length) / length
+    # slope = (close - close.shift(length)) / length
+    # This is equivalent to nb_idiff(close, length) / length
+    slope_expr = (close_expr - close_expr.shift(length)) / length
+    
     if as_angle:
-        _slope = arctan(_slope)
+        # Convert to angle using arctan
+        slope_expr = slope_expr.arctan()
         if to_degrees:
-            _slope = rad2deg(_slope)
-    slope = Series(_slope, index=close.index)
-
-    # Offset
+            # Convert radians to degrees
+            slope_expr = slope_expr * (180.0 / np.pi)
+    
     if offset != 0:
-        slope = slope.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        slope = slope.fillna(kwargs["fillna"])
-
-    # Name and Category
-    slope.name = (
-        f"SLOPE_{length}"
-        if not as_angle
-        else f"ANGLE{'d' if to_degrees else 'r'}_{length}"
-    )
-    slope.category = "momentum"
-
-    return slope
+        slope_expr = slope_expr.shift(offset)
+    
+    # Name based on mode
+    if as_angle:
+        suffix = "d" if to_degrees else "r"
+        alias = f"ANGLE{suffix}_{length}"
+    else:
+        alias = f"SLOPE_{length}"
+    
+    return slope_expr.alias(alias)

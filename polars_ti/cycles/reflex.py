@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import cos, exp, nan, sqrt, zeros_like
-from pandas import Series
-
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from numba import njit
 
 
 @njit(cache=True)
@@ -35,80 +32,81 @@ def np_reflex(x, n, k, alpha, pi, sqrt2):
     return result
 
 
-def reflex(
-    close: Series,
-    length: int | None = None,
-    smooth: int | None = None,
-    alpha: int | float | None = None,
-    pi: int | float | None = None,
-    sqrt2: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Reflex (reflex)
+# =============================================================================
+# Polars REFLEX Implementation
+# =============================================================================
+import polars as pl
+from numpy import nan
 
-    John F. Ehlers introduced two indicators within the article
-    "Reflex: A New Zero-Lag Indicator” in February 2020, TASC magazine. One
-    of which is the Reflex, a lag reduced cycle indicator. Both indicators
-    (Reflex/Trendflex) are oscillators and complement each other with the
-    focus for cycle and trend.
+from polars_ti._typing import IntoExpr
 
-    Coded by rengel8 (2021-08-11) based on the implementation on
-    ProRealCode (see Sources). Beyond the mentioned source, this
-    implementation has a separate control parameter for the internal
-    applied SuperSmoother.
+
+def pl_reflex(
+    close: str = "close",
+    length: int = 20,
+    smooth: int = 20,
+    alpha: float = 0.04,
+    pi: float = 3.14159,
+    sqrt2: float = 1.414,
+    offset: int = 0,
+) -> callable:
+    """Polars: Reflex Indicator
+
+    John F. Ehlers' lag-reduced cycle indicator from TASC Feb 2020.
+    Oscillator focused on cycle detection.
+
+    This function returns a compute function due to the recursive nature.
 
     Sources:
         http://traders.com/Documentation/FEEDbk_docs/2020/02/TradersTips.html
-        https://www.prorealcode.com/prorealtime-indicators/reflex-and-trendflex-indicators-john-f-ehlers/
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 20
-        smooth (int): Period of internal SuperSmoother. Default: 20
-        alpha (float): Alpha weight of Difference Sums. Default: 0.04
-        pi (float): The value of PI to use. The default is Ehler's
-            truncated value 3.14159. Adjust the value for more precision.
-            Default: 3.14159
-        sqrt2 (float): The value of sqrt(2) to use. The default is Ehler's
-            truncated value 1.414. Adjust the value for more precision.
-            Default: 1.414
-        offset (int): How many periods to offset the result. Default: 0
+        close: Column name for 'close' prices. Default: "close"
+        length: Period. Default: 20
+        smooth: Period of internal SuperSmoother. Default: 20
+        alpha: Alpha weight. Default: 0.04
+        pi: PI value. Default: 3.14159
+        sqrt2: sqrt(2) value. Default: 1.414
+        offset: Shift result by N periods. Default: 0
 
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
     Returns:
-        pd.Series: New feature generated.
+        callable: Function to apply to DataFrame
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    smooth = v_pos_default(smooth, 20)
-    _length = max(length, smooth) + 1
-    close = v_series(close, _length)
+    _offset = offset  # Capture for closure
+    
+    def compute_reflex(df: pl.DataFrame) -> pl.DataFrame:
+        np_close = df[close].to_numpy()
+        result = np_reflex(np_close, length, smooth, alpha, pi, sqrt2)
+        result[:length] = nan
+        result_df = pl.DataFrame({f"REFLEX_{length}_{smooth}_{alpha}": result})
+        
+        # Apply offset if needed
+        if _offset != 0:
+            result_df = result_df.select([pl.all().shift(_offset)])
+        
+        return result_df
 
-    if close is None:
-        return
+    return compute_reflex
 
-    alpha = v_pos_default(alpha, 0.04)
-    pi = v_pos_default(pi, 3.14159)
-    sqrt2 = v_pos_default(sqrt2, 1.414)
-    offset = v_offset(offset)
 
-    # Calculate
-    np_close = close.to_numpy()
-    result = np_reflex(np_close, length, smooth, alpha, pi, sqrt2)
-    result[:length] = nan
-    result = Series(result, index=close.index)
+def pl_reflex_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    """Apply Reflex to a DataFrame.
 
-    # Offset
-    if offset != 0:
-        result = result.shift(offset)
+    Args:
+        df: Polars DataFrame with close column
+        **kwargs: Parameters (close, length, smooth, alpha, pi, sqrt2)
 
-    # Fill
-    if "fillna" in kwargs:
-        result = result.fillna(kwargs["fillna"])
-    # Name and Category
-    result.name = f"REFLEX_{length}_{smooth}_{alpha}"
-    result.category = "cycles"
+    Returns:
+        pl.DataFrame: Original DataFrame with REFLEX column added
+    """
+    close = kwargs.get("close", "close")
+    length = kwargs.get("length", 20)
+    smooth = kwargs.get("smooth", 20)
+    alpha = kwargs.get("alpha", 0.04)
+    pi_val = kwargs.get("pi", 3.14159)
+    sqrt2 = kwargs.get("sqrt2", 1.414)
 
-    return result
+    compute_fn = pl_reflex(close, length, smooth, alpha, pi_val, sqrt2)
+    reflex_df = compute_fn(df)
+    return df.hstack(reflex_df)
+

@@ -1,59 +1,89 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars ZSCORE Implementation (Numba @njit kernel)
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.overlap import sma
-from polars_ti.statistics import stdev
-from polars_ti.utils import v_lowerbound, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def zscore(
-    close: Series,
-    length: int | None = None,
-    std: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Rolling Z Score
+@njit(cache=True)
+def nb_zscore(close: np.ndarray, length: int, std_mult: float) -> np.ndarray:
+    """Numba-optimized Z-Score calculation.
+    
+    Z = (close - rolling_mean) / (std_mult * rolling_std)
+    
+    Uses ddof=0 for std matching TA-Lib's behavior.
+    """
+    n = len(close)
+    result = np.full(n, np.nan)
+    
+    for i in range(length - 1, n):
+        window = close[i - length + 1 : i + 1]
+        
+        # Compute mean
+        mean = 0.0
+        for j in range(length):
+            mean += window[j]
+        mean /= length
+        
+        # Compute std with ddof=0 (TA-Lib style)
+        var = 0.0
+        for j in range(length):
+            diff = window[j] - mean
+            var += diff * diff
+        var /= length
+        std = np.sqrt(var)
+        
+        if std > 0:
+            result[i] = (close[i] - mean) / (std_mult * std)
+    
+    return result
 
-    Calculates the Z Score over a rolling period.
+
+def pl_zscore(
+    close: IntoExpr,
+    length: int = 30,
+    std: float = 1.0,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Rolling Z Score
+
+    Calculates Z Score over a rolling period.
+    Uses Numba @njit kernel for high performance.
+
+    Z = (close - rolling_mean) / (std * rolling_std)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 30
-        std (float): It's period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 30
+        std: Standard deviation multiplier. Default: 1.0
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Z Score expression
     """
-    # Validate
-    length = v_lowerbound(length, 1, 30)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    _length = length
+    _std = std
 
-    std = v_lowerbound(std, 1, 1.0)
-    offset = v_offset(offset)
+    def compute_zscore(s: pl.Series) -> pl.Series:
+        """Compute zscore using Numba kernel."""
+        arr = s.to_numpy().astype(np.float64)
+        result = nb_zscore(arr, _length, _std)
+        return pl.Series(result)
 
-    # Calculate
-    std *= stdev(close=close, length=length, **kwargs)
-    mean = sma(close=close, length=length, **kwargs)
-    zscore = (close - mean) / std
+    result = close_expr.map_batches(compute_zscore, return_dtype=pl.Float64)
 
-    # Offset
     if offset != 0:
-        zscore = zscore.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        zscore = zscore.fillna(kwargs["fillna"])
+    return result.alias(f"ZS_{length}")
 
-    # Name and Category
-    zscore.name = f"ZS_{length}"
-    zscore.category = "statistics"
 
-    return zscore

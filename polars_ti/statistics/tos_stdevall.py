@@ -1,99 +1,132 @@
 # -*- coding: utf-8 -*-
-from numpy import arange, array, polyfit, std
-from pandas import DataFrame, DatetimeIndex, Series
+# =============================================================================
+# Polars TOS_STDEVALL Implementation (Numba @njit kernel)
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.utils import v_list, v_lowerbound, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def tos_stdevall(
-    close: Series,
+@njit(cache=True)
+def nb_linreg(arr: np.ndarray) -> tuple:
+    """Numba-optimized simple linear regression.
+    
+    Returns (slope, intercept) for y = slope * x + intercept
+    where x = 0, 1, 2, ..., n-1
+    """
+    n = len(arr)
+    sum_x = 0.0
+    sum_y = 0.0
+    sum_xy = 0.0
+    sum_x2 = 0.0
+    
+    for i in range(n):
+        sum_x += i
+        sum_y += arr[i]
+        sum_xy += i * arr[i]
+        sum_x2 += i * i
+    
+    denom = n * sum_x2 - sum_x * sum_x
+    if denom == 0:
+        return 0.0, sum_y / n
+    
+    slope = (n * sum_xy - sum_x * sum_y) / denom
+    intercept = (sum_y - slope * sum_x) / n
+    return slope, intercept
+
+
+@njit(cache=True)
+def nb_std(arr: np.ndarray, ddof: int) -> float:
+    """Numba-optimized standard deviation."""
+    n = len(arr)
+    if n <= ddof:
+        return 0.0
+    
+    mean = 0.0
+    for i in range(n):
+        mean += arr[i]
+    mean /= n
+    
+    var = 0.0
+    for i in range(n):
+        diff = arr[i] - mean
+        var += diff * diff
+    var /= (n - ddof)
+    
+    return np.sqrt(var)
+
+
+def pl_tos_stdevall(
+    close: IntoExpr,
     length: int | None = None,
     stds: list | None = None,
-    ddof: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """TD Ameritrade's Think or Swim Standard Deviation All (TOS_STDEV)
+    ddof: int = 1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: TOS Standard Deviation All
 
-    A port of TD Ameritrade's Think or Swim Standard Deviation All indicator
-    which returns the standard deviation of data for the entire plot or for
-    the interval of the last bars defined by the length parameter.
-
-    WARNING: This function may leak future data when used for machine learning.
-        Setting lookahead=False does not currently prevent leakage.
-        See https://github.com/CMobley7/polars-ti/issues/667.
-
-    Sources:
-        https://tlc.thinkorswim.com/center/reference/thinkScript/Functions/Statistical/StDevAll
+    TD Ameritrade's Think or Swim Standard Deviation All indicator.
+    Uses Numba @njit kernel for high performance.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): Bars from current bar. Default: None
-        stds (list): List of Standard Deviations in increasing order from the
-                    central Linear Regression line. Default: [1,2,3]
-        ddof (int): Delta Degrees of Freedom.
-                    The divisor used in calculations is N - ddof,
-                    where N represents the number of elements. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Bars from current bar. Default: uses all data
+        stds: List of standard deviations. Default: [1, 2, 3]
+        ddof: Delta Degrees of Freedom. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: Central LR, Pairs of Lower and Upper LR Lines based on
-            multiples of the standard deviation. Default: returns 7 columns.
+        pl.Expr: Struct with LR line and std deviation bands
     """
-    # Validate
-    _props = f"TOS_STDEVALL"
-    if length is None:
-        length = close.size
-    else:
-        length = v_lowerbound(length, 2, 30)
-        close = close.iloc[-length:]
-        _props = f"{_props}_{length}"
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    close = v_series(close, 2)
+    _stds = stds if stds is not None else [1, 2, 3]
+    _ddof = ddof
+    _length = length
 
-    if close is None:
-        return
+    def compute_stdevall(s: pl.Series) -> pl.Series:
+        """Compute TOS_STDEVALL using Numba kernels."""
+        arr = s.to_numpy().astype(np.float64)
+        n = len(arr)
+        
+        # Use length or full series
+        if _length is not None and _length < n:
+            arr = arr[-_length:]
+            n = _length
+        
+        # Linear regression using Numba
+        slope, intercept = nb_linreg(arr)
+        lr = np.empty(n, dtype=np.float64)
+        for i in range(n):
+            lr[i] = slope * i + intercept
+        
+        stdev = nb_std(arr, _ddof)
+        
+        # Build result columns
+        result_dict = {"LR": lr}
+        for i in _stds:
+            result_dict[f"L_{i}"] = lr - i * stdev
+            result_dict[f"U_{i}"] = lr + i * stdev
+        
+        # Return as DataFrame columns via struct
+        return pl.DataFrame(result_dict).to_struct("TOS_STDEVALL")
 
-    stds = v_list(stds, [1, 2, 3])
-    if min(stds) <= 0:
-        return
+    # Build return dtype dynamically using pl.Field
+    struct_fields = [pl.Field("LR", pl.Float64)]
+    for i in _stds:
+        struct_fields.append(pl.Field(f"L_{i}", pl.Float64))
+        struct_fields.append(pl.Field(f"U_{i}", pl.Float64))
 
-    if not all(i < j for i, j in zip(stds, stds[1:])):
-        stds = stds[::-1]
+    result = close_expr.map_batches(compute_stdevall, return_dtype=pl.Struct(struct_fields))
 
-    ddof = int(ddof) if isinstance(ddof, int) and 0 <= ddof < length else 1
-    offset = v_offset(offset)
-
-    # Calculate
-    X = src_index = close.index
-    if isinstance(close.index, DatetimeIndex):
-        X = arange(length)
-        close = array(close)
-
-    m, b = polyfit(X, close, 1)
-    lr = Series(m * X + b, index=src_index)
-    stdev = std(close, ddof=ddof)
-
-    # Name and Category
-    df = DataFrame({f"{_props}_LR": lr}, index=src_index)
-    for i in stds:
-        df[f"{_props}_L_{i}"] = lr - i * stdev
-        df[f"{_props}_U_{i}"] = lr + i * stdev
-        df[f"{_props}_L_{i}"].name = df[f"{_props}_U_{i}"].name = f"{_props}"
-        df[f"{_props}_L_{i}"].category = df[f"{_props}_U_{i}"].category = "statistics"
-
-    # Offset
     if offset != 0:
-        df = df.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
+    return result.alias("TOS_STDEVALL")
 
-    df.name = f"{_props}"
-    df.category = "statistics"
 
-    return df

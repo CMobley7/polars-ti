@@ -1,69 +1,59 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import Series
+# =============================================================================
+# Polars PDIST Implementation (Pure Expressions)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import non_zero_range, v_drift, v_offset, v_series
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
-def pdist(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Price Distance (PDIST)
+def pl_pdist(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    drift: int = 1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Price Distance (PDIST)
 
-    Measures the "distance" covered by price movements.
+    Pure Polars expressions - measures the "distance" covered by price movements.
 
     Sources:
         https://www.prorealcode.com/prorealtime-indicators/pricedistance/
 
     Args:
-        open_ (pd.Series): Series of 'opens's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open'
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        drift: The difference period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PDIST expression
     """
-    # Validate
-    drift = v_drift(drift)
-    open_ = v_series(open_)
-    high = v_series(high)
-    low = v_series(low)
-    close = v_series(close)
-    offset = v_offset(offset)
-
-    # Calculate
-    pdist = 2 * non_zero_range(high, low)
-    if all(isnan(pdist)):
-        return  # Emergency Break
-
-    pdist += non_zero_range(open_, close.shift(drift)).abs()
-    pdist -= non_zero_range(close, open_).abs()
-
-    if all(isnan(pdist)):
-        return  # Emergency Break
-
-    # Offset
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    
+    if open_expr is None or high_expr is None or low_expr is None or close_expr is None:
+        return None
+    
+    # PDIST = 2 * (high - low) + |open - close.shift| - |close - open|
+    # Using non_zero protection like Pandas
+    hl_range = pl_non_zero_range(high_expr, low_expr)
+    oc_shift_range = (open_expr - close_expr.shift(drift)).abs()
+    co_range = (close_expr - open_expr).abs()
+    
+    result = pl.lit(2.0) * hl_range + oc_shift_range - co_range
+    
+    # Apply offset
     if offset != 0:
-        pdist = pdist.shift(offset)
+        result = result.shift(offset)
+    
+    return result.alias("PDIST")
 
-    # Fill
-    if "fillna" in kwargs:
-        pdist = pdist.fillna(kwargs["fillna"])
-
-    # Name and Category
-    pdist.name = "PDIST"
-    pdist.category = "volatility"
-
-    return pdist

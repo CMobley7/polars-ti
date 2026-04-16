@@ -1,62 +1,60 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars SWMA Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    symmetric_triangle,
-    v_offset,
-    v_pos_default,
-    v_series,
-    weights,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.utils._math import symmetric_triangle
 
 
-def swma(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Symmetric Weighted Moving Average (SWMA)
+def pl_swma(
+    close: IntoExpr,
+    length: int = 10,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Symmetric Weighted Moving Average (SWMA)
 
     Symmetric Weighted Moving Average where weights are based on a symmetric
-    triangle.  For example: n=3 -> [1, 2, 1], n=4 -> [1, 2, 2, 1], etc...
-    This moving average has variable length in contrast to TradingView's
-    fixed length of 4.
+    triangle. For example: n=3 -> [1, 2, 1], n=4 -> [1, 2, 2, 1], etc...
 
     Source:
         https://www.tradingview.com/study-script-reference/#fun_swma
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: SWMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    # Get symmetric triangle weights
+    triangle_weights = symmetric_triangle(length, weighted=True)
+    weights_list = triangle_weights.tolist()
 
-    offset = v_offset(offset)
+    _length = length
+    _weights = weights_list
 
-    # Calculate
-    triangle = symmetric_triangle(length, weighted=True)
-    swma = close.rolling(length, min_periods=length).apply(weights(triangle), raw=True)
+    def triangle_weighted_mean(s: pl.Series) -> float:
+        vals = s.to_numpy()
+        if len(vals) < _length:
+            return float('nan')
+        return (vals * _weights[-len(vals):]).sum()
 
-    # Offset
+    swma_expr = close_expr.rolling_map(
+        function=triangle_weighted_mean,
+        window_size=length,
+        min_samples=length
+    )
+
+    # Apply offset
     if offset != 0:
-        swma = swma.shift(offset)
+        swma_expr = swma_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        swma = swma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    swma.name = f"SWMA_{length}"
-    swma.category = "overlap"
-
-    return swma
+    return swma_expr.alias(f"SWMA_{length}")

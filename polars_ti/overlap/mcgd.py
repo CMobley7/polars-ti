@@ -1,78 +1,68 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars MCGD Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def _mcgd(x, n, k):
-    d = k * n * (x[1] / x[0]) ** 4
-    x[1] = x[0] + ((x[1] - x[0]) / d)
-    return x[1]
+@njit(cache=True)
+def nb_mcgd(close: np.ndarray, length: int, c: float) -> np.ndarray:
+    """Numba-optimized McGinley Dynamic calculation."""
+    n = len(close)
+    result = np.empty(n, dtype=np.float64)
+    result[0] = close[0]
+    
+    for i in range(1, n):
+        # MCGD formula: MD = MD[i-1] + (price - MD[i-1]) / (k * n * (price / MD[i-1])^4)
+        prev = result[i - 1]
+        if prev != 0 and not np.isnan(prev):
+            ratio = close[i] / prev
+            d = c * length * (ratio ** 4)
+            if d > 1e-10:
+                result[i] = prev + (close[i] - prev) / d
+            else:
+                result[i] = close[i]
+        else:
+            result[i] = close[i]
+    
+    return result
 
 
-def mcgd(
-    close: Series,
-    length: int | None = None,
-    c: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """McGinley Dynamic Indicator
+def pl_mcgd(
+    close: IntoExpr,
+    length: int = 10,
+    c: float = 1.0,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: McGinley Dynamic Indicator
 
-    The McGinley Dynamic looks like a moving average line, yet it is
-    actually a smoothing mechanism for prices that minimizes price
-    separation, price whipsaws, and hugs prices much more closely. Because
-    of the calculation, the Dynamic Line speeds up in down markets as it
-    follows prices yet moves more slowly in up markets. The indicator was
-    designed by John R. McGinley, a Certified Market Technician and former
-    editor of the Market Technicians Association's Journal of Technical
-    Analysis.
-
-    Sources:
-        https://www.investopedia.com/articles/forex/09/mcginley-dynamic-indicator.asp
+    Smoothing mechanism that minimizes price separation and whipsaws.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): Indicator's period. Default: 10
-        c (float): Multiplier for the denominator, sometimes set to 0.6.
-            Default: 1
-        offset (int): Number of periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Indicator period. Default: 10
+        c: Multiplier for denominator. Default: 1.0
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MCGD expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    
+    def compute_mcgd(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        result = nb_mcgd(arr, length, c)
+        if offset != 0:
+            result = np.roll(result, offset)
+            if offset > 0:
+                result[:offset] = np.nan
+        return pl.Series(result)
+    
+    return close_expr.map_batches(compute_mcgd, return_dtype=pl.Float64).alias(f"MCGD_{length}")
 
-    if close is None:
-        return
 
-    c = float(c) if isinstance(c, float) and 0 < c <= 1 else 1
-    offset = v_offset(offset)
-
-    # Calculate
-    close = close.copy()
-
-    mcg_ds = (
-        close[0:]
-        .rolling(2, min_periods=2)
-        .apply(_mcgd, kwargs={"n": length, "k": c}, raw=True)
-    )
-
-    # Offset
-    if offset != 0:
-        mcg_ds = mcg_ds.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        mcg_ds = mcg_ds.fillna(kwargs["fillna"])
-
-    # Name and Category
-    mcg_ds.name = f"MCGD_{length}"
-    mcg_ds.category = "overlap"
-
-    return mcg_ds

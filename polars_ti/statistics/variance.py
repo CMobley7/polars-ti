@@ -1,74 +1,41 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars VARIANCE Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.maps import Imports
-from polars_ti.utils import v_lowerbound, v_offset, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def variance(
-    close: Series,
-    length: int | None = None,
-    ddof: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Rolling Variance
+def pl_variance(
+    close: IntoExpr,
+    length: int = 30,
+    ddof: int = 1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Rolling Variance
 
-    Calculates the Variance over a rolling period.
+    Calculates Variance over a rolling period using native Polars.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 30
-        ddof (int): Delta Degrees of Freedom.
-                    The divisor used in calculations is N - ddof,
-                    where N represents the number of elements.
-                    The 'talib' argument must be false for 'ddof' to work.
-                    Default: 1
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Note: TA Lib does not have a 'ddof' argument.
-            Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 30
+        ddof: Delta Degrees of Freedom. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Variance expression
     """
-    # Validate
-    length = v_lowerbound(length, 1, 30)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
-    else:
-        min_periods = length
-    close = v_series(close, max(length, min_periods))
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    # Native Polars rolling_var
+    result = close_expr.rolling_var(window_size=length, min_samples=length, ddof=ddof)
 
-    ddof = int(ddof) if isinstance(ddof, int) and 0 <= ddof < length else 1
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import VAR
-
-        variance = VAR(close, length)
-    else:
-        variance = close.rolling(length, min_periods=min_periods).var(ddof)
-
-    # Offset
     if offset != 0:
-        variance = variance.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        variance = variance.fillna(kwargs["fillna"])
+    return result.alias(f"VAR_{length}")
 
-    # Name and Category
-    variance.name = f"VAR_{length}"
-    variance.category = "statistics"
-
-    return variance

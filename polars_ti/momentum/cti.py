@@ -1,54 +1,35 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars CTI (Correlation Trend Indicator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import linreg
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def cti(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Correlation Trend Indicator (CTI)
+def pl_cti(
+    close: IntoExpr,
+    length: int = 12,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Correlation Trend Indicator (CTI)
 
-    The Correlation Trend Indicator is an oscillator created
-    by John Ehler in 2020. It assigns a value depending on how close prices
-    in that range are to following a positively- or negatively-sloping
-    straight line. Values range from -1 to 1. This is a wrapper
-    for ti.linreg(close, r=True).
+    Oscillator by John Ehler. Measures how closely prices follow a trend line.
+    Values range from -1 to 1 (+1 = perfect uptrend, -1 = perfect downtrend).
+    This is a wrapper for linreg(close, r=True).
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 12
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 12
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: Series of the CTI values for the given period.
+        pl.Expr: CTI expression
     """
-    # Validate
-    length = v_pos_default(length, 12)
-    close = v_series(close, length)
-
-    if close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    cti = linreg(close, length=length, r=True)
-
-    # Offset
-    if offset != 0:
-        cti = cti.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        cti = cti.fillna(kwargs["fillna"])
-
-    # Name and Category
-    cti.name = f"CTI_{length}"
-    cti.category = "momentum"
-
-    return cti
+    from polars_ti.overlap.linreg import pl_linreg
+    
+    # CTI = linreg correlation coefficient (r=True)
+    cti_expr = pl_linreg(close, length=length, r=True, offset=offset)
+    
+    return cti_expr.alias(f"CTI_{length}")

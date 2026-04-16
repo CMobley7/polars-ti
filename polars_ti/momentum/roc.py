@@ -1,19 +1,5 @@
 # -*- coding: utf-8 -*-
 from numba import njit
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import (
-    nb_idiff,
-    nb_shift,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-    v_talib,
-)
-
-from .mom import mom
 
 
 @njit(cache=True)
@@ -21,71 +7,64 @@ def nb_roc(x, n, k):
     return k * nb_idiff(x, n) / nb_shift(x, n)
 
 
-def roc(
-    close: Series,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Rate of Change (ROC)
+# =============================================================================
+# Polars ROC (Rate of Change) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-    Rate of Change is an indicator is also referred to as Momentum
-    (yeah, confusingly). It is a pure momentum oscillator that measures the
-    percent change in price with the previous price 'n' (or length)
-    periods ago.
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
-    Sources:
-        https://www.tradingview.com/wiki/Rate_of_Change_(ROC)
+
+def pl_roc(
+    close: IntoExpr,
+    length: int = 10,
+    scalar: float = 100.0,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Rate of Change (ROC)
+
+    Measures percent change in price.
+    ROC = scalar * (close - close[n]) / close[n]
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): Its period. Default: 10
-        scalar (float): How much to magnify. Default: 100
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Lookback period. Default: 10
+        scalar: Magnification factor. Default: 100
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: ROC expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length + 1)
-
-    if close is None:
-        return
-
-    scalar = v_scalar(scalar, 100)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import ROC
-
-        roc = ROC(close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+    
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    _length = length
+    _scalar = scalar
+    
+    if _use_talib:
+        def compute_roc(s: pl.Series) -> pl.Series:
+            from talib import ROC as TALIB_ROC
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_ROC(arr, timeperiod=_length)
+            return pl.Series(result)
+        roc_expr = close_expr.map_batches(compute_roc, return_dtype=pl.Float64)
     else:
-        # roc = scalar * mom(close=close, length=length, talib=mode_tal) \
-        # / close.shift(length)
-        np_close = close.values
-        _roc = nb_roc(np_close, length, scalar)
-        roc = Series(_roc, index=close.index)
-
-    # Offset
+        # Pure Polars: ROC = scalar * (close - close.shift(n)) / close.shift(n)
+        shifted = close_expr.shift(length)
+        roc_expr = _scalar * (close_expr - shifted) / shifted
+    
     if offset != 0:
-        roc = roc.shift(offset)
+        roc_expr = roc_expr.shift(offset)
+    
+    return roc_expr.alias(f"ROC_{length}")
 
-    # Fill
-    if "fillna" in kwargs:
-        roc = roc.fillna(kwargs["fillna"])
 
-    # Name and Category
-    roc.name = f"ROC_{length}"
-    roc.category = "momentum"
-
-    return roc

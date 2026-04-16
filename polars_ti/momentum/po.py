@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars PO (Projection Oscillator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import linreg
-from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.overlap.linreg import pl_linreg
 
 
-def po(
-    close: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Projection Oscillator (PO)
+def pl_po(
+    close: IntoExpr,
+    length: int = 14,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Projection Oscillator (PO)
 
     The Projection Oscillator measures the percentage deviation of price from
     its linear regression trend line. It helps identify overbought and
@@ -22,49 +25,30 @@ def po(
         Technical Analysis of Stock Trends by Edwards & Magee
 
     Calculation:
-        Default Inputs:
-            length=14
-
         LR = Linear Regression(close, length)
         PO = 100 * (close - LR) / LR
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): The period. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 14
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PO expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    lr = linreg(close, length=length)
-
-    # Projection oscillator as percentage with division protection
-    lr_safe = non_zero_range(lr, lr * 0)
-    po = 100 * (close - lr) / lr_safe
-
-    # Offset
+    # Calculate linear regression using pl_linreg
+    lr = pl_linreg(close, length=length, talib=True)
+    
+    # PO = 100 * (close - LR) / LR with division protection
+    # When LR is 0, result should be NaN
+    po = pl.when(lr != 0).then(100.0 * (close_expr - lr) / lr).otherwise(None)
+    
+    # Apply offset
     if offset != 0:
         po = po.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        po = po.fillna(kwargs["fillna"])
-
-    # Name and Category
-    po.name = f"PO_{length}"
-    po.category = "momentum"
-
-    return po
+    
+    return po.alias(f"PO_{length}")

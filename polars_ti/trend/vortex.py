@@ -1,85 +1,62 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars Vortex Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series
-from polars_ti.volatility import true_range
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def vortex(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Vortex
+def pl_vortex(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Vortex Indicator
 
-    Two oscillators that capture positive and negative trend movement.
+    Two oscillators capturing positive and negative trend movement.
 
-    Sources:
-        https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:vortex_indicator
+    Formula:
+        VMP = abs(high - low.shift(1))
+        VMM = abs(low - high.shift(1))
+        VIP = sum(VMP, length) / sum(TR, length)
+        VIM = sum(VMM, length) / sum(TR, length)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): ROC 1 period. Default: 14
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        drift: Difference period. Default: 1
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: vip and vim columns
+        pl.Expr: Struct with VTXP and VTXM columns
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
-    else:
-        min_periods = length
-    _length = max(length, min_periods)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    from polars_ti.volatility.true_range import pl_true_range
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    tr = pl_true_range(high_expr, low_expr, close_expr)
+    tr_sum = tr.rolling_sum(window_size=length)
 
-    # Calculate
-    tr = true_range(high=high, low=low, close=close)
-    tr_sum = tr.rolling(length, min_periods=min_periods).sum()
+    vmp = (high_expr - low_expr.shift(drift)).abs()
+    vmm = (low_expr - high_expr.shift(drift)).abs()
 
-    vmp = (high - low.shift(drift)).abs()
-    vmm = (low - high.shift(drift)).abs()
+    vip = vmp.rolling_sum(window_size=length) / tr_sum
+    vim = vmm.rolling_sum(window_size=length) / tr_sum
 
-    vip = vmp.rolling(length, min_periods=min_periods).sum() / tr_sum
-    vim = vmm.rolling(length, min_periods=min_periods).sum() / tr_sum
-
-    # Offset
     if offset != 0:
         vip = vip.shift(offset)
         vim = vim.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        vip = vip.fillna(kwargs["fillna"])
-        vim = vim.fillna(kwargs["fillna"])
-
-    # Name and Category
-    vip.name = f"VTXP_{length}"
-    vim.name = f"VTXM_{length}"
-    vip.category = vim.category = "trend"
-
-    data = {vip.name: vip, vim.name: vim}
-    df = DataFrame(data, index=close.index)
-    df.name = f"VTX_{length}"
-    df.category = "trend"
-
-    return df
+    return pl.struct(
+        vip.alias(f"VTXP_{length}"),
+        vim.alias(f"VTXM_{length}"),
+    ).alias(f"VTX_{length}")

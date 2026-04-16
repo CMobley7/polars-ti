@@ -1,140 +1,141 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series, concat
+# =============================================================================
+# Polars MACD Implementation
+# =============================================================================
+import polars as pl
+from numba import njit
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.overlap import ema
-from polars_ti.utils import signals, v_offset, v_pos_default, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+@njit(cache=True)
+def _ema_numba(values: np.ndarray, length: int) -> np.ndarray:
+    """Numba-accelerated EMA calculation with SMA initialization (TA-Lib style)."""
+    n = len(values)
+    result = np.full(n, np.nan, dtype=np.float64)
+    
+    if n < length:
+        return result
+    
+    # Find first valid index (skip leading NaNs)
+    first_valid = 0
+    for i in range(n):
+        if not np.isnan(values[i]):
+            first_valid = i
+            break
+    else:
+        return result  # All NaN
+    
+    # Check if we have enough values after first valid
+    if n - first_valid < length:
+        return result
+    
+    alpha = 2.0 / (length + 1.0)
+    
+    # Initialize with SMA of first 'length' valid values
+    sma = 0.0
+    for i in range(first_valid, first_valid + length):
+        sma += values[i]
+    
+    sma_idx = first_valid + length - 1
+    result[sma_idx] = sma / length
+    
+    # Continue with EMA
+    for i in range(sma_idx + 1, n):
+        if not np.isnan(values[i]):
+            result[i] = alpha * values[i] + (1 - alpha) * result[i - 1]
+        else:
+            result[i] = result[i - 1]
+    
+    return result
 
 
-def macd(
-    close: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    signal: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Moving Average Convergence Divergence (MACD)
+def _macd_calc(
+    close_arr: np.ndarray,
+    fast: int,
+    slow: int,
+    signal: int,
+    as_mode: bool,
+) -> np.ndarray:
+    """Calculate MACD, Signal, and Histogram using Numba EMA."""
+    n = len(close_arr)
+    
+    # Calculate fast and slow EMAs
+    fast_ema = _ema_numba(close_arr, fast)
+    slow_ema = _ema_numba(close_arr, slow)
+    
+    # MACD = Fast EMA - Slow EMA
+    macd = fast_ema - slow_ema
+    
+    # Signal = EMA of MACD (starting from first valid MACD)
+    signal_ema = _ema_numba(macd, signal)
+    
+    # Histogram = MACD - Signal
+    histogram = macd - signal_ema
+    
+    # AS Mode: Apply transformation
+    if as_mode:
+        macd = macd - signal_ema
+        signal_ema = _ema_numba(macd, signal)
+        histogram = macd - signal_ema
+    
+    # Stack into 2D array: [macd, signal, histogram]
+    return np.column_stack([macd, signal_ema, histogram])
 
-    The MACD is a popular indicator to that is used to identify a security's
-    trend. While APO and MACD are the same calculation, MACD also returns
-    two more series called Signal and Histogram. The Signal is an EMA of
-    MACD and the Histogram is the difference of MACD and Signal.
+
+def pl_macd(
+    close: IntoExpr,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+    as_mode: bool = False,
+) -> PlExpr:
+    """Polars: Moving Average Convergence Divergence (MACD)
+
+    The MACD is a popular indicator used to identify a security's trend.
+    It calculates the difference between fast and slow EMAs, along with
+    a signal line (EMA of MACD) and histogram (MACD - Signal).
 
     Sources:
         https://www.tradingview.com/wiki/MACD_(Moving_Average_Convergence/Divergence)
-        AS Mode: https://tr.tradingview.com/script/YFlKXHnP/
+        https://www.investopedia.com/terms/m/macd.asp
 
     Args:
-        close (pd.Series): Series of 'close's
-        fast (int): The short period. Default: 12
-        slow (int): The long period. Default: 26
-        signal (int): The signal period. Default: 9
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        asmode (value, optional): When True, enables AS version of MACD.
-            Default: False
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        fast: Short period EMA. Default: 12
+        slow: Long period EMA. Default: 26
+        signal: Signal line EMA period. Default: 9
+        as_mode: Enable AS (Alternative Signal) mode. Default: False
 
     Returns:
-        pd.DataFrame: macd, histogram, signal columns
+        pl.Expr: Struct expression with columns:
+            - MACD_{fast}_{slow}_{signal}: MACD line
+            - MACDs_{fast}_{slow}_{signal}: Signal line
+            - MACDh_{fast}_{slow}_{signal}: Histogram
     """
-    # Validate
-    fast = v_pos_default(fast, 12)
-    slow = v_pos_default(slow, 26)
-    signal = v_pos_default(signal, 9)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+    
     if slow < fast:
         fast, slow = slow, fast
-    _length = slow + signal - 1
-    close = v_series(close, _length)
-
-    if close is None:
-        return
-
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-    as_mode = kwargs.setdefault("asmode", False)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import MACD
-
-        macd, signalma, histogram = MACD(close, fast, slow, signal)
-    else:
-        fastma = ema(close, length=fast, talib=mode_tal)
-        slowma = ema(close, length=slow, talib=mode_tal)
-
-        macd = fastma - slowma
-        macd_fvi = macd.loc[macd.first_valid_index() :,]
-        signalma = ema(close=macd_fvi, length=signal, talib=mode_tal)
-        histogram = macd - signalma
-
-    if as_mode:
-        macd = macd - signalma
-        macd_fvi = macd.loc[macd.first_valid_index() :,]
-        signalma = ema(close=macd_fvi, length=signal, talib=mode_tal)
-        histogram = macd - signalma
-
-    # Offset
-    if offset != 0:
-        macd = macd.shift(offset)
-        histogram = histogram.shift(offset)
-        signalma = signalma.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        macd = macd.fillna(kwargs["fillna"])
-        histogram = histogram.fillna(kwargs["fillna"])
-        signalma = signalma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _asmode = "AS" if as_mode else ""
+    
+    _as = "AS" if as_mode else ""
     _props = f"_{fast}_{slow}_{signal}"
-    macd.name = f"MACD{_asmode}{_props}"
-    histogram.name = f"MACD{_asmode}h{_props}"
-    signalma.name = f"MACD{_asmode}s{_props}"
-    macd.category = histogram.category = signalma.category = "momentum"
-
-    data = {macd.name: macd, histogram.name: histogram, signalma.name: signalma}
-    df = DataFrame(data, index=close.index)
-    df.name = f"MACD{_asmode}{_props}"
-    df.category = macd.category
-
-    signal_indicators = kwargs.pop("signal_indicators", False)
-    if signal_indicators:
-        signalsdf = concat(
-            [
-                df,
-                signals(
-                    indicator=histogram,
-                    xa=kwargs.pop("xa", 0),
-                    xb=kwargs.pop("xb", None),
-                    xserie=kwargs.pop("xserie", None),
-                    xserie_a=kwargs.pop("xserie_a", None),
-                    xserie_b=kwargs.pop("xserie_b", None),
-                    cross_values=kwargs.pop("cross_values", True),
-                    cross_series=kwargs.pop("cross_series", True),
-                    offset=offset,
-                ),
-                signals(
-                    indicator=macd,
-                    xa=kwargs.pop("xa", 0),
-                    xb=kwargs.pop("xb", None),
-                    xserie=kwargs.pop("xserie", None),
-                    xserie_a=kwargs.pop("xserie_a", None),
-                    xserie_b=kwargs.pop("xserie_b", None),
-                    cross_values=kwargs.pop("cross_values", False),
-                    cross_series=kwargs.pop("cross_series", True),
-                    offset=offset,
-                ),
+    
+    return close_expr.map_batches(
+        lambda s: pl.DataFrame(
+            _macd_calc(s.to_numpy(), fast, slow, signal, as_mode),
+            schema=[
+                f"MACD{_as}{_props}",
+                f"MACD{_as}s{_props}",
+                f"MACD{_as}h{_props}",
             ],
-            axis=1,
-        )
-
-        return signalsdf
-    else:
-        return df
+        ).to_struct("MACD"),
+        return_dtype=pl.Struct([
+            pl.Field(f"MACD{_as}{_props}", pl.Float64),
+            pl.Field(f"MACD{_as}s{_props}", pl.Float64),
+            pl.Field(f"MACD{_as}h{_props}", pl.Float64),
+        ]),
+    )

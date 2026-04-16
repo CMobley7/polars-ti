@@ -1,84 +1,121 @@
 # -*- coding: utf-8 -*-
-import numpy as np
+# =============================================================================
+# Polars EMA Implementation
+# =============================================================================
+import polars as pl
 from numba import njit
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series, v_talib
+from numpy import empty, float64, nan, isnan
 
 
-def ema(
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    presma: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Exponential Moving Average (EMA)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _ema_numba(close, length, presma=True, adjust=False):
+    """Numba-optimized EMA matching Pandas ewm behavior with presma."""
+    n = len(close)
+    result = empty(n)
+    result[:] = nan
+    
+    alpha = 2.0 / (length + 1)
+    
+    if presma:
+        # Calculate SMA for initial value
+        sma_sum = 0.0
+        valid_count = 0
+        for i in range(length):
+            if not isnan(close[i]):
+                sma_sum += close[i]
+                valid_count += 1
+        
+        if valid_count == length:
+            sma_val = sma_sum / length
+            result[length - 1] = sma_val
+            
+            # Continue with EMA from there
+            for i in range(length, n):
+                if not isnan(close[i]):
+                    result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
+                else:
+                    result[i] = result[i - 1]
+    else:
+        # Standard EMA without SMA initialization
+        first_valid = -1
+        for i in range(n):
+            if not isnan(close[i]):
+                first_valid = i
+                break
+        
+        if first_valid >= 0:
+            result[first_valid] = close[first_valid]
+            for i in range(first_valid + 1, n):
+                if not isnan(close[i]):
+                    result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
+                else:
+                    result[i] = result[i - 1]
+    
+    return result
+
+
+def pl_ema(
+    close: IntoExpr,
+    length: int = 10,
+    talib: bool = True,
+    presma: bool = True,
+    adjust: bool = False,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Exponential Moving Average (EMA)
 
     The Exponential Moving Average is a more responsive moving average
     compared to the Simple Moving Average (SMA). The weights are determined
-    by alpha which is proportional to it's length.  There are several
-    different methods of calculating EMA. One method uses just the standard
-    definition of EMA and another uses the SMA to generate the initial value
-    for the rest of the calculation.
+    by alpha which is proportional to its length.
 
     Sources:
         https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:moving_averages
         https://www.investopedia.com/ask/answers/122314/what-exponential-moving-average-ema-formula-and-how-ema-calculated.asp
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        presma (bool, optional): If True, uses SMA for initial value like
-            TA Lib. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        adjust (bool, optional): Default: False
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Span period for EMA calculation. Default: 10
+        talib: If True and TA-Lib is installed, uses TA-Lib. Default: True
+        presma: If True, uses SMA for initial value like TA-Lib. Default: True
+        adjust: Adjust the decay (not used, for API compat). Default: False
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: EMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+    
+    _length = length
+    _presma = presma
+    _adjust = adjust
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
 
-    if close is None:
-        return
+    def compute_ema(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(float64)
 
-    mode_tal = v_talib(talib)
-    presma = v_bool(presma, True)
-    offset = v_offset(offset)
-    adjust = kwargs.setdefault("adjust", False)
+        
+        if _use_talib:
+            from talib import EMA as TALIB_EMA
+            result = TALIB_EMA(arr, timeperiod=_length)
+        else:
+            result = _ema_numba(arr, _length, _presma, _adjust)
+        
+        return pl.Series(result)
 
-    # Calculate
-    if Imports["talib"] and mode_tal and length > 1:
-        from talib import EMA
+    ema_expr = close_expr.map_batches(compute_ema, return_dtype=pl.Float64)
 
-        ema = EMA(close, length)
-    else:
-        if presma:  # TA Lib implementation
-            close = close.copy()
-            sma_nth = close.iloc[0:length].mean()
-            close.iloc[: length - 1] = np.nan
-            close.iloc[length - 1] = sma_nth
-        ema = close.ewm(span=length, adjust=adjust).mean()
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        ema = ema.shift(offset)
+        ema_expr = ema_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        ema = ema.fillna(kwargs["fillna"])
+    return ema_expr.alias(f"EMA_{length}")
 
-    # Name and Category
-    ema.name = f"EMA_{length}"
-    ema.category = "overlap"
-
-    return ema

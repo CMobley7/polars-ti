@@ -1,115 +1,92 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars AOBV (Archer On Balance Volume) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.trend.long_run import long_run
-from polars_ti.trend.short_run import short_run
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
-
-from .obv import obv
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def aobv(
-    close: Series,
-    volume: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    max_lookback: int | None = None,
-    min_lookback: int | None = None,
-    mamode: str | None = None,
-    run_length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Archer On Balance Volume (AOBV)
+def pl_aobv(
+    close: IntoExpr,
+    volume: IntoExpr,
+    fast: int = 4,
+    slow: int = 12,
+    max_lookback: int = 2,
+    min_lookback: int = 2,
+    mamode: str = "ema",
+    run_length: int = 2,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Archer On Balance Volume (AOBV)
 
-    Archer On Balance Volume (AOBV) developed by Kevin Johnson provides
-    additional indicator analysis on OBV. It calculates moving averages, default
-    'ema', of OBV as well as the moving average Long and Short Run Trends, see
-    ``help(ti.long_run)``. Lastly, the indicator also calculates the rolling
-    Maximum and Minimum OBV.
-
-    Sources:
-        https://www.tradingview.com/script/Co1ksara-Trade-Archer-On-balance-Volume-Moving-Averages-v1/
+    Archer On Balance Volume provides additional indicator analysis on OBV.
+    It calculates moving averages of OBV as well as Long and Short Run Trends.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        fast (int): The period of the fast moving average. Default: 4
-        slow (int): The period of the slow moving average. Default: 12
-        max_lookback (int): Maximum OBV bars back. Default: 2
-        min_lookback (int): Minimum OBV bars back. Default: 2
-        run_length (int): Trend length for OBV long and short runs. Default: 2
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        fast: Fast MA period. Default: 4
+        slow: Slow MA period. Default: 12
+        max_lookback: Maximum OBV lookback. Default: 2
+        min_lookback: Minimum OBV lookback. Default: 2
+        mamode: MA type. Default: 'ema'
+        run_length: Long/Short run length. Default: 2
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: OBV_MIN, OBV_MAX, OBV_FMA, OBV_SMA, OBV_LR, OBV_SR columns.
+        list[pl.Expr]: List of expressions [OBV, OBV_min, OBV_max, OBV_fast, OBV_slow, LR, SR]
     """
-    # Validate
-    fast = v_pos_default(fast, 4)
-    slow = v_pos_default(slow, 12)
-    min_lookback = v_pos_default(min_lookback, 2)
-    max_lookback = v_pos_default(max_lookback, 2)
-
+    from polars_ti.volume.obv import pl_obv
+    from polars_ti.ma import pl_ma
+    from polars_ti.trend.long_run import pl_long_run
+    from polars_ti.trend.short_run import pl_short_run
+    
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
     if slow < fast:
         fast, slow = slow, fast
-    _length = max(max_lookback, min_lookback) + slow
-
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
-
-    if close is None or volume is None:
-        return
-
-    mamode = v_mamode(mamode, "ema")
-    run_length = v_pos_default(run_length, 2)
-    offset = v_offset(offset)
-    # remove length so it doesn't override ema length
-    if "length" in kwargs:
-        kwargs.pop("length")
-
-    # Calculate
-    obv_ = obv(close=close, volume=volume, **kwargs)
-    maf = ma(mamode, obv_, length=fast, **kwargs)
-    mas = ma(mamode, obv_, length=slow, **kwargs)
-
-    obv_long = long_run(maf, mas, length=run_length)
-    obv_short = short_run(maf, mas, length=run_length)
-
-    # Offset
+    
+    _mode = mamode.lower()[0] if len(mamode) else ""
+    
+    # Build OBV base
+    obv_expr = pl_obv(close_expr, volume_expr, talib=False, offset=0)
+    
+    # Build MA expressions on OBV  
+    obv_fast_ma = pl_ma(name=mamode, source=obv_expr, length=fast)
+    obv_slow_ma = pl_ma(name=mamode, source=obv_expr, length=slow)
+    
+    # Long/Short run on the MAs
+    obv_long = pl_long_run(obv_fast_ma, obv_slow_ma, length=run_length)
+    obv_short = pl_short_run(obv_fast_ma, obv_slow_ma, length=run_length)
+    
+    # Rolling min/max
+    obv_min = obv_expr.rolling_min(window_size=min_lookback, min_samples=min_lookback)
+    obv_max = obv_expr.rolling_max(window_size=max_lookback, min_samples=max_lookback)
+    
+    # Apply offset
     if offset != 0:
-        obv_ = obv_.shift(offset)
-        maf = maf.shift(offset)
-        mas = mas.shift(offset)
+        obv_expr = obv_expr.shift(offset)
+        obv_min = obv_min.shift(offset)
+        obv_max = obv_max.shift(offset)
+        obv_fast_ma = obv_fast_ma.shift(offset)
+        obv_slow_ma = obv_slow_ma.shift(offset)
         obv_long = obv_long.shift(offset)
         obv_short = obv_short.shift(offset)
+    
+    # Rename with proper aliases
+    return [
+        obv_expr.alias("OBV"),
+        obv_min.alias(f"OBV_min_{min_lookback}"),
+        obv_max.alias(f"OBV_max_{max_lookback}"),
+        obv_fast_ma.alias(f"OBV{_mode}_{fast}"),
+        obv_slow_ma.alias(f"OBV{_mode}_{slow}"),
+        obv_long.alias(f"AOBV_LR_{run_length}"),
+        obv_short.alias(f"AOBV_SR_{run_length}"),
+    ]
 
-    # Fill
-    if "fillna" in kwargs:
-        obv_ = obv_.fillna(kwargs["fillna"])
-        maf = maf.fillna(kwargs["fillna"])
-        mas = mas.fillna(kwargs["fillna"])
-        obv_long = obv_long.fillna(kwargs["fillna"])
-        obv_short = obv_short.fillna(kwargs["fillna"])
-
-    _mode = mamode.lower()[0] if len(mamode) else ""
-    data = {
-        obv_.name: obv_,
-        f"OBV_min_{min_lookback}": obv_.rolling(min_lookback).min(),
-        f"OBV_max_{max_lookback}": obv_.rolling(max_lookback).max(),
-        f"OBV{_mode}_{fast}": maf,
-        f"OBV{_mode}_{slow}": mas,
-        f"AOBV_LR_{run_length}": obv_long,
-        f"AOBV_SR_{run_length}": obv_short,
-    }
-    df = DataFrame(data, index=close.index)
-
-    # Name and Category
-    df.name = f"AOBV{_mode}_{fast}_{slow}_{min_lookback}_{max_lookback}_{run_length}"
-    df.category = "volume"
-
-    return df

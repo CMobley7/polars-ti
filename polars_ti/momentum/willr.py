@@ -1,80 +1,90 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars WILLR (Williams %R) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def willr(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """William's Percent R (WILLR)
+def pl_willr(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Williams %R (WILLR)
 
-    William's Percent R is a momentum oscillator similar to the RSI that
-    attempts to identify overbought and oversold conditions.
+    Momentum oscillator for overbought/oversold conditions.
+    Ranges from -100 to 0, where -80 to -100 is oversold and -20 to 0 is overbought.
 
     Sources:
-        https://www.tradingview.com/wiki/Williams_%25R_(%25R)
+        https://www.investopedia.com/terms/w/williamsr.asp
+        https://school.stockcharts.com/doku.php?id=technical_indicators:williams_r
+
+    Calculation:
+        Highest High = rolling_max(high, length)
+        Lowest Low = rolling_min(low, length)
+        WILLR = 100 * ((close - Lowest Low) / (Highest High - Lowest Low) - 1)
+             = -100 * (Highest High - close) / (Highest High - Lowest Low)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Lookback period. Default: 14
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: WILLR expression (-100 to 0 range)
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib as validate_talib
+
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+
+    if high_expr is None or low_expr is None or close_expr is None:
+        return None
+
+    _use_talib = Imports["talib"] and validate_talib(talib)
+
+    if _use_talib:
+        _length = length
+
+        def compute_willr(df: pl.DataFrame) -> pl.Series:
+            from talib import WILLR
+            h = df["high"].to_numpy().astype(np.float64)
+            l = df["low"].to_numpy().astype(np.float64)
+            c = df["close"].to_numpy().astype(np.float64)
+            result = WILLR(h, l, c, _length)
+            return pl.Series(f"WILLR_{_length}", result)
+
+        willr_expr = (
+            pl.struct([
+                high_expr.alias("high"),
+                low_expr.alias("low"),
+                close_expr.alias("close"),
+            ])
+            .map_batches(
+                lambda s: compute_willr(s.struct.unnest()),
+                return_dtype=pl.Float64
+            )
+        )
     else:
-        min_periods = length
-    _length = max(length, min_periods)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+        # Native Polars implementation
+        lowest_low = low_expr.rolling_min(window_size=length, min_samples=length)
+        highest_high = high_expr.rolling_max(window_size=length, min_samples=length)
 
-    if high is None or low is None or close is None:
-        return
+        willr_expr = 100 * ((close_expr - lowest_low) / (highest_high - lowest_low) - 1)
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import WILLR
-
-        willr = WILLR(high, low, close, length)
-    else:
-        lowest_low = low.rolling(length, min_periods=min_periods).min()
-        highest_high = high.rolling(length, min_periods=min_periods).max()
-
-        willr = 100 * ((close - lowest_low) / (highest_high - lowest_low) - 1)
-
-    # Offset
     if offset != 0:
-        willr = willr.shift(offset)
+        willr_expr = willr_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        willr = willr.fillna(kwargs["fillna"])
-
-    # Name and Category
-    willr.name = f"WILLR_{length}"
-    willr.category = "momentum"
-
-    return willr
+    return willr_expr.alias(f"WILLR_{length}")

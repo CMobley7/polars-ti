@@ -1,123 +1,128 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars BBANDS Implementation (Pure Native Polars + TA-Lib option)
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.ma import ma
+from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.maps import Imports
-from polars_ti.statistics import stdev
-from polars_ti.utils import (
-    non_zero_range,
-    tal_ma,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
+from polars_ti.utils._validate import v_expr
+from polars_ti.utils import v_talib
 
 
-def bbands(
-    close: Series,
-    length: int | None = None,
-    std: int | float | None = None,
+def pl_bbands(
+    close: IntoExpr,
+    length: int = 5,
+    std: float = 2.0,
     ddof: int = 0,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Bollinger Bands (BBANDS)
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Bollinger Bands (BBANDS)
 
-    A popular volatility indicator by John Bollinger.
+    Uses TA-Lib when available and talib=True, otherwise pure Polars expressions.
 
     Sources:
         https://www.tradingview.com/wiki/Bollinger_Bands_(BB)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): The short period. Default: 5
-        std (int): The long period. Default: 2
-        ddof (int): Degrees of Freedom to use. Default: 0
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        ddof (int): Delta Degrees of Freedom.
-                    The divisor used in calculations is N - ddof, where N
-                    represents the number of elements. The 'talib' argument
-                    must be false for 'ddof' to work. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        length: SMA period. Default: 5
+        std: Standard deviation multiplier. Default: 2.0
+        ddof: Delta degrees of freedom (ignored when talib=True). Default: 1
+        talib: If True and TA-Lib installed, uses TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: lower, mid, upper, bandwidth, and percent columns.
+        pl.Expr: Struct with BBL, BBM, BBU, BBB, BBP columns
     """
-    # Validate
-    length = v_pos_default(length, 5)
-    close = v_series(close, length)
-
-    if close is None:
-        return
-
-    std = v_pos_default(std, 2.0)
-    ddof = int(ddof) if isinstance(ddof, int) and 0 <= ddof < length else 1
-    mamode = v_mamode(mamode, "sma")
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import BBANDS
-
-        upper, mid, lower = BBANDS(close, length, std, std, tal_ma(mamode))
+    close_expr = v_expr(close)
+    
+    if close_expr is None:
+        return None
+    
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _length = length
+    _std = std
+    _ddof = ddof
+    _offset = offset
+    
+    if _use_talib:
+        # TA-Lib path
+        def compute_bbands_talib(s: pl.Series) -> pl.Series:
+            from talib import BBANDS
+            arr = s.to_numpy().astype(np.float64)
+            upper, mid, lower = BBANDS(arr, _length, _std, _std, 0)  # 0 = SMA
+            
+            # Bandwidth and percent
+            ulr = upper - lower
+            bandwidth = np.where(mid != 0, 100 * ulr / mid, np.nan)
+            percent = np.where(ulr != 0, (arr - lower) / ulr, np.nan)
+            
+            if _offset != 0:
+                lower = np.roll(lower, _offset)
+                mid = np.roll(mid, _offset)
+                upper = np.roll(upper, _offset)
+                bandwidth = np.roll(bandwidth, _offset)
+                percent = np.roll(percent, _offset)
+                if _offset > 0:
+                    lower[:_offset] = np.nan
+                    mid[:_offset] = np.nan
+                    upper[:_offset] = np.nan
+                    bandwidth[:_offset] = np.nan
+                    percent[:_offset] = np.nan
+            
+            _props = f"_{_length}_{_std}"
+            return pl.DataFrame({
+                f"BBL{_props}": lower,
+                f"BBM{_props}": mid,
+                f"BBU{_props}": upper,
+                f"BBB{_props}": bandwidth,
+                f"BBP{_props}": percent
+            }).to_struct(f"BBANDS{_props}")
+        
+        _props = f"_{length}_{std}"
+        return close_expr.map_batches(
+            compute_bbands_talib, 
+            return_dtype=pl.Struct([
+                pl.Field(f"BBL{_props}", pl.Float64),
+                pl.Field(f"BBM{_props}", pl.Float64),
+                pl.Field(f"BBU{_props}", pl.Float64),
+                pl.Field(f"BBB{_props}", pl.Float64),
+                pl.Field(f"BBP{_props}", pl.Float64),
+            ])
+        ).alias(f"BBANDS{_props}")
     else:
-        std_dev = stdev(close=close, length=length, ddof=ddof, talib=mode_tal)
-        deviations = std * std_dev
-        # deviations = std * standard_deviation.loc[standard_deviation.first_valid_index():,]
-
-        mid = ma(mamode, close, length=length, talib=mode_tal, **kwargs)
+        # Pure Polars path with pl_sma composition
+        from polars_ti.overlap.sma import pl_sma
+        
+        mid = pl_sma(close_expr, length=length)
+        std_dev = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
+        
+        deviations = pl.lit(std) * std_dev
         lower = mid - deviations
         upper = mid + deviations
+        
+        ulr = upper - lower
+        bandwidth = (pl.lit(100.0) * ulr) / mid
+        percent = (close_expr - lower) / ulr
+        
+        if offset != 0:
+            lower = lower.shift(offset)
+            mid = mid.shift(offset)
+            upper = upper.shift(offset)
+            bandwidth = bandwidth.shift(offset)
+            percent = percent.shift(offset)
+        
+        _props = f"_{length}_{std}"
+        
+        return pl.struct([
+            lower.alias(f"BBL{_props}"),
+            mid.alias(f"BBM{_props}"),
+            upper.alias(f"BBU{_props}"),
+            bandwidth.alias(f"BBB{_props}"),
+            percent.alias(f"BBP{_props}")
+        ]).alias(f"BBANDS{_props}")
 
-    ulr = non_zero_range(upper, lower)
-    bandwidth = 100 * ulr / mid
-    percent = non_zero_range(close, lower) / ulr
 
-    # Offset
-    if offset != 0:
-        lower = lower.shift(offset)
-        mid = mid.shift(offset)
-        upper = upper.shift(offset)
-        bandwidth = bandwidth.shift(offset)
-        percent = percent.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        lower = lower.fillna(kwargs["fillna"])
-        mid = mid.fillna(kwargs["fillna"])
-        upper = upper.fillna(kwargs["fillna"])
-        bandwidth = bandwidth.fillna(kwargs["fillna"])
-        percent = percent.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _props = f"_{length}_{std}"
-    lower.name = f"BBL{_props}"
-    mid.name = f"BBM{_props}"
-    upper.name = f"BBU{_props}"
-    bandwidth.name = f"BBB{_props}"
-    percent.name = f"BBP{_props}"
-    upper.category = lower.category = "volatility"
-    mid.category = bandwidth.category = upper.category
-
-    data = {
-        lower.name: lower,
-        mid.name: mid,
-        upper.name: upper,
-        bandwidth.name: bandwidth,
-        percent.name: percent,
-    }
-    df = DataFrame(data, index=close.index)
-    df.name = f"BBANDS{_props}"
-    df.category = mid.category
-
-    return df

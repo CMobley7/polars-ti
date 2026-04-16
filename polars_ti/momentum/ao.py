@@ -1,70 +1,59 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars AO (Awesome Oscillator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def ao(
-    high: Series,
-    low: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Awesome Oscillator (AO)
+def pl_ao(
+    high: IntoExpr,
+    low: IntoExpr,
+    fast: int = 5,
+    slow: int = 34,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Awesome Oscillator (AO)
 
-    The Awesome Oscillator is an indicator used to measure a security's
-    momentum. AO is generally used to affirm trends or to anticipate
-    possible reversals.
+    Measures momentum using the difference between fast and slow SMAs
+    of the median price (HL2).
 
-    Sources:
-        https://www.tradingview.com/wiki/Awesome_Oscillator_(AO)
-        https://www.ifcm.co.uk/ntx-indicators/awesome-oscillator
+    Formula: AO = SMA(HL2, fast) - SMA(HL2, slow)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        fast (int): The short period. Default: 5
-        slow (int): The long period. Default: 34
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        fast: Short period. Default: 5
+        slow: Long period. Default: 34
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: AO expression
     """
-    # Validate
-    fast = v_pos_default(fast, 5)
-    slow = v_pos_default(slow, 34)
+    from polars_ti.overlap.hl2 import pl_hl2
+    from polars_ti.overlap.sma import pl_sma
+    
     if slow < fast:
         fast, slow = slow, fast
-    _length = max(fast, slow)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
 
-    if high is None or low is None:
-        return
+    # Use pl_hl2 for median price
+    hl2_expr = pl_hl2(high_expr, low_expr)
 
-    offset = v_offset(offset)
+    # Use pl_sma for fast and slow SMAs
+    fast_sma = pl_sma(hl2_expr, length=fast, talib=False, offset=0)
+    slow_sma = pl_sma(hl2_expr, length=slow, talib=False, offset=0)
 
-    # Calculate
-    median_price = 0.5 * (high + low)
-    fast_sma = sma(median_price, fast)
-    slow_sma = sma(median_price, slow)
-    ao = fast_sma - slow_sma
-
-    # Offset
+    # AO = fast SMA - slow SMA
+    ao_expr = fast_sma - slow_sma
+    
     if offset != 0:
-        ao = ao.shift(offset)
+        ao_expr = ao_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        ao = ao.fillna(kwargs["fillna"])
-    # Name and Category
-    ao.name = f"AO_{fast}_{slow}"
-    ao.category = "momentum"
+    return ao_expr.alias(f"AO_{fast}_{slow}")
 
-    return ao
+

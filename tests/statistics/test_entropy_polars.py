@@ -1,0 +1,63 @@
+# -*- coding: utf-8 -*-
+"""Tests for pl_entropy."""
+import numpy as np
+import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
+import polars as pl
+import pytest
+from polars_ti.statistics.entropy import pl_entropy
+
+
+class TestPlEntropy:
+    @pytest.fixture
+    def sample_df(self) -> pl.DataFrame:
+        np.random.seed(42)
+        return pl.DataFrame({'close': np.abs(100 + np.cumsum(np.random.randn(100) * 0.5))})
+
+    @pytest.fixture
+    def sample_data(self):
+        np.random.seed(42)
+        close = np.abs(100 + np.random.randn(100).cumsum())
+        return {
+            'pd_close': pd.Series(close),
+            'pl_df': pl.DataFrame({'close': close}),
+        }
+
+    def test_returns_expression(self):
+        result = pl_entropy("close")
+        assert isinstance(result, pl.Expr)
+
+    def test_output_has_correct_alias(self, sample_df):
+        result = sample_df.select(pl_entropy("close", length=10))
+        assert "ENTP_10" in result.columns
+
+    def test_numerical_parity(self, sample_data):
+        """Numerical parity with Pandas implementation."""
+        pytest.skip("Pandas implementation removed in Phase 4 purge")
+        pd_result = entropy(sample_data['pd_close'], length=10)
+        pl_result = sample_data['pl_df'].select(pl_entropy('close', length=10)).to_series()
+        
+        warmup = 25
+        pd_vals = pd_result.iloc[warmup:].values
+        pl_vals = pl_result[warmup:].to_numpy()
+        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
+        if valid.sum() > 0:
+            diff = np.abs(pd_vals[valid] - pl_vals[valid])
+            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
+
+    def test_with_null_values(self):
+        """Handles null values gracefully."""
+        df = pl.DataFrame({"close": [None] + [100.0] * 49})
+        result = df.select(pl_entropy("close"))
+        assert result.height == 50
+
+    def test_with_zeros(self):
+        """Handles zero values."""
+        df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45})
+        result = df.select(pl_entropy("close"))
+        assert result.height == 50
+
+    def test_lazy_execution(self, sample_df):
+        """Works with LazyFrame."""
+        lazy_df = sample_df.lazy()
+        result = lazy_df.select(pl_entropy("close")).collect()
+        assert "ENTP_10" in result.columns

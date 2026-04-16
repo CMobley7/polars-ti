@@ -1,182 +1,162 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars CDL_PATTERN Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.candles import cdl_doji, cdl_inside
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_scalar, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.candles.cdl_doji import pl_cdl_doji
+from polars_ti.candles.cdl_inside import pl_cdl_inside
 
+
+# Full list of TA-Lib candle patterns (used when talib=True)
 ALL_PATTERNS = [
-    "2crows",
-    "3blackcrows",
-    "3inside",
-    "3linestrike",
-    "3outside",
-    "3starsinsouth",
-    "3whitesoldiers",
-    "abandonedbaby",
-    "advanceblock",
-    "belthold",
-    "breakaway",
-    "closingmarubozu",
-    "concealbabyswall",
-    "counterattack",
-    "darkcloudcover",
-    "doji",
-    "dojistar",
-    "dragonflydoji",
-    "engulfing",
-    "eveningdojistar",
-    "eveningstar",
-    "gapsidesidewhite",
-    "gravestonedoji",
-    "hammer",
-    "hangingman",
-    "harami",
-    "haramicross",
-    "highwave",
-    "hikkake",
-    "hikkakemod",
-    "homingpigeon",
-    "identical3crows",
-    "inneck",
-    "inside",
-    "invertedhammer",
-    "kicking",
-    "kickingbylength",
-    "ladderbottom",
-    "longleggeddoji",
-    "longline",
-    "marubozu",
-    "matchinglow",
-    "mathold",
-    "morningdojistar",
-    "morningstar",
-    "onneck",
-    "piercing",
-    "rickshawman",
-    "risefall3methods",
-    "separatinglines",
-    "shootingstar",
-    "shortline",
-    "spinningtop",
-    "stalledpattern",
-    "sticksandwich",
-    "takuri",
-    "tasukigap",
-    "thrusting",
-    "tristar",
-    "unique3river",
-    "upsidegap2crows",
+    "2crows", "3blackcrows", "3inside", "3linestrike", "3outside",
+    "3starsinsouth", "3whitesoldiers", "abandonedbaby", "advanceblock",
+    "belthold", "breakaway", "closingmarubozu", "concealbabyswall",
+    "counterattack", "darkcloudcover", "doji", "dojistar", "dragonflydoji",
+    "engulfing", "eveningdojistar", "eveningstar", "gapsidesidewhite",
+    "gravestonedoji", "hammer", "hangingman", "harami", "haramicross",
+    "highwave", "hikkake", "hikkakemod", "homingpigeon", "identical3crows",
+    "inneck", "inside", "invertedhammer", "kicking", "kickingbylength",
+    "ladderbottom", "longleggeddoji", "longline", "marubozu", "matchinglow",
+    "mathold", "morningdojistar", "morningstar", "onneck", "piercing",
+    "rickshawman", "risefall3methods", "separatinglines", "shootingstar",
+    "shortline", "spinningtop", "stalledpattern", "sticksandwich", "takuri",
+    "tasukigap", "thrusting", "tristar", "unique3river", "upsidegap2crows",
     "xsidegap3methods",
 ]
 
+# Polars-native patterns available
+POLARS_PATTERNS = {
+    "doji": pl_cdl_doji,
+    "inside": pl_cdl_inside,
+}
 
-def cdl_pattern(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
+
+def pl_cdl_pattern(
+    df: pl.DataFrame,
+    open_: str = "open",
+    high: str = "high",
+    low: str = "low",
+    close: str = "close",
     name: str | list[str] = "all",
-    scalar: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """TA Lib Candle Patterns
+    talib: bool = True,
+    scalar: float = 100.0,
+    offset: int = 0,
+) -> pl.DataFrame:
+    """Polars: Candlestick Pattern Detection
 
-    A wrapper around all TA Lib's candle patterns.
-
-    Examples:
-
-        Get all candle patterns (This is the default behaviour)::
-
-            df = df.ti.cdl_pattern(name="all")
-
-        Get only one pattern::
-
-            df = df.ti.cdl_pattern(name="doji")
-
-        Get some patterns::
-
-            df = df.ti.cdl_pattern(name=["doji", "inside"])
+    Detects candlestick patterns using native Polars implementations or TA-Lib.
+    Native Polars: doji, inside
+    TA-Lib (when installed and talib=True): all 61 patterns
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        name: (Union[str, Sequence[str]]): name of the patterns
-        scalar (float): How much to magnify. Default: 100
-        offset (int): How many periods to offset the result. Default: 0
+        df: Polars DataFrame with OHLC columns
+        open_: Column name for 'open' prices. Default: "open"
+        high: Column name for 'high' prices. Default: "high"
+        low: Column name for 'low' prices. Default: "low"
+        close: Column name for 'close' prices. Default: "close"
+        name: Pattern name(s) to detect. Default: "all"
+        talib: If True and TA-Lib is installed, uses TA-Lib for patterns. Default: True
+        scalar: Result multiplier. Default: 100.0
+        offset: Shift result by N periods. Default: 0
 
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
     Returns:
-        pd.DataFrame: one column for each pattern.
+        pl.DataFrame: Original DataFrame with pattern columns added
     """
-    # Validate Arguments
-    open_ = v_series(open_, 1)
-    high = v_series(high, 1)
-    low = v_series(low, 1)
-    close = v_series(close, 1)
-    offset = v_offset(offset)
-    scalar = v_scalar(scalar, 100)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    _use_talib = Imports["talib"] and v_talib(talib)
 
-    if open_ is None or high is None or low is None or close is None:
-        return
-
-    # Patterns implemented in Polars TI
-    pti_patterns = {"doji": cdl_doji, "inside": cdl_inside}
-
+    
     if name == "all":
-        name = ALL_PATTERNS
-    if isinstance(name, str):
-        name = [name]
-
-    if Imports["talib"]:
-        import talib.abstract as tala
-
-    result = {}
-    for n in name:
-        if n not in ALL_PATTERNS:
-            print(f"[X] There is no candle pattern named {n} available!")
-            continue
-
-        if n in pti_patterns:
-            pattern_result = pti_patterns[n](
-                open_, high, low, close, offset=offset, scalar=scalar, **kwargs
-            )
-            if not isinstance(pattern_result, Series):
-                continue
-            result[pattern_result.name] = pattern_result
-
+        if _use_talib:
+            patterns = ALL_PATTERNS
         else:
-            if not Imports["talib"]:
-                print(f"[X] Install TA-Lib to use {n}. (pip install TA-Lib)")
-                continue
+            patterns = list(POLARS_PATTERNS.keys())
+    elif isinstance(name, str):
+        patterns = [name]
+    else:
+        patterns = list(name)
 
-            pf = tala.Function(f"CDL{n.upper()}")
-            pattern_result = Series(
-                0.01 * scalar * pf(open_, high, low, close, **kwargs)
+    result_df = df
+    
+    for pattern in patterns:
+        # Try native Polars first
+        if pattern in POLARS_PATTERNS:
+            if pattern == "doji":
+                expr = pl_cdl_doji(open_, high, low, close, scalar=scalar, offset=offset)
+            elif pattern == "inside":
+                expr = pl_cdl_inside(open_, high, low, close, scalar=scalar, offset=offset)
+            result_df = result_df.with_columns(expr)
+        elif _use_talib and pattern in ALL_PATTERNS:
+            # Use TA-Lib via map_batches
+            import talib.abstract as tala
+            
+            _pattern = pattern
+            _scalar = scalar
+            _offset = offset
+            
+            def compute_pattern(struct: pl.Series) -> pl.Series:
+                # Extract OHLC from struct
+                o = struct.struct.field("o").to_numpy().astype(np.float64)
+                h = struct.struct.field("h").to_numpy().astype(np.float64)
+                l = struct.struct.field("l").to_numpy().astype(np.float64)
+                c = struct.struct.field("c").to_numpy().astype(np.float64)
+                
+                pf = tala.Function(f"CDL{_pattern.upper()}")
+                result = 0.01 * _scalar * pf(o, h, l, c)
+                
+                if _offset != 0:
+                    result = np.roll(result, _offset)
+                    if _offset > 0:
+                        result[:_offset] = np.nan
+                    else:
+                        result[_offset:] = np.nan
+                
+                return pl.Series(result)
+
+            # Create struct with OHLC, then apply pattern detection
+            struct_expr = pl.struct([
+                pl.col(open_).alias("o"),
+                pl.col(high).alias("h"),
+                pl.col(low).alias("l"),
+                pl.col(close).alias("c"),
+            ])
+            
+            pattern_result = df.select(
+                struct_expr.map_batches(compute_pattern, return_dtype=pl.Float64).alias(f"CDL_{pattern.upper()}")
             )
-            pattern_result.index = close.index
+            result_df = result_df.with_columns(pattern_result)
+        else:
+            print(f"[X] Pattern '{pattern}' not available. Install TA-Lib for: {pattern}")
 
-            # Offset
-            if offset != 0:
-                pattern_result = pattern_result.shift(offset)
-
-            # Fill
-            if "fillna" in kwargs:
-                pattern_result = pattern_result.fillna(kwargs["fillna"])
-            result[f"CDL_{n.upper()}"] = pattern_result
-
-    if len(result) == 0:
-        return
-
-    # Name and Category
-    df = DataFrame(result)
-    df.name = "CDL_PATTERN"
-    df.category = "candles"
-    return df
+    return result_df
 
 
-cdl = cdl_pattern  # Alias
+def pl_cdl_doji_expr(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 10,
+    factor: float = 10.0,
+    scalar: float = 100.0,
+) -> PlExpr:
+    """Alias for pl_cdl_doji for consistency."""
+    return pl_cdl_doji(open_, high, low, close, length, factor, scalar)
+
+
+def pl_cdl_inside_expr(
+    high: IntoExpr,
+    low: IntoExpr,
+    scalar: float = 100.0,
+) -> PlExpr:
+    """Alias for pl_cdl_inside for consistency."""
+    return pl_cdl_inside(high, low, scalar)
+
+
+pl_cdl = pl_cdl_pattern  # Alias matching pandas naming convention
+

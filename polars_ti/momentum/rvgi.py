@@ -1,91 +1,77 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars RVGI Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import swma
-from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.overlap.swma import pl_swma
 
 
-def rvgi(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    swma_length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Relative Vigor Index (RVGI)
+def pl_rvgi(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    swma_length: int = 4,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Relative Vigor Index (RVGI)
 
     The Relative Vigor Index attempts to measure the strength of a trend
-    relative to its closing price to its trading range.  It is based on the
-    belief that it tends to close higher than they open in uptrends or close
-    lower than they open in downtrends.
+    relative to its closing price to its trading range. It is based on the
+    belief that prices tend to close higher than they open in uptrends or 
+    close lower than they open in downtrends.
 
     Sources:
         https://www.investopedia.com/terms/r/relative_vigor_index.asp
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        swma_length (int): It's period. Default: 4
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling sum period. Default: 14
+        swma_length: SWMA period. Default: 4
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Struct with RVGI and RVGIs (signal) columns
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    swma_length = v_pos_default(swma_length, 4)
-    _length = length + swma_length - 1
-    open_ = v_series(open_, _length)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if open_ is None or high is None or low is None or close is None:
-        return
+    if any(x is None for x in [open_expr, high_expr, low_expr, close_expr]):
+        return None
 
-    offset = v_offset(offset)
-
-    # Calculate
-    high_low_range = non_zero_range(high, low)
-    close_open_range = non_zero_range(close, open_)
-
-    numerator = swma(close_open_range, length=swma_length).rolling(length).sum()
-    denominator = swma(high_low_range, length=swma_length).rolling(length).sum()
-
-    rvgi = numerator / denominator
-    signal = swma(rvgi, length=swma_length)
-
-    if all(isnan(signal.to_numpy())):
-        return  # Emergency Break
-
-    # Offset
+    # Calculate ranges
+    close_open_range = close_expr - open_expr
+    high_low_range = high_expr - low_expr
+    
+    # Apply SWMA to ranges, then rolling sum
+    swma_close_open = pl_swma(close_open_range, length=swma_length)
+    swma_high_low = pl_swma(high_low_range, length=swma_length)
+    
+    numerator = swma_close_open.rolling_sum(window_size=length)
+    denominator = swma_high_low.rolling_sum(window_size=length)
+    
+    # Avoid division by zero
+    rvgi_expr = numerator / pl.when(denominator == 0).then(None).otherwise(denominator)
+    
+    # Signal is SWMA of RVGI
+    signal_expr = pl_swma(rvgi_expr, length=swma_length)
+    
+    # Apply offset
     if offset != 0:
-        rvgi = rvgi.shift(offset)
-        signal = signal.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        rvgi = rvgi.fillna(kwargs["fillna"])
-        signal = signal.fillna(kwargs["fillna"])
-
-    # Name and Category
-    rvgi.name = f"RVGI_{length}_{swma_length}"
-    signal.name = f"RVGIs_{length}_{swma_length}"
-    rvgi.category = signal.category = "momentum"
-
-    data = {rvgi.name: rvgi, signal.name: signal}
-    df = DataFrame(data, index=close.index)
-    df.name = f"RVGI_{length}_{swma_length}"
-    df.category = rvgi.category
-
-    return df
+        rvgi_expr = rvgi_expr.shift(offset)
+        signal_expr = signal_expr.shift(offset)
+    
+    # Return as struct
+    return pl.struct([
+        rvgi_expr.alias(f"RVGI_{length}_{swma_length}"),
+        signal_expr.alias(f"RVGIs_{length}_{swma_length}"),
+    ]).alias("RVGI")

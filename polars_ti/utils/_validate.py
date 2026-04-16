@@ -167,3 +167,57 @@ def v_upperbound(
     return partial(v_lowerbound, complement=True)(
         var=var, bound=bound, default=default, strict=strict
     )
+
+
+# =============================================================================
+# Polars Validators (for Polars-TI conversion)
+# =============================================================================
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr, PlExprOpt, PolarsFrame
+
+
+def v_expr(expr: IntoExpr, length: int = 0) -> PlExprOpt:
+    """Validate and convert column name or expression to pl.Expr.
+
+    Args:
+        expr: Column name (str) or Polars expression (pl.Expr)
+        length: Minimum required length (unused for expressions, kept for API parity)
+
+    Returns:
+        pl.Expr if valid, None otherwise
+    """
+    if isinstance(expr, str):
+        return pl.col(expr)
+    if isinstance(expr, pl.Expr):
+        return expr
+    return None
+
+
+def v_polars_frame(obj) -> None:
+    """Validate that obj is a Polars DataFrame or LazyFrame.
+
+    Raises:
+        TypeError: If obj is not a Polars DataFrame or LazyFrame
+    """
+    if not isinstance(obj, (pl.DataFrame, pl.LazyFrame)):
+        raise TypeError(
+            f"Requires a Polars DataFrame or LazyFrame, got {type(obj).__name__}"
+        )
+
+
+def v_polars_series(series: pl.Series | None, length: int = 0) -> pl.Series | None:
+    """Validate Polars Series meets minimum length requirement.
+
+    Args:
+        series: Polars Series to validate
+        length: Minimum required length
+
+    Returns:
+        The series if valid, None otherwise
+    """
+    if series is not None and isinstance(series, pl.Series):
+        if len(series) >= v_pos_default(length, 0):
+            return series
+    return None
+

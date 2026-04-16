@@ -1,124 +1,104 @@
 # -*- coding: utf-8 -*-
-from warnings import simplefilter
+# =============================================================================
+# Polars VWAP (Volume Weighted Average Price) Implementation
+# =============================================================================
+import polars as pl
 
-from pandas import DataFrame, Series
-
-from polars_ti.overlap import hlc3
-from polars_ti.utils import v_datetime_ordered, v_list, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def vwap(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    anchor: str | None = None,
-    bands: list | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Volume Weighted Average Price (VWAP)
+def pl_vwap(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    datetime_col: IntoExpr | None = None,
+    anchor: str = "1d",
+    bands: list[float] | None = None,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Volume Weighted Average Price (VWAP)
 
-    The Volume Weighted Average Price that measures the average typical price
-    by volume.  It is typically used with intraday charts to identify general
-    direction.
-
-    Sources:
-        https://www.tradingview.com/wiki/Volume_Weighted_Average_Price_(VWAP)
-        https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/volume-weighted-average-price-vwap/
-        https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:vwap_intraday
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=108&Name=Volume_Weighted_Average_Price_-_VWAP_-_with_Standard_Deviation_Lines
+    VWAP with anchor period support (resets each period) and stddev bands.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        anchor (str): How to anchor VWAP. Depending on the index values,
-            it will implement various Timeseries Offset Aliases
-            as listed here:
-            https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timeseries-offset-aliases
-            Default: "D".
-        bands (list): List of deviations to be calculated. Calculates upper
-            and lower values given a positive list of ints or floats.
-            Default: []
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        datetime_col: Column name or pl.Expr for datetime. Required for anchoring.
+            If None, cumulative VWAP without resets.
+        anchor: Polars truncation string for period anchoring.
+            Examples: "1d" (daily), "1w" (weekly), "1mo" (monthly), "1h" (hourly).
+            Default: "1d"
+        bands: List of stddev multipliers for bands. E.g., [1, 2] creates ±1σ and ±2σ.
+            Default: None (no bands)
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
-        Or
-        pd.DataFrame: New feature generated.
+        list[pl.Expr]: [VWAP] or [VWAP, VWAP_L_1, VWAP_U_1, ...] if bands provided
     """
-    # Validate
-    _length = 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
-
-    if high is None or low is None or close is None or volume is None:
-        return
-
-    bands = v_list(bands)
-    offset = v_offset(offset)
-
-    if anchor and isinstance(anchor, str) and len(anchor) >= 1:
-        anchor = anchor.upper()
+    from polars_ti.overlap.hlc3 import pl_hlc3
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if any(x is None for x in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
+    
+    # Typical price = HLC3
+    tp = pl_hlc3(high_expr, low_expr, close_expr)
+    tp_vol = tp * volume_expr
+    
+    _anchor = anchor.upper() if anchor else "D"
+    _props = f"VWAP_{_anchor}"
+    
+    if datetime_col is not None:
+        # Anchored VWAP with period resets
+        dt_expr = v_expr(datetime_col)
+        if dt_expr is None:
+            return None
+        
+        # Create period group column
+        period = dt_expr.dt.truncate(anchor)
+        
+        # Cumulative sums within each period
+        tp_vol_cum = tp_vol.cum_sum().over(period)
+        vol_cum = volume_expr.cum_sum().over(period)
+        
+        vwap_expr = tp_vol_cum / vol_cum
+        
+        if bands:
+            # Variance calculation for stddev bands
+            vwap_var = volume_expr * (tp - vwap_expr).pow(2)
+            vwap_var_cum = vwap_var.cum_sum().over(period)
+            std_weighted = (vwap_var_cum / vol_cum).sqrt()
     else:
-        anchor = "D"
-
-    typical_price = hlc3(high=high, low=low, close=close)
-    if not v_datetime_ordered(volume) or not v_datetime_ordered(typical_price):
-        print("[!] VWAP requires an ordered DatetimeIndex.")
-        return
-
-    # Calculate
-    _props = f"VWAP_{anchor}"
-    wp = typical_price * volume
-    simplefilter(action="ignore", category=UserWarning)
-    vwap = (
-        wp.groupby(wp.index.to_period(anchor)).cumsum()
-        / volume.groupby(volume.index.to_period(anchor)).cumsum()
-    )
-
-    if bands and len(bands):
-        # Calculate vwap stdev bands
-        vwap_var = volume * (typical_price - vwap) ** 2
-        vwap_var_sum = vwap_var.groupby(vwap_var.index.to_period(anchor)).cumsum()
-        vwap_volume_sum = volume.groupby(volume.index.to_period(anchor)).cumsum()
-        std_volume_weighted = (vwap_var_sum / vwap_volume_sum) ** 0.5
-
-    # Name and Category
-    vwap.name = _props
-    vwap.category = "overlap"
-
-    if bands:
-        df = DataFrame({vwap.name: vwap}, index=close.index)
-        for i in bands:
-            df[f"{_props}_L_{i}"] = vwap - i * std_volume_weighted
-            df[f"{_props}_U_{i}"] = vwap + i * std_volume_weighted
-            df[f"{_props}_L_{i}"].name = df[f"{_props}_U_{i}"].name = _props
-            df[f"{_props}_L_{i}"].category = "overlap"
-            df[f"{_props}_U_{i}"].category = "overlap"
-        df.name = _props
-        df.category = "overlap"
-
-    # Offset
+        # Cumulative VWAP without resets
+        vwap_expr = tp_vol.cum_sum() / volume_expr.cum_sum()
+        
+        if bands:
+            # Variance calculation for stddev bands (cumulative)
+            vwap_var = volume_expr * (tp - vwap_expr).pow(2)
+            vwap_var_cum = vwap_var.cum_sum()
+            vol_cum = volume_expr.cum_sum()
+            std_weighted = (vwap_var_cum / vol_cum).sqrt()
+    
     if offset != 0:
-        if bands and not df.empty:
-            df = df.shift(offset)
-        vwap = vwap.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        if bands and not df.empty:
-            df = df.fillna(kwargs["fillna"])
-        else:
-            vwap = vwap.fillna(kwargs["fillna"])
-
-    if bands and not df.empty:
-        return df
-    return vwap
+        vwap_expr = vwap_expr.shift(offset)
+        if bands:
+            std_weighted = std_weighted.shift(offset)
+    
+    result = [vwap_expr.alias(_props)]
+    
+    if bands:
+        for band in bands:
+            lower = vwap_expr - band * std_weighted
+            upper = vwap_expr + band * std_weighted
+            result.append(lower.alias(f"{_props}_L_{band}"))
+            result.append(upper.alias(f"{_props}_U_{band}"))
+    
+    return result

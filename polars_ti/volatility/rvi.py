@@ -1,124 +1,121 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import Series
+# =============================================================================
+# Polars RVI Implementation
+# =============================================================================
+import numpy as np
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.statistics import stdev
-from polars_ti.utils import (
-    unsigned_differences,
-    v_bool,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
+from polars_ti._typing import IntoExpr
+from polars_ti.ma import pl_ma
+from polars_ti.utils._validate import v_expr
 
 
-def _rvi(source, length, scalar, mode, drift):
-    """RVI"""
-    std = stdev(source, length)
-    pos, neg = unsigned_differences(source, amount=drift)
+def _pl_rvi_single(arr: np.ndarray, length: int, scalar: float, mamode: str, drift: int) -> np.ndarray:
+    """Core RVI computation on a NumPy array.
 
-    pos_std = pos * std
-    neg_std = neg * std
+    Computes RVI using rolling std split by up/down direction, then
+    EMA-smooths both sides and calculates the RSI-style ratio.
+    """
+    n = len(arr)
+    diff = np.diff(arr, prepend=np.nan)
 
-    pos_avg = ma(mode, pos_std, length=length)
-    neg_avg = ma(mode, neg_std, length=length)
+    # Rolling STD with window = length
+    std_arr = np.full(n, np.nan)
+    for i in range(length - 1, n):
+        window = arr[i - length + 1 : i + 1]
+        if not np.any(np.isnan(window)):
+            std_arr[i] = np.std(window, ddof=0)
 
-    result = scalar * pos_avg / (pos_avg + neg_avg)
-    return result
+    # Separate up/down std
+    up_std = np.where(diff > 0, std_arr, 0.0)
+    dn_std = np.where(diff <= 0, std_arr, 0.0)
+
+    # Smooth via pl_ma through temporary DataFrame
+    tmp = pl.DataFrame({"_up": up_std.astype(np.float64), "_dn": dn_std.astype(np.float64)})
+    ma_expr_up = pl_ma(mamode, "_up", length=length)
+    ma_expr_dn = pl_ma(mamode, "_dn", length=length)
+    up_smooth = tmp.select(ma_expr_up).to_series().to_numpy()
+    dn_smooth = tmp.select(ma_expr_dn).to_series().to_numpy()
+
+    # RVI = scalar * up / (up + dn)
+    denom = up_smooth + dn_smooth
+    denom_safe = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
+    return scalar * up_smooth / denom_safe
 
 
-def rvi(
-    close: Series,
-    high: Series | None = None,
-    low: Series | None = None,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    refined: bool | None = None,
-    thirds: bool | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Relative Volatility Index (RVI)
+def pl_rvi(
+    close: IntoExpr,
+    high: IntoExpr | None = None,
+    low: IntoExpr | None = None,
+    length: int = 14,
+    scalar: float = 100.0,
+    refined: bool = False,
+    thirds: bool = False,
+    mamode: str = "ema",
+    drift: int = 1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Relative Volatility Index (RVI)
 
-    The Relative Volatility Index (RVI) was created in 1993 and revised
-    in 1995. Instead of adding up price changes like RSI based on price
-    direction, the RVI adds up standard deviations based on price direction.
-
-    Sources:
-        https://www.motivewave.com/studies/relative_volatility_index.htm
-        https://www.tradingview.com/script/mLZJqxKn-Relative-Volatility-Index/
-        https://www.tradingview.com/support/solutions/43000594684-relative-volatility-index/
+    RVI adds up standard deviations based on price direction (unlike RSI
+    which adds up price changes).
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): The short period. Default: 14
-        scalar (float): A positive float to scale the bands. Default: 100
-        refined (bool): Use 'refined' calculation which is the average of
-            RVI(high) and RVI(low) instead of RVI(close). Default: False
-        thirds (bool): Average of high, low and close. Default: False
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        high: Column name or pl.Expr for 'high' (for refined/thirds mode)
+        low: Column name or pl.Expr for 'low' (for refined/thirds mode)
+        length: The period. Default: 14
+        scalar: Scale factor. Default: 100.0
+        refined: Average of RVI(high) and RVI(low). Default: False
+        thirds: Average of high, low, and close. Default: False
+        mamode: MA type. Default: 'ema'
+        drift: The diff period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: lower, basis, upper columns.
+        pl.Expr: RVI expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length + 2)
-
-    if close is None:
-        return
-
-    scalar = v_pos_default(scalar, 100)
-    refined = v_bool(refined, False)
-    thirds = v_bool(thirds, False)
-    mamode = v_mamode(mamode, "ema")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    close_expr = v_expr(close)
+    _length = length
+    _scalar = scalar
+    _drift = drift
+    _mamode = mamode
+    _refined = refined
+    _thirds = thirds
 
     if refined or thirds:
-        high = v_series(high)
-        low = v_series(low)
+        high_expr = v_expr(high)
+        low_expr = v_expr(low)
 
-    # Calculate
-    _mode = ""
-    if refined:
-        high_rvi = _rvi(high, length, scalar, mamode, drift)
-        low_rvi = _rvi(low, length, scalar, mamode, drift)
-        rvi = 0.5 * (high_rvi + low_rvi)
-        _mode = "r"
-    elif thirds:
-        high_rvi = _rvi(high, length, scalar, mamode, drift)
-        low_rvi = _rvi(low, length, scalar, mamode, drift)
-        close_rvi = _rvi(close, length, scalar, mamode, drift)
-        rvi = (high_rvi + low_rvi + close_rvi) / 3.0
-        _mode = "t"
+        def compute_refined(s: pl.Series) -> pl.Series:
+            df = s.struct.unnest()
+            c_arr = df["close"].to_numpy().astype(np.float64)
+            h_arr = df["high"].to_numpy().astype(np.float64)
+            l_arr = df["low"].to_numpy().astype(np.float64)
+
+            high_rvi = _pl_rvi_single(h_arr, _length, _scalar, _mamode, _drift)
+            low_rvi = _pl_rvi_single(l_arr, _length, _scalar, _mamode, _drift)
+
+            if _thirds:
+                close_rvi = _pl_rvi_single(c_arr, _length, _scalar, _mamode, _drift)
+                result = (high_rvi + low_rvi + close_rvi) / 3.0
+            else:
+                result = 0.5 * (high_rvi + low_rvi)
+
+            return pl.Series(result)
+
+        struct_expr = pl.struct(close=close_expr, high=high_expr, low=low_expr)
+        result = struct_expr.map_batches(compute_refined, return_dtype=pl.Float64)
+        _mode = "r" if refined else "t"
     else:
-        rvi = _rvi(close, length, scalar, mamode, drift)
+        def compute_simple(s: pl.Series) -> pl.Series:
+            arr = s.to_numpy().astype(np.float64)
+            return pl.Series(_pl_rvi_single(arr, _length, _scalar, _mamode, _drift))
 
-    if all(isnan(rvi)):
-        return  # Emergency Break
+        result = close_expr.map_batches(compute_simple, return_dtype=pl.Float64)
+        _mode = ""
 
-    # Offset
     if offset != 0:
-        rvi = rvi.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        rvi = rvi.fillna(kwargs["fillna"])
-
-    # Name and Category
-    rvi.name = f"RVI{_mode}_{length}"
-    rvi.category = "volatility"
-
-    return rvi
+    return result.alias(f"RVI{_mode}_{length}")

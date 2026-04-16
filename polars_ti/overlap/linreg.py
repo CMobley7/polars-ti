@@ -1,167 +1,168 @@
 # -*- coding: utf-8 -*-
-from sys import float_info as sflt
+# =============================================================================
+# Polars LINREG Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from numpy import arctan, nan, pi, zeros_like
-from numpy.version import version as np_version
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import (
-    strided_window,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-    zero,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def linreg(
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Linear Regression Moving Average (linreg)
+@njit(cache=True)
+def nb_linreg(close: np.ndarray, length: int, angle: bool, degrees: bool,
+              intercept: bool, r: bool, slope: bool, tsf: bool) -> np.ndarray:
+    """Numba-optimized rolling linear regression calculation."""
+    n = len(close)
+    result = np.empty(n, dtype=np.float64)
+    result[:length - 1] = np.nan
+    
+    # Precompute constants
+    x_sum = 0.5 * length * (length + 1)
+    x2_sum = x_sum * (2 * length + 1) / 3
+    divisor = length * x2_sum - x_sum * x_sum
+    
+    for i in range(length - 1, n):
+        # Get window
+        window = close[i - length + 1:i + 1]
+        
+        # Compute sums
+        y_sum = 0.0
+        xy_sum = 0.0
+        y2_sum = 0.0
+        for j in range(length):
+            y_sum += window[j]
+            xy_sum += (j + 1) * window[j]
+            y2_sum += window[j] * window[j]
+        
+        # Slope (m)
+        m = (length * xy_sum - x_sum * y_sum) / divisor
+        
+        if slope:
+            result[i] = m
+            continue
+        
+        # Intercept (b)
+        b = (y_sum * x2_sum - x_sum * xy_sum) / divisor
+        
+        if intercept:
+            result[i] = b
+            continue
+        
+        if angle:
+            theta = np.arctan(m)
+            if degrees:
+                theta *= 180.0 / np.pi
+            result[i] = theta
+            continue
+        
+        if r:
+            rn = length * xy_sum - x_sum * y_sum
+            rd_sq = divisor * (length * y2_sum - y_sum * y_sum)
+            if rd_sq > 0:
+                rd = np.sqrt(rd_sq)
+                result[i] = rn / rd
+            else:
+                result[i] = 0.0
+            continue
+        
+        # Default: LINREG value or TSF
+        if tsf:
+            result[i] = m * (length - 1) + b
+        else:
+            result[i] = m * length + b
+    
+    return result
+
+
+def pl_linreg(
+    close: IntoExpr,
+    length: int = 14,
+    talib: bool = True,
+    offset: int = 0,
+    angle: bool = False,
+    degrees: bool = False,
+    intercept: bool = False,
+    r: bool = False,
+    slope: bool = False,
+    tsf: bool = False,
+) -> PlExpr:
+    """Polars: Linear Regression Moving Average (LINREG)
 
     Linear Regression Moving Average (LINREG). This is a simplified version
-    of a Standard Linear Regression. LINREG is a rolling regression of one
-    variable. A Standard Linear Regression is between two or more variables.
+    of a Standard Linear Regression.
 
     Source: TA Lib
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        angle (bool, optional): If True, returns the slope angle in radians.
-            Default: False.
-        degrees (bool, optional): If True, returns the slope angle in
-            degrees. Default: False.
-        intercept (bool, optional): If True, returns the intercept.
-            Default: False.
-        r (bool, optional): If True, returns it's correlation 'r'.
-            Default: False.
-        slope (bool, optional): If True, returns the slope. Default: False.
-        tsf (bool, optional): If True, returns the Time Series Forecast value.
-            Default: False.
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 14
+        talib: If True and TA-Lib is installed, uses TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
+        angle: If True, returns the slope angle in radians. Default: False
+        degrees: If True, returns angle in degrees. Default: False
+        intercept: If True, returns the intercept. Default: False
+        r: If True, returns correlation 'r'. Default: False
+        slope: If True, returns the slope. Default: False
+        tsf: If True, returns Time Series Forecast. Default: False
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: LINREG expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    import numpy as np
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    _length = length
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    angle = kwargs.pop("angle", False)
-    intercept = kwargs.pop("intercept", False)
-    degrees = kwargs.pop("degrees", False)
-    r = kwargs.pop("r", False)
-    slope = kwargs.pop("slope", False)
-    tsf = kwargs.pop("tsf", False)
-
-    # Calculate
-    np_close = close.to_numpy()
-
-    if Imports["talib"] and mode_tal and not r:
-        from talib import (
-            LINEARREG,
-            LINEARREG_ANGLE,
-            LINEARREG_INTERCEPT,
-            LINEARREG_SLOPE,
-            TSF,
-        )
-
-        if tsf:
-            linreg = TSF(close, timeperiod=length)
-        elif slope:
-            linreg = LINEARREG_SLOPE(close, timeperiod=length)
-        elif intercept:
-            linreg = LINEARREG_INTERCEPT(close, timeperiod=length)
-        elif angle:
-            linreg = LINEARREG_ANGLE(close, timeperiod=length)
+    # LINREG is complex with multiple modes - use map_batches
+    def compute_linreg(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        
+        if _use_talib and not (angle or degrees or intercept or r or slope or tsf):
+            # Basic LINREG - can use TA-Lib
+            from talib import LINEARREG
+            result = LINEARREG(arr, timeperiod=_length)
+        elif _use_talib and slope and not (angle or degrees or intercept or r):
+            from talib import LINEARREG_SLOPE
+            result = LINEARREG_SLOPE(arr, timeperiod=_length)
+        elif _use_talib and intercept and not (angle or degrees or r or slope):
+            from talib import LINEARREG_INTERCEPT
+            result = LINEARREG_INTERCEPT(arr, timeperiod=_length)
+        elif _use_talib and angle and not (degrees or intercept or r or slope):
+            from talib import LINEARREG_ANGLE
+            result = LINEARREG_ANGLE(arr, timeperiod=_length)
+        elif _use_talib and tsf and not (angle or degrees or intercept or r or slope):
+            from talib import TSF
+            result = TSF(arr, timeperiod=_length)
         else:
-            linreg = LINEARREG(close, timeperiod=length)
-    else:
-        linreg_ = zeros_like(np_close)
-        # [1, 2, ..., n] from 1 to n keeps Sum(xy) low
-        x = range(1, length + 1)
-        x_sum = 0.5 * length * (length + 1)
-        x2_sum = x_sum * (2 * length + 1) / 3
-        divisor = length * x2_sum - x_sum * x_sum
+            # Complex modes or no TA-Lib - use Numba
+            result = nb_linreg(arr, _length, angle, degrees, intercept, r, slope, tsf)
+        
+        return pl.Series(result)
 
-        # Needs to be reworked outside the method
-        def linear_regression(series):
-            y_sum = series.sum()
-            xy_sum = (x * series).sum()
+    result = close_expr.map_batches(compute_linreg, return_dtype=pl.Float64)
 
-            m = (length * xy_sum - x_sum * y_sum) / divisor
-            if slope:
-                return m
-            b = (y_sum * x2_sum - x_sum * xy_sum) / divisor
-            if intercept:
-                return b
-
-            if angle:
-                theta = arctan(m)
-                if degrees:
-                    theta *= 180 / pi
-                return theta
-
-            if r:
-                y2_sum = (series * series).sum()
-                rn = length * xy_sum - x_sum * y_sum
-                rd = (divisor * (length * y2_sum - y_sum * y_sum)) ** 0.5
-                if zero(rd) == 0:
-                    rd = sflt.epsilon
-                return rn / rd
-
-            return m * length + b if not tsf else m * (length - 1) + b
-
-        if np_version >= "1.20.0":
-            from numpy.lib.stride_tricks import sliding_window_view
-
-            linreg_ = [
-                linear_regression(_) for _ in sliding_window_view(np_close, length)
-            ]
-
-        else:
-            linreg_ = [linear_regression(_) for _ in strided_window(np_close, length)]
-
-        linreg = Series([nan] * (length - 1) + linreg_, index=close.index)
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        linreg = linreg.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        linreg = linreg.fillna(kwargs["fillna"])
-
-    # Name and Category
-    linreg.name = f"LINREG"
+    # Build name
+    name = "LINREG"
     if slope:
-        linreg.name += "m"
+        name += "m"
     if intercept:
-        linreg.name += "b"
+        name += "b"
     if angle:
-        linreg.name += "a"
+        name += "a"
     if r:
-        linreg.name += "r"
+        name += "r"
+    name += f"_{length}"
 
-    linreg.name += f"_{length}"
-    linreg.category = "overlap"
-
-    return linreg
+    return result.alias(name)

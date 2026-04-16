@@ -1,201 +1,217 @@
 # -*- coding: utf-8 -*-
-from numpy import broadcast_to, isnan, nan, nansum, newaxis, pad, sign, zeros
-from numpy.lib.stride_tricks import sliding_window_view
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars TMO Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.ma import ma
-from polars_ti.utils import v_bool, v_mamode, v_offset, v_pos_default, v_series
-
-
-def sum_signed_rolling_deltas(
-    open_: Series, close: Series, length: int, exclusive: bool = True
-) -> Series:
-    """Sum of signed rolling price deltas
-
-    Calculate the sum of signed differences between the current day's closing
-    price and a rolling window of preceding opening prices. This sum is then
-    padded to match the original series length.
-
-    The function can operate in two modes: exclusive and inclusive.
-    In exclusive mode, the rolling window considers the current day is not part
-    of the lookback period, while in inclusive mode it is.
-
-    Parameters:
-        close (Series): Series of closing prices.
-        open_ (Series): Series of opening prices.
-        length (Int): The window length for the rolling calculation.
-        exclusive (bool): If True, the rolling window is exclusive of the
-            current day's opening price, otherwise it's inclusive.
-
-    Returns:
-        Series: A series with the sum of signed rolling deltas between current
-            day closing price and preceding days opening prices.
-
-    Example:
-    >>> close = Series([100, 110, 140,  80,  90,  60,  50,  40, 90, 110])
-    >>> open_ = Series([95,   83,  71, 132, 129, 145, 133, 101, 68,  96])
-    >>> result = sum_signed_rolling_deltas(close, open_, 4, exclusive=True)
-    >>> expected_result = Series([np.nan, np.nan, np.nan, np.nan,
-        0.0, -4.0, -4.0, -4.0, -4.0, 0.0])
-    >>> np.allclose(result, expected_result, rtol=1e-6, equal_nan=True)
-    True
-    >>> result = sum_signed_rolling_deltas(close, open_, 4, exclusive=False)
-    >>> expected_result = Series([np.nan, np.nan, np.nan,
-        -1.0, 1.0, -3.0, -3.0, -3.0, -3.0, 1.0])
-    >>> np.allclose(result, expected_result, rtol=1e-6, equal_nan=True)
-    True
-    """
-    if not exclusive:
-        length -= 1
-
-    rolling_open = sliding_window_view(open_, window_shape=length)[:-1]
-
-    close_broadcasted = broadcast_to(
-        close[length:].to_numpy()[:, newaxis], rolling_open.shape
-    )
-
-    signed_deltas = sign(close_broadcasted - rolling_open)
-    sum_signed_deltas = nansum(signed_deltas, axis=1).astype(float)
-
-    return Series(
-        pad(sum_signed_deltas, (length, 0), mode="constant", constant_values=nan),
-        index=close.index,
-    )
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def tmo(
-    open_: Series,
-    close: Series,
-    tmo_length: int | None = None,
-    calc_length: int | None = None,
-    smooth_length: int | None = None,
+@njit(cache=True)
+def _signed_rolling_deltas_numba(
+    open_arr: np.ndarray,
+    close_arr: np.ndarray,
+    length: int,
+    exclusive: bool,
+) -> np.ndarray:
+    """Numba kernel for signed rolling deltas."""
+    n = len(close_arr)
+    result = np.full(n, np.nan, dtype=np.float64)
+    
+    lookback = length if exclusive else length - 1
+    
+    for i in range(lookback, n):
+        sum_signed = 0.0
+        for j in range(lookback):
+            idx = i - lookback + j
+            if idx >= 0:
+                diff = close_arr[i] - open_arr[idx]
+                if diff > 0:
+                    sum_signed += 1.0
+                elif diff < 0:
+                    sum_signed -= 1.0
+        result[i] = sum_signed
+    
+    return result
+
+
+@njit(cache=True)
+def _ema_numba(values: np.ndarray, length: int) -> np.ndarray:
+    """Numba EMA with presma initialization."""
+    n = len(values)
+    result = np.full(n, np.nan, dtype=np.float64)
+    
+    if n < length:
+        return result
+    
+    # Find first valid index
+    first_valid = -1
+    for i in range(n):
+        if not np.isnan(values[i]):
+            first_valid = i
+            break
+    
+    if first_valid == -1 or n - first_valid < length:
+        return result
+    
+    # Calculate initial SMA for EMA seed
+    sma_sum = 0.0
+    for i in range(first_valid, first_valid + length):
+        sma_sum += values[i]
+    sma_val = sma_sum / length
+    
+    result[first_valid + length - 1] = sma_val
+    
+    alpha = 2.0 / (length + 1)
+    for i in range(first_valid + length, n):
+        if not np.isnan(values[i]):
+            result[i] = alpha * values[i] + (1 - alpha) * result[i - 1]
+        else:
+            result[i] = result[i - 1]
+    
+    return result
+
+
+@njit(cache=True)
+def _tmo_core(
+    open_arr: np.ndarray,
+    close_arr: np.ndarray,
+    tmo_length: int,
+    calc_length: int,
+    smooth_length: int,
+    exclusive: bool,
+    compute_momentum: bool,
+) -> tuple:
+    """Numba kernel for TMO calculation."""
+    n = len(close_arr)
+    
+    # 1. Calculate signed rolling deltas
+    signed_diff = _signed_rolling_deltas_numba(open_arr, close_arr, tmo_length, exclusive)
+    
+    # 2. Initial MA smoothing
+    initial_ma = _ema_numba(signed_diff, calc_length)
+    
+    # 3. Main signal = EMA(initial_ma, smooth_length)
+    main = _ema_numba(initial_ma, smooth_length)
+    
+    # 4. Smooth signal = EMA(main, smooth_length)
+    smooth = _ema_numba(main, smooth_length)
+    
+    # 5. Momentum (if requested)
+    if compute_momentum:
+        mom_main = np.full(n, np.nan, dtype=np.float64)
+        mom_smooth = np.full(n, np.nan, dtype=np.float64)
+        for i in range(tmo_length, n):
+            if not np.isnan(main[i]) and not np.isnan(main[i - tmo_length]):
+                mom_main[i] = main[i] - main[i - tmo_length]
+            if not np.isnan(smooth[i]) and not np.isnan(smooth[i - tmo_length]):
+                mom_smooth[i] = smooth[i] - smooth[i - tmo_length]
+    else:
+        mom_main = np.zeros(n, dtype=np.float64)
+        mom_smooth = np.zeros(n, dtype=np.float64)
+    
+    return main, smooth, mom_main, mom_smooth
+
+
+def pl_tmo(
+    open_: IntoExpr,
+    close: IntoExpr,
+    tmo_length: int = 14,
+    calc_length: int = 5,
+    smooth_length: int = 3,
     momentum: bool = False,
     normalize: bool = False,
     exclusive: bool = True,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """True Momentum Oscillator (TMO)
+    mamode: str = "ema",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: True Momentum Oscillator (TMO)
 
-    This function computes the True Momentum Oscillator (TMO), a technical
-    indicator that measures the momentum of an asset's price movement over
-    a specified time frame. It does this by comparing the most recent closing
-    price within a rolling window to each opening price in that window, summing
-    the sign of these differences, and then applying a series of moving
-    averages to smooth the results.
-
-    Some platforms present versions of this indicator with an optional
-    momentum calculation for the main TMO signal and its smooth version, as
-    well as the possibility to normalize the signals to the [-100, 100] range,
-    which has the added benefit of allowing the definition of overbought and
-    oversold regions typically between -70 and 70.
-    Common implementations in TV include indicators where the rolling windows
-    are exclusive or not, and control over this behaviour is also provided.
+    The True Momentum Oscillator measures the momentum of an asset's price
+    movement over a specified time frame by comparing closing to opening
+    prices within a rolling window, summing the sign of differences, and
+    applying moving averages to smooth the results.
 
     Sources:
         https://www.tradingview.com/script/VRwDppqd-True-Momentum-Oscillator/
         https://www.tradingview.com/script/65vpO7T5-True-Momentum-Oscillator-Universal-Edition/
 
     Args:
-        open_ (Series): Series of 'open' prices.
-        close (Series): Series of 'close' prices.
-        tmo_length (Int): The period for TMO calculation. Default: 14
-        calc_length (Int): Initial moving average window. Default: 5
-        smooth_length (Int): Main and smooth signal MA window. Default: 3
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        momentum (bool): Compute main and smooth momentum.
-            Default: False
-        normalize (bool): Normalize TMO values to [-100,100].
-            Default: False
-        exclusive (bool): Exclusive or inclusive rolling window, where
-            the lookback is made over n days, or n-1, if we consider the rolling
-            window period should include the current date.
-        offset (Int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        close: Column name or pl.Expr for 'close' prices
+        tmo_length: Period for TMO calculation. Default: 14
+        calc_length: Initial moving average window. Default: 5
+        smooth_length: Main and smooth signal MA window. Default: 3
+        momentum: Compute main and smooth momentum. Default: False
+        normalize: Normalize TMO values to [-100, 100]. Default: False
+        exclusive: Exclusive rolling window (True) or inclusive. Default: True
+        mamode: MA type for smoothing. Default: 'ema'
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        DataFrame: main, smooth, main momentum, smooth momentum
-
+        pl.Expr: Struct expression with columns:
+            - TMO_{tmo_length}_{calc_length}_{smooth_length}: Main signal
+            - TMOs_{tmo_length}_{calc_length}_{smooth_length}: Smooth signal
+            - TMOM_{tmo_length}_{calc_length}_{smooth_length}: Main momentum
+            - TMOMs_{tmo_length}_{calc_length}_{smooth_length}: Smooth momentum
     """
-    # Validate
-    tmo_length = v_pos_default(tmo_length, 14)
-    calc_length = v_pos_default(calc_length, 5)
-    smooth_length = v_pos_default(smooth_length, 3)
-    mamode = v_mamode(mamode, "ema")
-    compute_momentum = v_bool(momentum, False)
-    normalize_signal = v_bool(normalize, False)
-
-    _length = max(tmo_length, calc_length, smooth_length)
-    open_ = v_series(open_, _length)
-    close = v_series(close, _length)
-    offset = v_offset(offset)
-
-    if "length" in kwargs:
-        kwargs.pop("length")
-
-    if open_ is None or close is None:
+    open_expr = v_expr(open_)
+    close_expr = v_expr(close)
+    
+    if open_expr is None or close_expr is None:
         return None
-
-    signed_diff_sum = sum_signed_rolling_deltas(
-        open_, close, tmo_length, exclusive=exclusive
-    )
-    if all(isnan(signed_diff_sum)):
-        return None  # Emergency Break
-
-    initial_ma = ma(mamode, signed_diff_sum, length=calc_length, **kwargs)
-    if all(isnan(initial_ma)):
-        return None  # Emergency Break
-
-    main = ma(mamode, initial_ma, length=smooth_length, **kwargs)
-    if all(isnan(main)):
-        return None  # Emergency Break
-
-    smooth = ma(mamode, main, length=smooth_length, **kwargs)
-    if all(isnan(smooth)):
-        return None  # Emergency Break
-
-    if compute_momentum:
-        mom_main = main - main.shift(tmo_length)
-        mom_smooth = smooth - smooth.shift(tmo_length)
-    else:
-        zero_array = zeros(main.size)
-        mom_main = Series(zero_array, index=main.index)
-        mom_smooth = Series(zero_array, index=smooth.index)
-
-    # Offset
-    if offset != 0:
-        main = main.shift(offset)
-        smooth = smooth.shift(offset)
-        mom_main = mom_main.shift(offset)
-        mom_smooth = mom_smooth.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        main = main.fillna(kwargs["fillna"])
-        smooth = smooth.fillna(kwargs["fillna"])
-        mom_main = mom_main.fillna(kwargs["fillna"])
-        mom_smooth = mom_smooth.fillna(kwargs["fillna"])
-
-    # Name and Category
+    
+    _tmo_length = tmo_length
+    _calc_length = calc_length
+    _smooth_length = smooth_length
+    _exclusive = exclusive
+    _compute_momentum = momentum
+    _normalize = normalize
     _props = f"_{tmo_length}_{calc_length}_{smooth_length}"
-    main.name = f"TMO{_props}"
-    smooth.name = f"TMOs{_props}"
-    mom_main.name = f"TMOM{_props}"
-    mom_smooth.name = f"TMOMs{_props}"
-    main.category = smooth.category = "momentum"
-    mom_main.category = mom_smooth.category = main.category
-
-    data = {
-        main.name: main,
-        smooth.name: smooth,
-        mom_main.name: mom_main,
-        mom_smooth.name: mom_smooth,
-    }
-    df = DataFrame(data, index=close.index)
-    df.name = f"TMO{_props}"
-    df.category = main.category
-
-    return df
+    
+    def compute_tmo(s: pl.Series) -> pl.Series:
+        open_arr = s.struct.field("open").to_numpy().astype(np.float64)
+        close_arr = s.struct.field("close").to_numpy().astype(np.float64)
+        
+        main, smooth, mom_main, mom_smooth = _tmo_core(
+            open_arr, close_arr,
+            _tmo_length, _calc_length, _smooth_length,
+            _exclusive, _compute_momentum
+        )
+        
+        # Normalize if requested
+        if _normalize:
+            max_val = _tmo_length
+            main = 100.0 * main / max_val
+            smooth = 100.0 * smooth / max_val
+            if _compute_momentum:
+                mom_main = 100.0 * mom_main / max_val
+                mom_smooth = 100.0 * mom_smooth / max_val
+        
+        return pl.DataFrame({
+            f"TMO{_props}": main,
+            f"TMOs{_props}": smooth,
+            f"TMOM{_props}": mom_main,
+            f"TMOMs{_props}": mom_smooth,
+        }).to_struct("TMO")
+    
+    result_expr = pl.struct(
+        open=open_expr,
+        close=close_expr,
+    ).map_batches(
+        compute_tmo,
+        return_dtype=pl.Struct([
+            pl.Field(f"TMO{_props}", pl.Float64),
+            pl.Field(f"TMOs{_props}", pl.Float64),
+            pl.Field(f"TMOM{_props}", pl.Float64),
+            pl.Field(f"TMOMs{_props}", pl.Float64),
+        ]),
+    )
+    
+    if offset != 0:
+        result_expr = result_expr.shift(offset)
+    
+    return result_expr.alias("TMO")

@@ -1,82 +1,51 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars CUBE Implementation (Pure Native Polars)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_int, v_lowerbound, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def cube(
-    close: Series,
-    pwr: int | float | None = None,
-    signal_offset: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """
-    Indicator: Cube Transform
+def pl_cube(
+    close: IntoExpr,
+    pwr: float = 3.0,
+    signal_offset: int = -1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Cube Transform
 
-    John Ehlers describes this indicator to be useful in compressing signals
-    near zero for a normalized oscillator like the Inverse Fisher Transform.
-    In conjunction to that, values close to -1 and 1 are nearly unchanged,
-    whereas the ones near zero are reduced regarding their amplitude.
+    Compresses signals near zero for normalized oscillators like
+    the Inverse Fisher Transform. Values close to -1 and 1 are
+    nearly unchanged, while those near zero are reduced.
 
-    From the input data the effects of spectral dilation should have been
-    removed (i.e. roofing filter).
+    Uses pure native Polars expressions.
 
     Sources:
-        Book: Cycle Analytics for Traders, 2014, written by John Ehlers
-            page 200
-        Coded by rengel8 based on Markus K. (cryptocoinserver)'s source.
+        Book: Cycle Analytics for Traders, 2014, by John Ehlers
 
     Args:
-        close (pd.Series): Series of 'close's
-        pwr (float): Use this exponent 'wisely' to increase the impact of the
-            soft limiter. Default: 3
-        signal_offset (int): Offset the signal line. Default: -1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        pwr: Exponent for soft limiter. Default: 3.0
+        signal_offset: Offset for signal line. Default: -1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: New feature generated.
+        pl.Expr: Cube transform expression
     """
-    # Validate
-    close = v_series(close)
-    pwr = v_lowerbound(pwr, 3.0, 3.0, strict=False)
-    signal_offset = v_int(signal_offset, -1, 0)
-    offset = v_offset(offset)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    # Calculate
-    result = close**pwr
-    ct = Series(result, index=close.index)
-    ct_signal = Series(result, index=close.index)
+    # Pure native Polars: simple power operation
+    result = close_expr.pow(pwr)
 
-    # Offset
+    # Apply offsets
     if offset != 0:
-        ct = ct.shift(offset)
-        ct_signal = ct_signal.shift(offset)
+        result = result.shift(offset)
     if signal_offset != 0:
-        ct = ct.shift(signal_offset)
-        ct_signal = ct_signal.shift(signal_offset)
+        result = result.shift(signal_offset)
 
-    if all(isnan(ct)) and all(isnan(ct_signal)):
-        return  # Emergency Break
+    return result.alias(f"CUBE_{pwr}_{signal_offset}")
 
-    # Fill
-    if "fillna" in kwargs:
-        ct = ct.fillna(kwargs["fillna"])
-        ct_signal = ct_signal.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _props = f"_{pwr}_{signal_offset}"
-    ct.name = f"CUBE{_props}"
-    ct_signal.name = f"CUBEs{_props}"
-    ct.category = ct_signal.category = "transform"
-
-    data = {ct.name: ct, ct_signal.name: ct_signal}
-    df = DataFrame(data, index=close.index)
-    df.name = f"CUBE{_props}"
-    df.category = ct.category
-
-    return df

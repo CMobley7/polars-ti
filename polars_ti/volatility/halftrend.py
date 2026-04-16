@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 from numba import njit
-from numpy import empty, float64, full, int32, isnan, nan, nanmax
-from pandas import DataFrame, Series
-
-from polars_ti.overlap import sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from numpy import empty, float64, full, isnan, nan, nanmax
 
 
 @njit(cache=True)
@@ -26,8 +22,6 @@ def nb_halftrend(
     Returns tuple of 6 arrays: atr_high, atr_low, atr_close, direction, arr_up, arr_down
     """
     n = len(close)
-
-    # Initialize output arrays
     atr_high_series = full(n, nan, dtype=float64)
     atr_low_series = full(n, nan, dtype=float64)
     atr_close_series = full(n, nan, dtype=float64)
@@ -35,208 +29,196 @@ def nb_halftrend(
     arr_up = full(n, nan, dtype=float64)
     arr_down = full(n, nan, dtype=float64)
 
-    # Initialize state variables
-    trend = 0  # 0 = long, 1 = short
+    trend = 0
     up = low[atr_length] if atr_length < n else low[0]
     down = high[atr_length] if atr_length < n else high[0]
     max_low_price = low[atr_length] if atr_length < n else low[0]
     min_high_price = high[atr_length] if atr_length < n else high[0]
 
-    # Initial trend direction
     if atr_length < n and close[atr_length] > low[atr_length]:
         trend = 1
 
-    # Cap ATR to avoid extreme values
     atr_cap = nanmax(atr_arr[: min(atr_length * 2, n)]) * 0.5 if n > 0 else 1.0
 
     for i in range(atr_length + 1, n):
         atr_raw = atr_arr[i]
         if isnan(atr_raw):
             continue
-
         atr2 = min(atr_raw / 2.0, atr_cap)
         dev = channel_deviation * atr2
-
         high_price = highest_bars[i]
         low_price = lowest_bars[i]
 
-        # Trend switching logic
-        if trend == 0:  # Currently long
+        if trend == 0:
             max_low_price = max(max_low_price, low_price)
             if high_ma[i] < (max_low_price - dev) and close[i] < close[i - 1]:
-                trend = 1  # Switch to short
+                trend = 1
                 min_high_price = high_price
-        else:  # Currently short
+        else:
             min_high_price = min(min_high_price, high_price)
             if low_ma[i] > (min_high_price + dev) and close[i] > close[i - 1]:
-                trend = 0  # Switch to long
+                trend = 0
                 max_low_price = low_price
 
-        # Calculate smoothed values and ATR bands
-        if trend == 0:  # Long
+        if trend == 0:
             if isnan(up):
                 up = max_low_price
             else:
                 up = smoothing * max_low_price + (1 - smoothing) * up
-
             atr_high = up + dev
             atr_low = up - dev
             arr_up[i] = up
             atr_close_series[i] = up
-            direction_series[i] = 0  # long
-        else:  # Short
+            direction_series[i] = 0.0
+        else:
             if isnan(down):
                 down = min_high_price
             else:
                 down = smoothing * min_high_price + (1 - smoothing) * down
-
             atr_high = down + dev
             atr_low = down - dev
             arr_down[i] = down
             atr_close_series[i] = down
-            direction_series[i] = 1  # short
+            direction_series[i] = 1.0
 
         atr_high_series[i] = atr_high
         atr_low_series[i] = atr_low
 
     return (
-        atr_high_series,
-        atr_low_series,
-        atr_close_series,
-        direction_series,
-        arr_up,
-        arr_down,
+        atr_high_series, atr_low_series, atr_close_series,
+        direction_series, arr_up, arr_down,
     )
 
 
-def halftrend(
-    high: Series,
-    low: Series,
-    close: Series,
-    atr_length: int | None = None,
-    amplitude: int | None = None,
-    channel_deviation: int | None = None,
-    smoothing: float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """HalfTrend Indicator
 
-    HalfTrend is a trend-following indicator that uses ATR-based channels
-    with smoothed trend detection. It helps identify trend direction and
-    provides dynamic support/resistance levels.
+# =============================================================================
+# Polars HalfTrend Implementation (Composition: pl_atr + pl_sma + reuse nb_halftrend)
+# =============================================================================
+import polars as pl
+import numpy as np
 
-    The indicator works by:
-    1. Calculating ATR-based deviation bands
-    2. Detecting trend changes using rolling high/low extremes
-    3. Smoothing the trend line with exponential weighting
-    4. Plotting upper and lower ATR channels around the trend line
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._validate import v_expr
+
+
+# NOTE: Reuses nb_halftrend kernel from Pandas section above (lines 10-109)
+# That kernel already takes pre-calculated ATR, MAs, and rolling max/min as inputs.
+
+
+def pl_halftrend(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    atr_length: int = 14,
+    amplitude: int = 2,
+    channel_deviation: int = 2,
+    smoothing: float = 0.3,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: HalfTrend Indicator
+
+    Uses composition: pl_atr for ATR, pl_sma for MAs, native Polars for
+    rolling_max/min. Reuses nb_halftrend kernel from Pandas section.
 
     Sources:
         https://www.tradingview.com/script/U1SJ8ubc-HalfTrend/
-        https://www.mql5.com/en/code/viewcode/21829/198620/halftrend.mq4
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        atr_length (int): ATR period. Default: 14
-        amplitude (int): Rolling high/low lookback. Default: 2
-        channel_deviation (int): ATR multiplier for bands. Default: 2
-        smoothing (float): Smoothing factor (0 to 1). Default: 0.3
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        atr_length: ATR period. Default: 14
+        amplitude: Rolling high/low lookback. Default: 2
+        channel_deviation: ATR multiplier. Default: 2
+        smoothing: Smoothing factor. Default: 0.3
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: HT_atr_high, HT_atr_low, HT_close, HT_direction,
-                      HT_arr_up, HT_arr_down columns
+        pl.Expr: Struct with atr_high, atr_low, ht_close, direction, arr_up, arr_down
     """
-    # Validate
-    atr_length = v_pos_default(atr_length, 14)
-    amplitude = v_pos_default(amplitude, 2)
-    channel_deviation = v_pos_default(channel_deviation, 2)
-    smoothing = smoothing if smoothing is not None else 0.3
-    _length = max(atr_length, amplitude, channel_deviation) + 1
-
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-
-    if high is None or low is None or close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate prerequisite series
-    # Late import to avoid circular dependency
-    from polars_ti.volatility.atr import atr
-
-    atr_series = atr(high, low, close, length=atr_length)
-    if atr_series is None:
-        return
-
-    high_ma = sma(high, length=amplitude)
-    low_ma = sma(low, length=amplitude)
-    highest_bars = high.rolling(amplitude, min_periods=1).max()
-    lowest_bars = low.rolling(amplitude, min_periods=1).min()
-
-    # Convert to numpy for Numba
-    np_high = high.to_numpy().astype(float64)
-    np_low = low.to_numpy().astype(float64)
-    np_close = close.to_numpy().astype(float64)
-    np_atr = atr_series.to_numpy().astype(float64)
-    np_high_ma = high_ma.to_numpy().astype(float64)
-    np_low_ma = low_ma.to_numpy().astype(float64)
-    np_highest = highest_bars.to_numpy().astype(float64)
-    np_lowest = lowest_bars.to_numpy().astype(float64)
-
-    # Run Numba-optimized calculation
-    results = nb_halftrend(
-        np_high,
-        np_low,
-        np_close,
-        np_atr,
-        np_high_ma,
-        np_low_ma,
-        np_highest,
-        np_lowest,
-        atr_length,
-        channel_deviation,
-        float64(smoothing),
-    )
-
-    atr_high_arr, atr_low_arr, atr_close_arr, direction_arr, arr_up, arr_down = results
-
-    # Convert direction to string labels
-    direction_labels = Series(
-        ["long" if d == 0 else "short" if d == 1 else None for d in direction_arr],
-        index=close.index,
-    )
-
-    # Build DataFrame
+    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.overlap.sma import pl_sma
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    
+    if high_expr is None or low_expr is None or close_expr is None:
+        return None
+    
+    _atr_len = atr_length
+    _chan_dev = channel_deviation
+    _smooth = float(smoothing)
+    _offset = offset
+    
+    # Use composition for pre-calculations (just like Pandas!)
+    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
+    high_ma_expr = pl_sma(high_expr, length=amplitude)
+    low_ma_expr = pl_sma(low_expr, length=amplitude)
+    highest_expr = high_expr.rolling_max(window_size=amplitude, min_samples=1)
+    lowest_expr = low_expr.rolling_min(window_size=amplitude, min_samples=1)
+    
+    def compute_halftrend(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        np_high = df["_high"].to_numpy().astype(np.float64)
+        np_low = df["_low"].to_numpy().astype(np.float64)
+        np_close = df["_close"].to_numpy().astype(np.float64)
+        np_atr = df["_atr"].to_numpy().astype(np.float64)
+        np_high_ma = df["_high_ma"].to_numpy().astype(np.float64)
+        np_low_ma = df["_low_ma"].to_numpy().astype(np.float64)
+        np_highest = df["_highest"].to_numpy().astype(np.float64)
+        np_lowest = df["_lowest"].to_numpy().astype(np.float64)
+        
+        # Reuse nb_halftrend kernel from Pandas section!
+        results = nb_halftrend(
+            np_high, np_low, np_close,
+            np_atr, np_high_ma, np_low_ma, np_highest, np_lowest,
+            _atr_len, _chan_dev, _smooth
+        )
+        atr_high, atr_low, ht_close, direction, arr_up, arr_down = results
+        
+        if _offset != 0:
+            atr_high = np.roll(atr_high, _offset)
+            atr_low = np.roll(atr_low, _offset)
+            ht_close = np.roll(ht_close, _offset)
+            direction = np.roll(direction, _offset)
+            arr_up = np.roll(arr_up, _offset)
+            arr_down = np.roll(arr_down, _offset)
+            if _offset > 0:
+                atr_high[:_offset] = np.nan
+                atr_low[:_offset] = np.nan
+                ht_close[:_offset] = np.nan
+                direction[:_offset] = np.nan
+                arr_up[:_offset] = np.nan
+                arr_down[:_offset] = np.nan
+        
+        return pl.DataFrame({
+            "atr_high": atr_high,
+            "atr_low": atr_low,
+            "ht_close": ht_close,
+            "direction": direction,
+            "arr_up": arr_up,
+            "arr_down": arr_down
+        }).to_struct("halftrend")
+    
     _props = f"_{atr_length}_{amplitude}_{channel_deviation}"
-    data = {
-        f"HT_atr_high{_props}": Series(atr_high_arr, index=close.index),
-        f"HT_atr_low{_props}": Series(atr_low_arr, index=close.index),
-        f"HT_close{_props}": Series(atr_close_arr, index=close.index),
-        f"HT_direction{_props}": direction_labels,
-        f"HT_arr_up{_props}": Series(arr_up, index=close.index),
-        f"HT_arr_down{_props}": Series(arr_down, index=close.index),
-    }
-    df = DataFrame(data, index=close.index)
-
-    # Offset
-    if offset != 0:
-        df = df.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
-
-    # Name and Category
-    df.name = f"HT{_props}"
-    df.category = "volatility"
-
-    return df
+    
+    return pl.struct([
+        high_expr.alias("_high"),
+        low_expr.alias("_low"),
+        close_expr.alias("_close"),
+        atr_expr.alias("_atr"),
+        high_ma_expr.alias("_high_ma"),
+        low_ma_expr.alias("_low_ma"),
+        highest_expr.alias("_highest"),
+        lowest_expr.alias("_lowest"),
+    ]).map_batches(
+        compute_halftrend, return_dtype=pl.Struct({
+            "atr_high": pl.Float64,
+            "atr_low": pl.Float64,
+            "ht_close": pl.Float64,
+            "direction": pl.Float64,
+            "arr_up": pl.Float64,
+            "arr_down": pl.Float64
+        })
+    ).alias(f"HT{_props}")

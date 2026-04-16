@@ -1,112 +1,74 @@
 # -*- coding: utf-8 -*-
-import numpy as np
-from pandas import Series
+# =============================================================================
+# Polars VFI (Volume Flow Indicator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.utils import non_zero_range, v_mamode, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
-def vfi(
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    coef: float | None = None,
-    vcoef: float | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Volume Flow Indicator (VFI)
+def pl_vfi(
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 130,
+    coef: float = 0.2,
+    vcoef: float = 2.5,
+    mamode: str = "ema",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Volume Flow Indicator (VFI)
 
-    The Volume Flow Indicator (VFI) is a volume-based indicator that helps
-    identify the strength of bulls vs bears in the market. It combines price
-    movement with volume to show the flow of money into or out of a security.
-
-    Sources:
-        https://www.tradingview.com/script/MhlDpfdS-Volume-Flow-Indicator-LazyBear/
-        https://www.investopedia.com/terms/v/volume-analysis.asp
-
-    Calculation:
-        Default Inputs:
-            length=130, coef=0.2, vcoef=2.5, mamode='ema'
-
-        typical = close
-        inter = typical - typical.shift(1)  # Price change
-        cutoff = coef * close  # Volatility threshold
-        mf = inter if abs(inter) > cutoff else 0  # Filter minimal changes
-
-        vave = SMA(volume, length).shift(1)
-        vmax = vave * vcoef
-        vc = min(volume, vmax)  # Clipped volume
-
-        vcp = vc * mf  # Volume-weighted money flow
-
-        VFI = SUM(vcp, length) / SMA(vave, length)
-        VFI = EMA(VFI, 3)  # Smooth the result
+    Combines price movement with volume to show money flow.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): The period. Default: 130
-        coef (float): Volatility threshold coefficient. Default: 0.2
-        vcoef (float): Volume coefficient. Default: 2.5
-        mamode (str): Moving average mode for smoothing. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: Period. Default: 130
+        coef: Volatility threshold coefficient. Default: 0.2
+        vcoef: Volume coefficient. Default: 2.5
+        mamode: MA type for smoothing. Default: 'ema'
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: VFI expression
     """
-    # Validate
-    length = v_pos_default(length, 130)
-    coef = float(coef) if coef else 0.2
-    vcoef = float(vcoef) if vcoef else 2.5
-    mamode = v_mamode(mamode, "ema")
-    close = v_series(close, length)
-    volume = v_series(volume, length)
-
-    if close is None or volume is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    # Typical price (using close directly)
-    typical = close
-
-    # Volume cutoff
-    vave = volume.rolling(length).mean().shift(1)
+    from polars_ti.ma import pl_ma
+    
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
+    # Volume average and clipped volume
+    vave = volume_expr.rolling_mean(window_size=length, min_samples=length).shift(1)
     vmax = vave * vcoef
-    vc = Series(np.minimum(volume.values, vmax.values), index=volume.index)
-
-    # Calculate MF (Money Flow) with volatility threshold
-    inter = typical.diff(1)
-    cutoff = coef * close
-    mf = inter.where(inter.abs() > cutoff, 0)
-
-    # Volume times cutoff price
+    
+    # min(volume, vmax)
+    vc = pl.min_horizontal(volume_expr, vmax)
+    
+    # Money flow with volatility threshold
+    inter = close_expr.diff(1)
+    cutoff = coef * close_expr
+    mf = pl.when(inter.abs() > cutoff).then(inter).otherwise(0.0)
+    
+    # Volume-weighted money flow
     vcp = vc * mf
-
-    # Calculate VFI with division by zero protection
-    vave_sum = vave.rolling(length).mean()
-    vave_sum = non_zero_range(vave_sum, vave_sum * 0)  # Protect against zero
-    vfi = vcp.rolling(length).sum() / vave_sum
-
-    # Smooth VFI
-    vfi = ma(mamode, vfi, length=3)
-
-    # Offset
+    
+    # VFI = sum(vcp, length) / rolling_mean(vave, length)
+    vave_mean = vave.rolling_mean(window_size=length, min_samples=length)
+    # Protect against division by zero using shared utility
+    vave_mean_safe = pl_non_zero_range(vave_mean, pl.lit(0.0))
+    
+    vfi_expr = vcp.rolling_sum(window_size=length, min_samples=length) / vave_mean_safe
+    
+    # Smooth with EMA(3)
+    vfi_expr = pl_ma(name=mamode, source=vfi_expr, length=3)
+    
     if offset != 0:
-        vfi = vfi.shift(offset)
+        vfi_expr = vfi_expr.shift(offset)
+    
+    return vfi_expr.alias(f"VFI_{length}")
 
-    # Fill
-    if "fillna" in kwargs:
-        vfi = vfi.fillna(kwargs["fillna"])
-
-    # Name and Category
-    vfi.name = f"VFI_{length}"
-    vfi.category = "volume"
-
-    return vfi

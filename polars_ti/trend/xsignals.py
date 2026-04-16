@@ -1,125 +1,65 @@
 # -*- coding: utf-8 -*-
-import numpy as np
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars XSignals Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.trend import tsignals
-from polars_ti.utils import cross_value, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def xsignals(
-    signal: Series,
-    xa: int | float | Series,
-    xb: int | float | Series,
+def pl_xsignals(
+    signal: IntoExpr,
+    xa: float,
+    xb: float,
     above: bool = True,
     long: bool = True,
-    asbool: bool | None = None,
-    trend_reset: int = 0,
-    trade_offset: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Cross Signals (XSIGNALS)
+    asbool: bool = False,
+    trade_offset: int = 0,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Cross Signals (XSIGNALS)
 
-    Cross Signals returns Trend Signal (TSIGNALS) results for Signal
-    Crossings. This is useful for indicators like RSI, ZSCORE, et al where
-    one wants trade Entries and Exits (and Trends).
-
-    Cross Signals has two kinds of modes: above and long.
-
-    The first mode 'above', default True, xsignals determines if the
-    signal first crosses above 'xa' and then below 'xb'. If 'above' is False,
-    xsignals determines if the signal first crosses below 'xa' and then
-    above 'xb'.
-
-    The second mode 'long', default True, passes the long trend result into
-    tsignals so it can determine the appropriate Entries and Exits.
-    When 'long' is False, it does the same but for the short side.
-
-    Example:
-        These are two different outcomes and depends on the indicator and it's
-        characteristics. Please check BOTH outcomes BEFORE making an Issue::
-
-            rsi = df.ti.rsi()
-
-        Returns tsignal DataFrame when RSI crosses above 20 and then below 80::
-
-            ti.xsignals(rsi, 20, 80, above=True)
-
-        Returns tsignal DataFrame when RSI crosses below 20 and then above 80::
-
-            ti.xsignals(rsi, 20, 80, above=False)
-
-    Source:
-        Kevin Johnson
+    Returns trend signals for signal crossings. Useful for RSI, ZSCORE etc.
 
     Args:
-        signal (pd.Series): The Signal to compare from. Commonly the 'close'.
-        xa (pd.Series): The Series the Signal crosses above if 'above=True'.
-        xb (pd.Series): The Series the Signal crosses below if 'above=True'.
-        above (bool): When the signal crosses above 'xa' first and then 'xb'. When
-            False, then when the signal crosses below 'xa' first and then 'xb'.
-            Default: True
-        long (bool): Passes the long trend into tsignals' trend argument. When
-            False, it passes the short trend into tsignals trend argument.
-            Default: True
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-        # TSIGNAL Passthrough arguments
-        asbool (bool): If True, it converts the Trends, Entries and Exits columns to
-            booleans. When boolean, it is also useful for backtesting with
-            vectorbt's Portfolio.from_signal(close, entries, exits) Default: False
-        trend_reset (value): Value used to identify if a trend has ended. Default: 0
-        trade_offset (value): Value used shift the trade entries/exits Use 1 for
-            backtesting and 0 for live. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        signal: Column name or pl.Expr for the signal
+        xa: First cross threshold
+        xb: Second cross threshold
+        above: Cross above xa first, then below xb. Default: True
+        long: Use long trend. Default: True
+        asbool: Return bool instead of int. Default: False
+        trade_offset: Shift trade signals. Default: 0
+        drift: Difference period. Default: 1
+        offset: Shift all results. Default: 0
 
     Returns:
-        pd.DataFrame with columns:
-        Trends (trend: 1, no trend: 0), Trades (Enter: 1, Exit: -1, Otherwise: 0),
-        Entries (entry: 1, nothing: 0), Exits (exit: 1, nothing: 0)
+        pl.Expr: Struct with TS_Trends, TS_Trades, TS_Entries, TS_Exits
     """
-    # Validate
-    signal = v_series(signal)
-    offset = v_offset(offset)
+    from polars_ti.trend.tsignals import pl_tsignals
 
-    # Calculate
+    signal_expr = v_expr(signal)
+
     if above:
-        entries = cross_value(signal, xa)
-        exits = -cross_value(signal, xb, above=False)
+        cross_above = (signal_expr > xa) & (signal_expr.shift(1) <= xa)
+        cross_below = (signal_expr < xb) & (signal_expr.shift(1) >= xb)
     else:
-        entries = cross_value(signal, xa, above=False)
-        exits = -cross_value(signal, xb)
+        cross_above = (signal_expr < xa) & (signal_expr.shift(1) >= xa)
+        cross_below = (signal_expr > xb) & (signal_expr.shift(1) <= xb)
+
+    entries = cross_above.cast(pl.Int64)
+    exits = cross_below.cast(pl.Int64) * -1
     trades = entries + exits
 
-    # Modify trades to fill gaps for trends
-    trades.replace({0: np.nan})
-    trades.ffill(limit_area="inside")
-    trades.fillna(0)
+    # Forward fill inside to create trend
+    trends_raw = trades.replace(0, None).forward_fill().fill_null(0)
+    trends = (trends_raw > 0).cast(pl.Int64)
 
-    trends = (trades > 0).astype(int)
     if not long:
-        trends = 1 - trends
+        trends = pl.lit(1) - trends
 
-    tskwargs = {
-        "asbool": asbool,
-        "trade_offset": trade_offset,
-        "trend_reset": trend_reset,
-        "offset": offset,
-    }
-    df = tsignals(trends, **tskwargs)
-
-    # Offset handled by tsignals
-    DataFrame({f"XS_LONG": df.TS_Trends, f"XS_SHORT": 1 - df.TS_Trends})
-
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
-
-    # Name and Category
-    df.name = f"XS"
-    df.category = "trend"
-
-    return df
+    return pl_tsignals(
+        trends, asbool=asbool, trade_offset=trade_offset,
+        drift=drift, offset=offset,
+    )

@@ -1,70 +1,71 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars OBV (On Balance Volume) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.utils import signed_series, v_offset, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def obv(
-    close: Series,
-    volume: Series,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """On Balance Volume (OBV)
+def pl_obv(
+    close: IntoExpr,
+    volume: IntoExpr,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: On Balance Volume (OBV)
 
     On Balance Volume is a cumulative indicator to measure buying and selling
     pressure.
 
-    Sources:
-        https://www.tradingview.com/wiki/On_Balance_Volume_(OBV)
-        https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/on-balance-volume-obv/
-        https://www.motivewave.com/studies/on_balance_volume.htm
-
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: OBV expression
     """
-    # Validate
-    _length = 1
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
-
-    if close is None or volume is None:
-        return
-
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import OBV
-
-        obv = OBV(close, volume)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
+    _use_talib = Imports["talib"] and v_talib(talib)
+    
+    if _use_talib:
+        def compute_obv(df: pl.DataFrame) -> pl.Series:
+            from talib import OBV as TALIB_OBV
+            c = df["close"].to_numpy().astype(np.float64)
+            v = df["volume"].to_numpy().astype(np.float64)
+            result = TALIB_OBV(c, v)
+            return pl.Series("OBV", result)
+        
+        obv_expr = pl.struct([
+            close_expr.alias("close"),
+            volume_expr.alias("volume")
+        ]).map_batches(
+            lambda s: compute_obv(s.struct.unnest()),
+            return_dtype=pl.Float64
+        )
     else:
-        sv = signed_series(close, initial=1) * volume
-        obv = sv.cumsum()
-
-    # Offset
+        # Pure Polars: OBV = cumsum(signed_volume)
+        # signed_volume = volume * sign(close.diff())
+        close_diff = close_expr.diff()
+        sign = pl.when(close_diff > 0).then(1).when(close_diff < 0).then(-1).otherwise(0)
+        # First value should use 1 as initial sign (matching pandas-ta)
+        sign = sign.fill_null(1)
+        obv_expr = (sign * volume_expr).cum_sum()
+    
     if offset != 0:
-        obv = obv.shift(offset)
+        obv_expr = obv_expr.shift(offset)
+    
+    return obv_expr.alias("OBV")
 
-    # Fill
-    if "fillna" in kwargs:
-        obv = obv.fillna(kwargs["fillna"])
-
-    # Name and Category
-    obv.name = f"OBV"
-    obv.category = "volume"
-
-    return obv

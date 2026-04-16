@@ -1,64 +1,66 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars HLC3 Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def hlc3(
-    high: Series,
-    low: Series,
-    close: Series,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """HLC3
-
-    HLC3 is the average of high, low and close.
+def pl_hlc3(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: HLC3 - Typical Price (Average of High, Low, Close)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value). Only works if
-            result is offset.
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        talib: If True and TA-Lib available, uses TA-Lib TYPPRICE. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: HLC3 expression
     """
-    # Validate
-    high = v_series(high)
-    low = v_series(low)
-    close = v_series(close)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    if any(x is None for x in [high_expr, low_expr, close_expr]):
+        return None
 
-    if high is None or low is None or close is None:
-        return
-
-    # Calculate
-    if Imports["talib"] and mode_tal and close.size:
-        from talib import TYPPRICE
-
-        hlc3 = TYPPRICE(high, low, close)
+    _use_talib = Imports["talib"] and v_talib(talib)
+    
+    if _use_talib:
+        def compute_hlc3(struct: pl.Series) -> pl.Series:
+            from talib import TYPPRICE
+            df = struct.struct.unnest()
+            h = df["_high"].to_numpy().astype(np.float64)
+            l = df["_low"].to_numpy().astype(np.float64)
+            c = df["_close"].to_numpy().astype(np.float64)
+            result = TYPPRICE(h, l, c)
+            return pl.Series(result)
+        
+        result = pl.struct([
+            high_expr.alias("_high"),
+            low_expr.alias("_low"),
+            close_expr.alias("_close"),
+        ]).map_batches(compute_hlc3, return_dtype=pl.Float64)
     else:
-        avg = (high.to_numpy() + low.to_numpy() + close.to_numpy()) / 3.0
-        hlc3 = Series(avg, index=close.index)
-
-    # Offset
+        result = (high_expr + low_expr + close_expr) / pl.lit(3.0)
+    
+    # Apply offset
     if offset != 0:
-        hlc3 = hlc3.shift(offset)
+        result = result.shift(offset)
+    
+    return result.alias("HLC3")
 
-        # Fill
-        if "fillna" in kwargs:
-            hlc3 = hlc3.fillna(kwargs["fillna"])
 
-    # Name and Category
-    hlc3.name = "HLC3"
-    hlc3.category = "overlap"
-
-    return hlc3

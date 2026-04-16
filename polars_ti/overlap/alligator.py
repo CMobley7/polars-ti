@@ -1,89 +1,45 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars ALLIGATOR Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.overlap.smma import pl_smma
 
-from .smma import smma
 
+def pl_alligator(
+    close: IntoExpr,
+    jaw: int = 13,
+    teeth: int = 8,
+    lips: int = 5,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Bill Williams Alligator
 
-def alligator(
-    close: Series,
-    jaw: int | None = None,
-    teeth: int | None = None,
-    lips: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Bill Williams Alligator (ALLIGATOR)
-
-    The Alligator Indicator was developed by Bill Williams and combines
-    moving averages with fractal geometry and the lines are meant to
-    resemble an alligator opening and closing his mouth.. It attempts to
-    identify if an asset is trending. It consists of 3 lines: the
-    Alligator's Jaw, Teeth, and Lips. Each have different lookback periods
-    and but require the user to offset the results; this is avoid data leaks
-    by Polars TI. See help(ti.ichimoku) or help(ti.dpo) to offset the
-    resultant lines.
-
-    Sources:
-        https://www.tradingview.com/scripts/alligator/
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=175&Name=Bill_Williams_Alligator
+    Three SMMA lines representing Jaw, Teeth, and Lips.
+    Returns a struct with AGj, AGt, AGl fields.
 
     Args:
-        close (pd.Series): Series of 'close's
-        jaw (int): The Jaw period. Default: 13
-        teeth (int): The Teeth period. Default: 8
-        lips (int): The Lips period. Default: 5
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        jaw: Jaw period. Default: 13
+        teeth: Teeth period. Default: 8
+        lips: Lips period. Default: 5
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: JAW, TEETH, LIPS columns.
+        pl.Expr: Struct with AGj, AGt, AGl fields
     """
-    # Validate
-    jaw = v_pos_default(jaw, 13)
-    teeth = v_pos_default(teeth, 8)
-    lips = v_pos_default(lips, 5)
-    close = v_series(close, max(jaw, teeth, lips))
-
-    if close is None:
-        return
-
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    gator_jaw = smma(close, length=jaw, talib=mode_tal)
-    gator_teeth = smma(close, length=teeth, talib=mode_tal)
-    gator_lips = smma(close, length=lips, talib=mode_tal)
-
-    # Offset
-    if offset != 0:
-        gator_jaw = gator_jaw.shift(offset)
-        gator_teeth = gator_teeth.shift(offset)
-        gator_lips = gator_lips.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        gator_jaw = gator_jaw.fillna(kwargs["fillna"])
-        gator_teeth = gator_teeth.fillna(kwargs["fillna"])
-        gator_lips = gator_lips.fillna(kwargs["fillna"])
-
-    # Name and Category
+    close_expr = v_expr(close)
     _props = f"_{jaw}_{teeth}_{lips}"
-    data = {
-        f"AGj{_props}": gator_jaw,
-        f"AGt{_props}": gator_teeth,
-        f"AGl{_props}": gator_lips,
-    }
-    df = DataFrame(data, index=close.index)
+    
+    # Build three SMMA expressions
+    jaw_expr = pl_smma(close, length=jaw, offset=offset).alias(f"AGj{_props}")
+    teeth_expr = pl_smma(close, length=teeth, offset=offset).alias(f"AGt{_props}")
+    lips_expr = pl_smma(close, length=lips, offset=offset).alias(f"AGl{_props}")
+    
+    return pl.struct([jaw_expr, teeth_expr, lips_expr]).alias(f"AG{_props}")
 
-    df.name = f"AG{_props}"
-    df.category = "overlap"
 
-    return df

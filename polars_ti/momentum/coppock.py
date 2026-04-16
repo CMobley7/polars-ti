@@ -1,71 +1,52 @@
 # -*- coding: utf-8 -*-
-# from numpy import isnan
-from pandas import Series
+# =============================================================================
+# Polars Coppock Curve Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import wma
-from polars_ti.utils import v_offset, v_pos_default, v_series
-
-from .roc import roc
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def coppock(
-    close: Series,
-    length: int | None = None,
-    fast: int | None = None,
-    slow: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Coppock Curve (COPC)
+def pl_coppock(
+    close: IntoExpr,
+    length: int = 10,
+    fast: int = 11,
+    slow: int = 14,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Coppock Curve (COPC)
 
-    Coppock Curve (originally called the "Trendex Model") is a momentum
-    indicator is designed for use on a monthly time scale. Although designed
-    for monthly use, a daily calculation over the same period can be made,
-    converting the periods to 294-day and 231-day rate of changes,
-    and a 210-day WMA.
+    Momentum indicator designed for use on a monthly time scale.
+    Formula: WMA(ROC(fast) + ROC(slow), length)
 
     Sources:
         https://en.wikipedia.org/wiki/Coppock_curve
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): WMA period. Default: 10
-        fast (int): Fast ROC period. Default: 11
-        slow (int): Slow ROC period. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: WMA period. Default: 10
+        fast: Fast ROC period. Default: 11
+        slow: Slow ROC period. Default: 14
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Coppock Curve expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    fast = v_pos_default(fast, 11)
-    slow = v_pos_default(slow, 14)
-    _length = length + fast + slow
-    close = v_series(close, _length)
-
-    if close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    total_roc = roc(close, fast) + roc(close, slow)
-    coppock = wma(total_roc, length)
-
-    # Offset
+    from polars_ti.momentum.roc import pl_roc
+    from polars_ti.overlap.wma import pl_wma
+    
+    close_expr = v_expr(close)
+    
+    # Total ROC = ROC(fast) + ROC(slow)
+    roc_fast = pl_roc(close_expr, length=fast, scalar=100.0, talib=False, offset=0)
+    roc_slow = pl_roc(close_expr, length=slow, scalar=100.0, talib=False, offset=0)
+    total_roc = roc_fast + roc_slow
+    
+    # Coppock = WMA(total_roc, length)
+    coppock_expr = pl_wma(total_roc, length=length, offset=0)
+    
     if offset != 0:
-        coppock = coppock.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        coppock = coppock.fillna(kwargs["fillna"])
-
-    # Name and Category
-    coppock.name = f"COPC_{fast}_{slow}_{length}"
-    coppock.category = "momentum"
-
-    return coppock
+        coppock_expr = coppock_expr.shift(offset)
+    
+    return coppock_expr.alias(f"COPC_{fast}_{slow}_{length}")

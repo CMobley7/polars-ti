@@ -1,25 +1,21 @@
 # -*- coding: utf-8 -*-
-# from numpy.version import version as np_version
-from pandas import Series
+# =============================================================================
+# Polars PWMA Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    pascals_triangle,
-    v_ascending,
-    v_offset,
-    v_pos_default,
-    v_series,
-    weights,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.utils._math import pascals_triangle
 
 
-def pwma(
-    close: Series,
-    length: int | None = None,
-    asc: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Pascal's Weighted Moving Average (PWMA)
+def pl_pwma(
+    close: IntoExpr,
+    length: int = 10,
+    asc: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Pascal's Weighted Moving Average (PWMA)
 
     Pascal's Weighted Moving Average is similar to a symmetric triangular
     window except PWMA's weights are based on Pascal's Triangle.
@@ -27,41 +23,41 @@ def pwma(
     Source: Kevin Johnson
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period.  Default: 10
-        asc (bool): Recent values weigh more. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        asc: Recent values weigh more. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PWMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    # Get Pascal's Triangle weights (row n-1 for length n)
+    pascal_weights = pascals_triangle(n=length - 1, weighted=True)
+    if not asc:
+        pascal_weights = pascal_weights[::-1]
+    weights_list = pascal_weights.tolist()
 
-    asc = v_ascending(asc)
-    offset = v_offset(offset)
+    _length = length
+    _weights = weights_list
 
-    # Calculate
-    triangle = pascals_triangle(n=length - 1, weighted=True)
-    pwma = close.rolling(length, min_periods=length).apply(weights(triangle), raw=True)
+    def pascal_weighted_mean(s: pl.Series) -> float:
+        vals = s.to_numpy()
+        if len(vals) < _length:
+            return float('nan')
+        return (vals * _weights[-len(vals):]).sum()
 
-    # Offset
+    pwma_expr = close_expr.rolling_map(
+        function=pascal_weighted_mean,
+        window_size=length,
+        min_samples=length
+    )
+
+    # Apply offset
     if offset != 0:
-        pwma = pwma.shift(offset)
+        pwma_expr = pwma_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        pwma = pwma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    pwma.name = f"PWMA_{length}"
-    pwma.category = "overlap"
-
-    return pwma
+    return pwma_expr.alias(f"PWMA_{length}")

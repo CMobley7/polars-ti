@@ -1,98 +1,55 @@
 # -*- coding: utf-8 -*-
-from numpy import exp, isnan, logical_and, max, min
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars IFISHER Implementation (Pure Native Polars)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_int, v_offset, v_scalar, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
-from .remap import remap
 
+def pl_ifisher(
+    close: IntoExpr,
+    amp: float = 1.0,
+    signal_offset: int = -1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Inverse Fisher Transform
 
-def ifisher(
-    close: Series,
-    amp: int | float | None = None,
-    signal_offset: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """
-    Indicator: Inverse Fisher Transform
+    Changes the Probability Distribution Function for normalized oscillators
+    to receive clearer signals. Input should be in range -1 to 1.
 
-    John Ehlers describes this indicator as a tool to change the
-    "Probability Distribution Function (PDF)" for the results of known
-    oscillator-indicators (time series) to receive clearer signals. Its input
-    needs to be normalized into the range from -1 to 1. Input data in the
-    range of -0.5 to 0.5 would not have a significant impact. Ehlers note's as
-    an important fact that larger values will be transformed or compressed
-    stronger to the underlying unity of -1 to 1.
+    Uses pure native Polars expressions.
 
-    Preparation Examples (or use 'remap'-indicator for this preparation):
-        (RSI - 50) * 0.1        RSI [0 to 100] -> -5 to 5
-        (RSI - 50) * 0.02       RSI [0 to 100] -> -1 to 1, use amp of 5 to
-                                                           match input of
-                                                           example above
+    Formula: y = (exp(amp*x) - 1) / (exp(amp*x) + 1)
 
     Sources:
-        https://www.mesasoftware.com/papers/TheInverseFisherTransform.pdf,
-        Book: Cycle Analytics for Traders, 2014, written by John Ehlers,
-            page 198
-        Coded by rengel8 based on Markus K. (cryptocoinserver)'s source.
+        https://www.mesasoftware.com/papers/TheInverseFisherTransform.pdf
+        Book: Cycle Analytics for Traders, John Ehlers (2014)
 
     Args:
-        close (pd.Series): Series of 'close's
-        amp (float): Use the amplifying factor to increase the impact of
-            the soft limiter. Default: 1
-        signal_offset (int): Offset the signal line. Default: -1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input (ideally -1 to 1 range)
+        amp: Amplifying factor. Default: 1.0
+        signal_offset: Offset for signal line. Default: -1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: New feature generated.
+        pl.Expr: Inverse Fisher Transform expression
     """
-    # Validate
-    close = v_series(close)
-    amp = v_scalar(amp, 1.0)
-    signal_offset = v_int(signal_offset, -1, 0)
-    offset = v_offset(offset)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    # Calculate
-    np_close = close.to_numpy()
-    is_remapped = logical_and(np_close >= -1, np_close <= 1)
-    if not all(is_remapped):
-        np_max, np_min = max(np_close), min(np_close)
-        close_map = remap(close, from_min=np_min, from_max=np_max, to_min=-1, to_max=1)
-        if close_map is None or all(isnan(close_map.to_numpy())):
-            return  # Emergency Break
-        np_close = close_map.to_numpy()
-    amped = exp(amp * np_close)
+    # Pure native Polars: Inverse Fisher Transform
+    # y = (exp(amp*x) - 1) / (exp(amp*x) + 1)
+    amped = (close_expr * amp).exp()
     result = (amped - 1) / (amped + 1)
 
-    inv_fisher = Series(result, index=close.index)
-    signal = Series(result, index=close.index)
-
-    # Offset
+    # Apply offsets
     if offset != 0:
-        inv_fisher = inv_fisher.shift(offset)
-        signal = signal.shift(offset)
+        result = result.shift(offset)
     if signal_offset != 0:
-        inv_fisher = inv_fisher.shift(signal_offset)
-        signal = signal.shift(signal_offset)
+        result = result.shift(signal_offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        inv_fisher = inv_fisher.fillna(kwargs["fillna"])
-        signal = signal.fillna(kwargs["fillna"])
+    return result.alias(f"INVFISHER_{amp}")
 
-    # Name and Category
-    _props = f"_{amp}"
-    inv_fisher.name = f"INVFISHER{_props}"
-    signal.name = f"INVFISHERs{_props}"
-    inv_fisher.category = signal.category = "transform"
-
-    data = {inv_fisher.name: inv_fisher, signal.name: signal}
-    df = DataFrame(data, index=close.index)
-    df.name = f"INVFISHER{_props}"
-    df.category = inv_fisher.category
-
-    return df

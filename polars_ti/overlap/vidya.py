@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from numpy import zeros
 from numba import njit
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series, v_talib
 
 
 @njit(cache=True)
@@ -15,7 +12,7 @@ def nb_vidya(close, abs_cmo, alpha, length):
     Values before 'length' are left as 0 and converted to NaN later.
     """
     m = close.size
-    vidya = np.zeros(m)
+    vidya = zeros(m)
 
     for i in range(length, m):
         vidya[i] = alpha * abs_cmo[i] * close[i] + vidya[i - 1] * (
@@ -24,88 +21,85 @@ def nb_vidya(close, abs_cmo, alpha, length):
     return vidya
 
 
-def vidya(
-    close: Series,
-    length: int | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    talib: bool | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Variable Index Dynamic Average (VIDYA)
+# =============================================================================
+# Polars VIDYA Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+def pl_vidya(
+    close: IntoExpr,
+    length: int = 14,
+    drift: int = 1,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Variable Index Dynamic Average (VIDYA)
 
     Variable Index Dynamic Average (VIDYA) was developed by Tushar Chande.
     It is similar to an EMA but it has a dynamically adjusted lookback
-    period dependent on relative price volatility as measured by CMO. When
-    volatility is high, VIDYA reacts faster to price changes.
-    It is often used as moving average or trend identifier.
+    period dependent on relative price volatility as measured by CMO.
 
     Sources:
         https://www.tradingview.com/script/hdrf0fXV-Variable-Index-Dynamic-Average-VIDYA/
-        https://www.perfecttrendsystem.com/blog_mt4_2/en/vidya-indicator-for-mt4
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: CMO period. Default: 14
+        drift: Difference period for CMO. Default: 1
+        talib: If True and TA-Lib available, uses TA-Lib for CMO. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: VIDYA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length + 1)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    mode_tal = v_talib(talib)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    alpha = 2 / (length + 1)
-
-    if Imports["talib"] and mode_tal:
-        try:
+    _length = length
+    _drift = drift
+    _use_talib = Imports["talib"] and v_talib(talib)
+    
+    def compute_vidya(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        n = len(arr)
+        
+        # Calculate alpha
+        alpha = 2.0 / (_length + 1)
+        
+        # Calculate CMO
+        if _use_talib:
             from talib import CMO
+            cmo_vals = CMO(arr, _length) / 100.0  # Scale to 0-1
+        else:
+            from polars_ti.momentum.cmo import pl_cmo
+            tmp = pl.DataFrame({"_close": arr})
+            cmo_col = tmp.select(pl_cmo("_close", length=_length, drift=_drift)).to_series().to_numpy()
+            cmo_vals = cmo_col / 100.0  # Scale to 0-1
+        
+        abs_cmo = np.abs(cmo_vals).astype(np.float64)
+        
+        # Use the shared Numba kernel
+        result = nb_vidya(arr, abs_cmo, alpha, _length)
+        
+        # Replace zeros with NaN
+        result[result == 0] = np.nan
+        
+        return pl.Series(result)
 
-            cmo_ = CMO(close, length) / 100
-        except ImportError:
-            # Lazy import to avoid circular dependency
-            from polars_ti.momentum.cmo import cmo
+    result = close_expr.map_batches(compute_vidya, return_dtype=pl.Float64)
 
-            cmo_ = cmo(close, length=length, drift=drift, talib=mode_tal)
-    else:
-        # Lazy import to avoid circular dependency
-        from polars_ti.momentum.cmo import cmo
-
-        cmo_ = cmo(close, length=length, drift=drift, talib=mode_tal)
-
-    abs_cmo = cmo_.abs().astype(float)
-
-    # Use Numba
-    np_close = close.to_numpy(dtype=np.float64)
-    np_abs_cmo = abs_cmo.to_numpy(dtype=np.float64)
-
-    result = nb_vidya(np_close, np_abs_cmo, alpha, length)
-
-    vidya = Series(result, index=close.index)
-    vidya = vidya.replace({0: np.nan})
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        vidya = vidya.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        vidya = vidya.fillna(kwargs["fillna"])
+    return result.alias(f"VIDYA_{length}")
 
-    # Name and Category
-    vidya.name = f"VIDYA_{length}"
-    vidya.category = "overlap"
-
-    return vidya

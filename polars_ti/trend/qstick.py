@@ -1,64 +1,46 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars QStick Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.utils import non_zero_range, v_mamode, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def qstick(
-    open_: Series,
-    close: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Q Stick
+def pl_qstick(
+    open_: IntoExpr,
+    close: IntoExpr,
+    length: int = 10,
+    mamode: str = "sma",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Q Stick
 
-    The Q Stick indicator, developed by Tushar Chande, attempts to quantify
-    and identify trends in candlestick charts.
+    Quantifies and identifies trends in candlestick charts by applying
+    a moving average to the close-open difference.
 
-    Sources:
-        https://library.tradingtechnologies.com/trade/chrt-ti-qstick.html
+    Formula: QS = MA(close - open, length)
 
     Args:
-        open (pd.Series): Series of 'open's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 1
-        mamode (str): See ``help(ti.ma)``. Default: "sma"
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 10
+        mamode: MA type ('sma', 'ema', etc.). Default: 'sma'
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: QStick expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    open_ = v_series(open_, length)
-    close = v_series(close, length)
+    from polars_ti.ma import pl_ma
 
-    if open_ is None or close is None:
-        return
+    open_expr = v_expr(open_)
+    close_expr = v_expr(close)
 
-    mamode = v_mamode(mamode, "sma")
-    offset = v_offset(offset)
+    diff_expr = close_expr - open_expr
+    result = pl_ma(mamode, diff_expr, length=length, talib=False)
 
-    # Calculate
-    diff = non_zero_range(close, open_)
-    qstick = ma(mamode, diff, length=length, **kwargs)
-
-    # Offset
     if offset != 0:
-        qstick = qstick.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        qstick = qstick.fillna(kwargs["fillna"])
-
-    # Name and Category
-    qstick.name = f"QS_{length}"
-    qstick.category = "trend"
-
-    return qstick
+    return result.alias(f"QS_{length}")

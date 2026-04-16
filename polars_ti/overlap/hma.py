@@ -1,61 +1,57 @@
 # -*- coding: utf-8 -*-
-from numpy import sqrt
-from pandas import Series
+# =============================================================================
+# Polars HMA Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.overlap.wma import nb_wma
 
-from .wma import wma
 
+def pl_hma(
+    close: IntoExpr,
+    length: int = 10,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Hull Moving Average (HMA)
 
-def hma(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Hull Moving Average (HMA)
-
-    The Hull Exponential Moving Average attempts to reduce or remove lag
-    in moving averages.
+    HMA = WMA(2*WMA(half) - WMA(full), sqrt(length))
 
     Sources:
         https://alanhull.com/hull-moving-average
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: HMA expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length + 2)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
     half_length = int(length / 2)
-    sqrt_length = int(sqrt(length))
+    sqrt_length = int(length ** 0.5)
+    _length = length
 
-    wmaf = wma(close=close, length=half_length)
-    wmas = wma(close=close, length=length)
-    hma = wma(close=2 * wmaf - wmas, length=sqrt_length)
+    def compute_hma(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        # Reuse nb_wma from wma.py (no duplicate kernels!)
+        wmaf = nb_wma(arr, half_length, True, True)
+        wmas = nb_wma(arr, _length, True, True)
+        intermediate = 2.0 * wmaf - wmas
+        result = nb_wma(intermediate, sqrt_length, True, True)
+        return pl.Series(result)
 
-    # Offset
+    result = close_expr.map_batches(compute_hma, return_dtype=pl.Float64)
+
     if offset != 0:
-        hma = hma.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        hma = hma.fillna(kwargs["fillna"])
+    return result.alias(f"HMA_{length}")
 
-    # Name and Category
-    hma.name = f"HMA_{length}"
-    hma.category = "overlap"
 
-    return hma

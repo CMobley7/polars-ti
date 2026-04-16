@@ -1,90 +1,79 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars ABERRATION Implementation (Composition: pl_atr + pl_sma)
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import hlc3, sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
-
-from .atr import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def aberration(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    atr_length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Aberration (ABER)
+def pl_aberration(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 5,
+    atr_length: int = 15,
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Aberration (ABER)
 
     A volatility indicator similar to Keltner Channels.
+    Returns a struct with ZG, SG, XG, ATR columns.
 
-    Sources:
-        Few internet resources on definitive definition.
-        Request by Github user homily, issue #46
+    Uses composition: pl_hlc3, pl_sma, and pl_atr.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): The short period. Default: 5
-        atr_length (int): The short period. Default: 15
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        length: SMA period. Default: 5
+        atr_length: ATR period. Default: 15
+        talib: If True and TA-Lib installed, uses TA-Lib for ATR. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: zg, sg, xg, atr columns.
+        pl.Expr: Struct with ZG, SG, XG, ATR columns
     """
-    # Validate
-    length = v_pos_default(length, 5)
-    atr_length = v_pos_default(atr_length, 15)
-    _length = max(atr_length, length) + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-
-    if high is None or low is None or close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    atr_ = atr(high=high, low=low, close=close, length=atr_length)
-    jg = hlc3(high=high, low=low, close=close)
-
-    zg = sma(jg, length)
-    sg = zg + atr_
-    xg = zg - atr_
-
-    # Offset
+    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.overlap.hlc3 import pl_hlc3
+    from polars_ti.overlap.sma import pl_sma
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    
+    if high_expr is None or low_expr is None or close_expr is None:
+        return None
+    
+    # HLC3 using pl_hlc3 composition
+    hlc3_expr = pl_hlc3(high_expr, low_expr, close_expr)
+    
+    # ZG = SMA(HLC3, length) using pl_sma composition
+    zg = pl_sma(hlc3_expr, length=length)
+    
+    # ATR using pl_atr composition
+    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, talib=talib)
+    
+    # SG = ZG + ATR, XG = ZG - ATR
+    sg = zg + atr_expr
+    xg = zg - atr_expr
+    
+    # Apply offset
     if offset != 0:
         zg = zg.shift(offset)
         sg = sg.shift(offset)
         xg = xg.shift(offset)
-        atr_ = atr_.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        zg = zg.fillna(kwargs["fillna"])
-        sg = sg.fillna(kwargs["fillna"])
-        xg = xg.fillna(kwargs["fillna"])
-        atr_ = atr_.fillna(kwargs["fillna"])
-
-    # Name and Category
+        atr_expr = atr_expr.shift(offset)
+    
     _props = f"_{length}_{atr_length}"
-    zg.name = f"ABER_ZG{_props}"
-    sg.name = f"ABER_SG{_props}"
-    xg.name = f"ABER_XG{_props}"
-    atr_.name = f"ABER_ATR{_props}"
-    zg.category = sg.category = "volatility"
-    xg.category = atr_.category = zg.category
+    
+    return pl.struct([
+        zg.alias(f"ABER_ZG{_props}"),
+        sg.alias(f"ABER_SG{_props}"),
+        xg.alias(f"ABER_XG{_props}"),
+        atr_expr.alias(f"ABER_ATR{_props}"),
+    ]).alias(f"ABER{_props}")
 
-    data = {zg.name: zg, sg.name: sg, xg.name: xg, atr_.name: atr_}
-    df = DataFrame(data, index=close.index)
-    df.name = f"ABER{_props}"
-    df.category = zg.category
 
-    return df

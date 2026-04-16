@@ -322,3 +322,68 @@ def _linear_regression_sklearn(x: Series, y: Series) -> DictLike:
         "line": a + b * x,
     }
     return result
+
+
+# =============================================================================
+# Polars Math Utilities (for Polars-TI conversion)
+# =============================================================================
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr
+
+
+def pl_non_zero_range(high: IntoExpr, low: IntoExpr) -> PlExpr:
+    """Polars: Returns the difference of high-low, adding epsilon to zeros.
+
+    This prevents division by zero in crypto data where high == low.
+    """
+    from polars_ti.utils._validate import v_expr
+
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    diff = high_expr - low_expr
+    return pl.when(diff == 0).then(diff + sflt.epsilon).otherwise(diff)
+
+
+def pl_signed_diff(col: IntoExpr, lag: int = 1) -> PlExpr:
+    """Polars: Returns sign of differences (-1, 0, or 1).
+
+    Useful for directional calculations in indicators.
+    """
+    from polars_ti.utils._validate import v_expr
+
+    expr = v_expr(col)
+    diff = expr.diff(lag)
+    return pl.when(diff > 0).then(1).when(diff < 0).then(-1).otherwise(0)
+
+
+def pl_unsigned_differences(col: IntoExpr, lag: int = 1) -> tuple[PlExpr, PlExpr]:
+    """Polars: Returns (positive, negative) series from differences.
+
+    positive: 1 where diff > 0, else 0
+    negative: 1 where diff < 0, else 0
+    """
+    from polars_ti.utils._validate import v_expr
+
+    expr = v_expr(col)
+    diff = expr.diff(lag).fill_null(0)
+    positive = pl.when(diff > 0).then(1).otherwise(0)
+    negative = pl.when(diff < 0).then(1).otherwise(0)
+    return positive, negative
+
+
+def pl_fibonacci_weights(n: int) -> list[float]:
+    """Returns fibonacci weights as a list for use in Polars rolling expressions."""
+    return fibonacci(n, weighted=True).tolist()
+
+
+def pl_symmetric_triangle_weights(n: int) -> list[float]:
+    """Returns symmetric triangle weights as a list for Polars rolling expressions."""
+    weights = symmetric_triangle(n, weighted=True)
+    return list(weights) if weights is not None else [1.0]
+
+
+def pl_pascals_triangle_weights(n: int, inverse: bool = False) -> list[float]:
+    """Returns Pascal's triangle weights for Polars rolling expressions."""
+    return pascals_triangle(n, inverse=inverse, weighted=True).tolist()
+

@@ -1,190 +1,164 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars Implementation
+# =============================================================================
+import polars as pl
 import numpy as np
-from pandas import DataFrame, Series
+from numba import njit
 
-from polars_ti.overlap import ema
-from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def stc(
-    close: Series,
-    tclength: int | None = None,
-    fast: int | None = None,
-    slow: int | None = None,
-    factor: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Schaff Trend Cycle (STC)
+@njit(cache=True)
+def nb_schaff_tc(xmacd: np.ndarray, tclength: int, factor: float):
+    """Numba-accelerated Schaff Trend Cycle calculation.
+    
+    Args:
+        xmacd: MACD values
+        tclength: Lookback period for stochastic
+        factor: Smoothing factor
+        
+    Returns:
+        tuple: (pff, pf) arrays
+    """
+    m = len(xmacd)
+    stoch1 = np.zeros(m, dtype=np.float64)
+    pf = np.zeros(m, dtype=np.float64)
+    stoch2 = np.zeros(m, dtype=np.float64)
+    pff = np.zeros(m, dtype=np.float64)
+    
+    for i in range(1, m):
+        # Calculate rolling min/max for xmacd using explicit loop
+        start_idx = i - tclength + 1
+        if start_idx < 0:
+            start_idx = 0
+        
+        lowest_xmacd = xmacd[start_idx]
+        highest_xmacd = xmacd[start_idx]
+        for j in range(start_idx + 1, i + 1):
+            if xmacd[j] < lowest_xmacd:
+                lowest_xmacd = xmacd[j]
+            if xmacd[j] > highest_xmacd:
+                highest_xmacd = xmacd[j]
+        
+        xmacd_range = highest_xmacd - lowest_xmacd
+        if xmacd_range == 0.0:
+            xmacd_range = 1.0
+        
+        # %Fast K of MACD
+        if lowest_xmacd > 0.0:
+            stoch1[i] = 100.0 * (xmacd[i] - lowest_xmacd) / xmacd_range
+        else:
+            stoch1[i] = stoch1[i - 1]
+        
+        # Smoothed % Fast D of MACD
+        pf[i] = pf[i - 1] + factor * (stoch1[i] - pf[i - 1])
+        
+        # Find min and max of pf so far
+        pf_start = i - tclength + 1
+        if pf_start < 0:
+            pf_start = 0
+        
+        lowest_pf = pf[pf_start]
+        highest_pf = pf[pf_start]
+        for j in range(pf_start + 1, i + 1):
+            if pf[j] < lowest_pf:
+                lowest_pf = pf[j]
+            if pf[j] > highest_pf:
+                highest_pf = pf[j]
+        
+        pf_range = highest_pf - lowest_pf
+        if pf_range == 0.0:
+            pf_range = 1.0
+        
+        # % of Fast K of PF
+        if pf_range > 0.0:
+            stoch2[i] = 100.0 * (pf[i] - lowest_pf) / pf_range
+        else:
+            stoch2[i] = stoch2[i - 1]
+        
+        # Final smoothed value
+        pff[i] = pff[i - 1] + factor * (stoch2[i] - pff[i - 1])
+    
+    return pff, pf
 
-    The Schaff Trend Cycle is an evolution of the popular MACD
-    incorporating two cascaded stochastic calculations with additional
-    smoothing.
 
-    The STC returns also the beginning MACD result as well as the result
-    after the first stochastic including its smoothing. This implementation
-    has been extended for Polars TI to also allow for separately feeding any
-    other two moving Averages (as ma1 and ma2) or to skip this to feed an
-    oscillator, based on which the Schaff Trend Cycle should be calculated.
+def pl_stc(
+    close: IntoExpr = "close",
+    tclength: int = 10,
+    fast: int = 12,
+    slow: int = 26,
+    factor: float = 0.5,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Schaff Trend Cycle (STC)
 
-    Feed external moving averages:
-    Internally calculation..
-        stc = ti.stc(close=df["close"], tclength=stc_tclen, fast=ma1_interval, slow=ma2_interval, factor=stc_factor)
-    becomes..
-        extMa1 = df.ti.zlma(close=df["close"], length=ma1_interval, append=True)
-        extMa2 = df.ti.ema(close=df["close"], length=ma2_interval, append=True)
-        stc = ti.stc(close=df["close"], tclength=stc_tclen, ma1=extMa1, ma2=extMa2, factor=stc_factor)
-
-    The same goes for osc=, which allows the input of an externally
-    calculated oscillator, overriding ma1 & ma2.
-
-    Coded by rengel8
+    The Schaff Trend Cycle is an evolution of MACD incorporating
+    two cascaded stochastic calculations with additional smoothing.
 
     Sources:
         https://www.prorealcode.com/prorealtime-indicators/schaff-trend-cycle2/
 
     Args:
-        close (pd.Series): Series of 'close's
-        tclength (int): SchaffTC Signal-Line length.
-            Default: 10 (adjust to the half of cycle)
-        fast (int): The short period. Default: 12
-        slow (int): The long period. Default: 26
-        factor (float): smoothing factor for last stoch. calculation.
-            Default: 0.5
+        close (IntoExpr): Column name or expression for 'close'. Default: "close"
+        tclength (int): SchaffTC Signal-Line length. Default: 10
+        fast (int): The short EMA period. Default: 12
+        slow (int): The long EMA period. Default: 26
+        factor (float): Smoothing factor. Default: 0.5
         offset (int): How many periods to offset the result. Default: 0
 
-    Kwargs:
-        ma1: External MA (mandatory in conjunction with ma2)
-        ma2: External MA (mandatory in conjunction with ma1)
-        osc: External oscillator
-        fillna (value, optional): pd.DataFrame.fillna(value)
-
     Returns:
-        pd.DataFrame: stc, macd, stoch
+        pl.Expr: Struct expression with STC, STCmacd, STCstoch columns
     """
-    # Validate
-    fast = v_pos_default(fast, 12)
-    slow = v_pos_default(slow, 26)
-    tclength = v_pos_default(tclength, 10)
+    from polars_ti.overlap.ema import pl_ema
+
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+
     if slow < fast:
         fast, slow = slow, fast
+
     _length = max(tclength, fast, slow)
-    close = v_series(close, _length)
-
-    if close is None:
-        return
-
-    factor = v_pos_default(factor, 0.5)
-    offset = v_offset(offset)
-
-    # Calculate
-    # kwargs allows for three more series (ma1, ma2 and osc) which can be passed
-    # here ma1 and ma2 input negate internal ema calculations, osc substitutes
-    # both ma's.
-    ma1 = kwargs.pop("ma1", False)
-    ma2 = kwargs.pop("ma2", False)
-    osc = kwargs.pop("osc", False)
-
-    # 3 different modes of calculation..
-    if isinstance(ma1, Series) and isinstance(ma2, Series) and not osc:
-        ma1 = v_series(ma1, _length)
-        ma2 = v_series(ma2, _length)
-
-        if ma1 is None or ma2 is None:
-            return
-        # According to external feed series
-        xmacd = ma1 - ma2
-        pff, pf = schaff_tc(close, xmacd, tclength, factor)
-    elif isinstance(osc, Series):
-        osc = v_series(osc, _length)
-        if osc is None:
-            return
-        # According to feed oscillator (should be ranging around 0 x-axis)
-        xmacd = osc
-        pff, pf = schaff_tc(close, xmacd, tclength, factor)
-    else:
-        # MACD (traditional/full)
-        fastma = ema(close, length=fast)
-        slowma = ema(close, length=slow)
-        xmacd = fastma - slowma
-        pff, pf = schaff_tc(close, xmacd, tclength, factor)
-
-    pf[: _length - 1] = np.nan
-
-    stc = Series(pff, index=close.index)
-    macd = Series(xmacd, index=close.index)
-    stoch = Series(pf, index=close.index)
-
-    stc.iloc[: _length - 1] = np.nan
-
-    # Offset
-    if offset != 0:
-        stc = stc.shift(offset)
-        macd = macd.shift(offset)
-        stoch = stoch.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        stc = stc.fillna(kwargs["fillna"])
-        macd = macd.fillna(kwargs["fillna"])
-        stoch = stoch.fillna(kwargs["fillna"])
-
-    # Name and Category
     _props = f"_{tclength}_{fast}_{slow}_{factor}"
-    stc.name = f"STC{_props}"
-    macd.name = f"STCmacd{_props}"
-    stoch.name = f"STCstoch{_props}"
-    stc.category = macd.category = stoch.category = "momentum"
 
-    data = {stc.name: stc, macd.name: macd, stoch.name: stoch}
-    df = DataFrame(data, index=close.index)
-    df.name = f"STC{_props}"
-    df.category = stc.category
+    # Calculate MACD (fast EMA - slow EMA)
+    fast_ema = pl_ema(close_expr, length=fast)
+    slow_ema = pl_ema(close_expr, length=slow)
+    xmacd = fast_ema - slow_ema
 
-    return df
+    def compute_stc(s: pl.Series) -> pl.Series:
+        """Compute STC using Numba kernel."""
+        macd_arr = s.to_numpy().astype(np.float64)
+        pff, pf = nb_schaff_tc(macd_arr, tclength, factor)
+        
+        # Set warmup period to NaN
+        pff[:_length - 1] = np.nan
+        pf[:_length - 1] = np.nan
+        
+        if offset != 0:
+            pff = np.roll(pff, offset)
+            pf = np.roll(pf, offset)
+            macd_arr = np.roll(macd_arr, offset)
+            if offset > 0:
+                pff[:offset] = np.nan
+                pf[:offset] = np.nan
+                macd_arr[:offset] = np.nan
+        
+        return pl.DataFrame({
+            f"STC{_props}": pff,
+            f"STCmacd{_props}": macd_arr,
+            f"STCstoch{_props}": pf,
+        }).to_struct(f"STC{_props}")
 
+    return_dtype = pl.Struct([
+        pl.Field(f"STC{_props}", pl.Float64),
+        pl.Field(f"STCmacd{_props}", pl.Float64),
+        pl.Field(f"STCstoch{_props}", pl.Float64),
+    ])
 
-def schaff_tc(close, xmacd, tclength, factor):
-    # ACTUAL Calculation part, which is shared between operation modes
-    lowest_xmacd = xmacd.rolling(tclength).min()
-    xmacd_range = non_zero_range(xmacd.rolling(tclength).max(), lowest_xmacd)
-    m = len(xmacd)
-
-    # Initialize lists
-    stoch1, pf = [0] * m, [0] * m
-    stoch2, pff = [0] * m, [0] * m
-
-    for i in range(1, m):
-        # %Fast K of MACD
-        if lowest_xmacd.iloc[i] > 0:
-            stoch1[i] = 100 * (
-                (xmacd.iloc[i] - lowest_xmacd.iloc[i]) / xmacd_range.iloc[i]
-            )
-        else:
-            stoch1[i] = stoch1[i - 1]
-        # Smoothed Calculation for % Fast D of MACD
-        pf[i] = round(pf[i - 1] + (factor * (stoch1[i] - pf[i - 1])), 8)
-
-        # find min and max so far
-        if i < tclength:
-            # If there are not enough elements for a full tclength window, use what is available
-            lowest_pf = min(pf[: i + 1])
-            highest_pf = max(pf[: i + 1])
-        else:
-            lowest_pf = min(pf[i - tclength + 1 : i + 1])
-            highest_pf = max(pf[i - tclength + 1 : i + 1])
-
-        # Ensure non-zero range
-        pf_range = highest_pf - lowest_pf if highest_pf - lowest_pf > 0 else 1
-
-        # % of Fast K of PF
-        if pf_range > 0:
-            stoch2[i] = 100 * ((pf[i] - lowest_pf) / pf_range)
-        else:
-            stoch2[i] = stoch2[i - 1]
-        pff[i] = round(pff[i - 1] + (factor * (stoch2[i] - pff[i - 1])), 8)
-
-    pf_series = Series(pf, index=close.index)
-    pff_series = Series(pff, index=close.index)
-
-    return pff_series, pf_series
+    return xmacd.map_batches(
+        compute_stc,
+        return_dtype=return_dtype
+    ).alias(f"STC{_props}")

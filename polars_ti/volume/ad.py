@@ -1,78 +1,80 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars AD (Accumulation/Distribution) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.utils import non_zero_range, v_offset, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
-def ad(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    open_: Series | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Accumulation/Distribution (AD)
+def pl_ad(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Accumulation/Distribution (AD)
 
     Accumulation/Distribution indicator utilizes the relative position
-    of the close to it's High-Low range with volume then accumulated.
-
-    Sources:
-        https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/accumulationdistribution-ad/
+    of the close to its High-Low range with volume then accumulated.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        open_ (pd.Series): Series of 'open's
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: AD expression
     """
-    # Validate
-    high = v_series(high)
-    low = v_series(low)
-    close = v_series(close)
-    volume = v_series(volume)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal and volume.size:
-        from talib import AD
-
-        ad = AD(high, low, close, volume)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
+    
+    _use_talib = Imports["talib"] and v_talib(talib)
+    
+    if _use_talib:
+        def compute_ad(df: pl.DataFrame) -> pl.Series:
+            from talib import AD as TALIB_AD
+            h = df["high"].to_numpy().astype(np.float64)
+            l = df["low"].to_numpy().astype(np.float64)
+            c = df["close"].to_numpy().astype(np.float64)
+            v = df["volume"].to_numpy().astype(np.float64)
+            result = TALIB_AD(h, l, c, v)
+            return pl.Series("AD", result)
+        
+        # Need struct to pass multiple columns
+        ad_expr = pl.struct([
+            high_expr.alias("high"),
+            low_expr.alias("low"),
+            close_expr.alias("close"),
+            volume_expr.alias("volume")
+        ]).map_batches(
+            lambda s: compute_ad(s.struct.unnest()),
+            return_dtype=pl.Float64
+        )
     else:
-        if open_ is not None:
-            open_ = v_series(open_)
-            ad = non_zero_range(close, open_)  # AD with Open
-        else:
-            ad = 2 * close - (high + low)  # AD with High, Low, Close
-
-        high_low_range = non_zero_range(high, low)
-        ad *= volume / high_low_range
-        ad = ad.cumsum()
-
-    # Offset
+        # Pure Polars: AD = cumsum(volume * (2*close - high - low) / (high - low))
+        hl_range_safe = pl_non_zero_range(high_expr, low_expr)
+        clv = (2 * close_expr - high_expr - low_expr) / hl_range_safe
+        ad_expr = (clv * volume_expr).cum_sum()
+    
     if offset != 0:
-        ad = ad.shift(offset)
+        ad_expr = ad_expr.shift(offset)
+    
+    return ad_expr.alias("AD")
 
-    # Fill
-    if "fillna" in kwargs:
-        ad = ad.fillna(kwargs["fillna"])
-
-    # Name and Category
-    ad.name = "AD" if open_ is None else "ADo"
-    ad.category = "volume"
-
-    return ad

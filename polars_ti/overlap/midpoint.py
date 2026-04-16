@@ -1,68 +1,58 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars MIDPOINT Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def midpoint(
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Midpoint
+def pl_midpoint(
+    close: IntoExpr,
+    length: int = 2,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Midpoint
 
     The Midpoint is the average of the rolling high and low of period length.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 2
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 2
+        talib: If True and TA-Lib is installed, uses TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MIDPOINT expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 2)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    import numpy as np
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    _length = length
+
+    if _use_talib:
+        def compute_midpoint(s: pl.Series) -> pl.Series:
+            from talib import MIDPOINT as TALIB_MIDPOINT
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_MIDPOINT(arr, timeperiod=_length)
+            return pl.Series(result)
+        midpoint_expr = close_expr.map_batches(compute_midpoint, return_dtype=pl.Float64)
     else:
-        min_periods = length
-    close = v_series(close, max(length, min_periods))
+        # Native Polars expression: (rolling_min + rolling_max) / 2
+        lowest = close_expr.rolling_min(window_size=length, min_samples=length)
+        highest = close_expr.rolling_max(window_size=length, min_samples=length)
+        midpoint_expr = 0.5 * (lowest + highest)
 
-    if close is None:
-        return
-
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import MIDPOINT
-
-        midpoint = MIDPOINT(close, length)
-    else:
-        lowest = close.rolling(length, min_periods=min_periods).min()
-        highest = close.rolling(length, min_periods=min_periods).max()
-        midpoint = 0.5 * (lowest + highest)
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        midpoint = midpoint.shift(offset)
+        midpoint_expr = midpoint_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        midpoint = midpoint.fillna(kwargs["fillna"])
-
-    # Name and Category
-    midpoint.name = f"MIDPOINT_{length}"
-    midpoint.category = "overlap"
-
-    return midpoint
+    return midpoint_expr.alias(f"MIDPOINT_{length}")

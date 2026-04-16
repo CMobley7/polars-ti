@@ -1,79 +1,58 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars Donchian Channels Implementation (Pure Native Polars)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def donchian(
-    high: Series,
-    low: Series,
-    lower_length: int | None = None,
-    upper_length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Donchian Channels (DC)
+def pl_donchian(
+    high: IntoExpr,
+    low: IntoExpr,
+    lower_length: int = 20,
+    upper_length: int = 20,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Donchian Channels (DC)
 
-    Donchian Channels are used to measure volatility, similar to
-    Bollinger Bands and Keltner Channels.
+    Uses pure native Polars expressions.
 
     Sources:
         https://www.tradingview.com/wiki/Donchian_Channels_(DC)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        lower_length (int): The short period. Default: 20
-        upper_length (int): The short period. Default: 20
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        lower_length: Lower band rolling period. Default: 20
+        upper_length: Upper band rolling period. Default: 20
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: lower, mid, upper columns.
+        pl.Expr: Struct with DCL, DCM, DCU columns
     """
-    # Validate
-    lower_length = v_pos_default(lower_length, 20)
-    upper_length = v_pos_default(upper_length, 20)
-    lmin_periods = int(kwargs.pop("lmin_periods", lower_length))
-    umin_periods = int(kwargs.pop("umin_periods", upper_length))
-
-    _length = max(lower_length, lmin_periods, upper_length, umin_periods)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-
-    if high is None or low is None:
-        return
-
-    offset = v_offset(offset)
-
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    
+    if high_expr is None or low_expr is None:
+        return None
+    
     # Calculate
-    lower = low.rolling(lower_length, min_periods=lmin_periods).min()
-    upper = high.rolling(upper_length, min_periods=umin_periods).max()
-    mid = 0.5 * (lower + upper)
-
-    # Fill
-    if "fillna" in kwargs:
-        lower = lower.fillna(kwargs["fillna"])
-        mid = mid.fillna(kwargs["fillna"])
-        upper = upper.fillna(kwargs["fillna"])
-
-    # Offset
+    lower = low_expr.rolling_min(window_size=lower_length, min_samples=lower_length)
+    upper = high_expr.rolling_max(window_size=upper_length, min_samples=upper_length)
+    mid = (lower + upper) * 0.5
+    
     if offset != 0:
         lower = lower.shift(offset)
         mid = mid.shift(offset)
         upper = upper.shift(offset)
+    
+    _props = f"_{lower_length}_{upper_length}"
+    
+    return pl.struct([
+        lower.alias(f"DCL{_props}"),
+        mid.alias(f"DCM{_props}"),
+        upper.alias(f"DCU{_props}")
+    ]).alias(f"DC{_props}")
 
-    # Name and Category
-    lower.name = f"DCL_{lower_length}_{upper_length}"
-    mid.name = f"DCM_{lower_length}_{upper_length}"
-    upper.name = f"DCU_{lower_length}_{upper_length}"
-    mid.category = upper.category = lower.category = "volatility"
-
-    data = {lower.name: lower, mid.name: mid, upper.name: upper}
-    df = DataFrame(data, index=high.index)
-    df.name = f"DC_{lower_length}_{upper_length}"
-    df.category = mid.category
-
-    return df

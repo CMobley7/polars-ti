@@ -1,105 +1,106 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars MA Dispatcher
+# =============================================================================
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.overlap.dema import pl_dema
+from polars_ti.overlap.ema import pl_ema
+from polars_ti.overlap.fwma import pl_fwma
+from polars_ti.overlap.hma import pl_hma
+from polars_ti.overlap.linreg import pl_linreg
+from polars_ti.overlap.midpoint import pl_midpoint
+from polars_ti.overlap.pwma import pl_pwma
+from polars_ti.overlap.rma import pl_rma
+from polars_ti.overlap.sinwma import pl_sinwma
+from polars_ti.overlap.sma import pl_sma
+from polars_ti.overlap.ssf import pl_ssf
+from polars_ti.overlap.swma import pl_swma
+from polars_ti.overlap.t3 import pl_t3
+from polars_ti.overlap.tema import pl_tema
+from polars_ti.overlap.trima import pl_trima
+from polars_ti.overlap.vidya import pl_vidya
+from polars_ti.overlap.wma import pl_wma
 
-from polars_ti._typing import DictLike
-from polars_ti.overlap.dema import dema
-from polars_ti.overlap.ema import ema
-from polars_ti.overlap.fwma import fwma
-from polars_ti.overlap.hma import hma
-from polars_ti.overlap.linreg import linreg
-from polars_ti.overlap.midpoint import midpoint
-from polars_ti.overlap.pwma import pwma
-from polars_ti.overlap.rma import rma
-from polars_ti.overlap.sinwma import sinwma
-from polars_ti.overlap.sma import sma
-from polars_ti.overlap.ssf import ssf
-from polars_ti.overlap.swma import swma
-from polars_ti.overlap.t3 import t3
-from polars_ti.overlap.tema import tema
-from polars_ti.overlap.trima import trima
-from polars_ti.overlap.vidya import vidya
-from polars_ti.overlap.wma import wma
+
+# MA function mapping
+_PL_MA_FUNCS = {
+    "dema": pl_dema,
+    "ema": pl_ema,
+    "fwma": pl_fwma,
+    "hma": pl_hma,
+    "linreg": pl_linreg,
+    "midpoint": pl_midpoint,
+    "pwma": pl_pwma,
+    "rma": pl_rma,
+    "sinwma": pl_sinwma,
+    "sma": pl_sma,
+    "ssf": pl_ssf,
+    "swma": pl_swma,
+    "t3": pl_t3,
+    "tema": pl_tema,
+    "trima": pl_trima,
+    "vidya": pl_vidya,
+    "wma": pl_wma,
+}
 
 
-def ma(name: str = None, source: Series = None, **kwargs: DictLike) -> Series:
-    """Simple MA Utility for easier MA selection
+def pl_ma(
+    name: str = "ema",
+    source: IntoExpr = None,
+    length: int = 10,
+    talib: bool = True,
+    **kwargs,
+) -> PlExpr:
+    """Polars: Simple MA Utility for easier MA selection
 
     Available MAs:
         dema, ema, fwma, hma, linreg, midpoint, pwma, rma, sinwma, sma, ssf,
         swma, t3, tema, trima, vidya, wma
 
     Examples:
-        ema8 = ti.ma("ema", df.close, length=8)
-        sma50 = ti.ma("sma", df.close, length=50)
-        pwma10 = ti.ma("pwma", df.close, length=10, asc=False)
+        ema8 = pl_ma("ema", "close", length=8)
+        sma50 = pl_ma("sma", "close", length=50)
+        pwma10 = pl_ma("pwma", "close", length=10, asc=False)
 
     Args:
-        name (str): One of the Available MAs. Default: "ema"
-        source (pd.Series): The 'source' Series.
+        name: One of the Available MAs. Default: "ema"
+        source: Column name or pl.Expr for the source data
+        length: Rolling window period. Default: 10
+        talib: If True and TA-Lib is installed, uses TA-Lib. Default: True
 
     Kwargs:
-        Any additional kwargs the MA may require.
+        Any additional kwargs the MA may require (offset, asc, etc.)
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MA expression for lazy evaluation
     """
-    _mas = [
-        "dema",
-        "ema",
-        "fwma",
-        "hma",
-        "linreg",
-        "midpoint",
-        "pwma",
-        "rma",
-        "sinwma",
-        "sma",
-        "ssf",
-        "swma",
-        "t3",
-        "tema",
-        "trima",
-        "vidya",
-        "wma",
-    ]
     if name is None and source is None:
-        return _mas
-    elif isinstance(name, str) and name.lower() in _mas:
-        name = name.lower()
-    else:  # "ema"
-        name = _mas[1]
+        return list(_PL_MA_FUNCS.keys())
 
-    if name == "dema":
-        return dema(source, **kwargs)
-    elif name == "fwma":
-        return fwma(source, **kwargs)
-    elif name == "hma":
-        return hma(source, **kwargs)
-    elif name == "linreg":
-        return linreg(source, **kwargs)
-    elif name == "midpoint":
-        return midpoint(source, **kwargs)
-    elif name == "pwma":
-        return pwma(source, **kwargs)
-    elif name == "rma":
-        return rma(source, **kwargs)
-    elif name == "sinwma":
-        return sinwma(source, **kwargs)
-    elif name == "sma":
-        return sma(source, **kwargs)
-    elif name == "ssf":
-        return ssf(source, **kwargs)
-    elif name == "swma":
-        return swma(source, **kwargs)
-    elif name == "t3":
-        return t3(source, **kwargs)
-    elif name == "tema":
-        return tema(source, **kwargs)
-    elif name == "trima":
-        return trima(source, **kwargs)
-    elif name == "vidya":
-        return vidya(source, **kwargs)
-    elif name == "wma":
-        return wma(source, **kwargs)
-    else:
-        return ema(source, **kwargs)
+    name = name.lower() if isinstance(name, str) else "ema"
+
+    if name not in _PL_MA_FUNCS:
+        name = "ema"  # Default fallback
+
+    ma_func = _PL_MA_FUNCS[name]
+
+    # Build kwargs based on what the function accepts
+    # All MAs accept: close/source, length, offset
+    # Some accept: talib, asc, presma, etc.
+    call_kwargs = {"length": length}
+
+    # Add talib param for MAs that support it
+    if name in ("sma", "ema", "wma", "dema", "tema", "t3", "trima", "linreg", "midpoint", "vidya"):
+        call_kwargs["talib"] = talib
+
+    # Add presma param only for MAs that support it (ema, rma, t3, tema)
+    # T3 and TEMA forward presma to their internal EMA calls
+    # Always pop presma from kwargs to prevent passing it to MAs that don't support it
+    presma_val = kwargs.pop("presma", None)
+    if name in ("ema", "rma", "t3", "tema") and presma_val is not None:
+        call_kwargs["presma"] = presma_val
+
+    # Add remaining kwargs
+    call_kwargs.update(kwargs)
+
+    return ma_func(source, **call_kwargs)

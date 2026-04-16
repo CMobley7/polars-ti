@@ -1,94 +1,72 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars CDL_DOJI Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import sma
-from polars_ti.utils import (
-    high_low_range,
-    is_percent,
-    real_body,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._candles import pl_high_low_range, pl_real_body
+from polars_ti.utils._validate import v_expr
 
 
-def cdl_doji(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    factor: int | float | None = None,
-    scalar: int | float | None = None,
+def pl_cdl_doji(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 10,
+    factor: float = 10.0,
+    scalar: float = 100.0,
     asint: bool = True,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Candle Type: Doji
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Candle Type - Doji
 
-    A candle body is Doji, when it's shorter than 10% of the
-    average of the 10 previous candles' high-low range.
+    A candle body is Doji when it's shorter than a percentage of
+    the average of the previous candles' high-low range.
 
     Sources:
         TA-Lib: 96.56% Correlation
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): The period. Default: 10
-        factor (float): Doji value. Default: 100
-        scalar (float): How much to magnify. Default: 100
-        asint (bool): Keep results numerical instead of boolean.
-            Default: True
-
-    Kwargs:
-        naive (bool, optional): If True, prefills potential Doji less than
-            the length if less than a percentage of it's high-low range.
-            Default: False
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: The averaging period. Default: 10
+        factor: Doji threshold percentage. Default: 10.0 (means 10%)
+        scalar: Result multiplier. Default: 100.0
+        asint: Return integer (scaled) instead of boolean. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: CDL_DOJI column.
+        pl.Expr: CDL_DOJI expression (100 for doji, 0 otherwise)
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    open_ = v_series(open_, length)
-    high = v_series(high, length)
-    low = v_series(low, length)
-    close = v_series(close, length)
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if open_ is None or high is None or low is None or close is None:
-        return
+    # Calculate real body (absolute difference between close and open)
+    body = (close_expr - open_expr).abs()
 
-    factor = v_scalar(factor, 10) if is_percent(factor) else 10
-    scalar = v_scalar(scalar, 100)
-    offset = v_offset(offset)
-    naive = kwargs.pop("naive", False)
+    # Calculate high-low range
+    hl_range = (high_expr - low_expr).abs()
 
-    # Calculate
-    body = real_body(open_, close).abs()
-    hl_range = high_low_range(high, low).abs()
-    hl_range_avg = sma(hl_range, length)
-    doji = body < 0.01 * factor * hl_range_avg
+    # Calculate average high-low range over the period
+    hl_range_avg = hl_range.rolling_mean(window_size=length, min_samples=length)
 
-    if naive:
-        doji.iat[:length] = body < 0.01 * factor * hl_range
+    # Doji: body < 0.01 * factor * average HL range
+    threshold = 0.01 * factor * hl_range_avg
+    
     if asint:
-        doji = scalar * doji.astype(int)
+        doji = pl.when(body < threshold).then(scalar).otherwise(0.0).cast(pl.Int64)
+    else:
+        doji = body < threshold
 
-    # Offset
+    # Apply offset
     if offset != 0:
         doji = doji.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        doji = doji.fillna(kwargs["fillna"])
+    return doji.alias(f"CDL_DOJI_{length}_{0.01 * factor}")
 
-    # Name and Category
-    doji.name = f"CDL_DOJI_{length}_{0.01 * factor}"
-    doji.category = "candles"
-
-    return doji

@@ -1,130 +1,93 @@
 # -*- coding: utf-8 -*-
-from warnings import simplefilter
-
-from numpy import array_split, mean, sum
-from pandas import DataFrame, Series, concat, cut
-
-from polars_ti.utils import signed_series, v_bool, v_pos_default, v_series
+# =============================================================================
+# Polars VP (Volume Profile) Implementation
+# =============================================================================
+import polars as pl
 
 
-def vp(
-    close: Series,
-    volume: Series,
-    width: int | None = None,
-    sort: bool | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Volume Profile (VP)
+def pl_vp(
+    df: pl.DataFrame,
+    close: str = "close",
+    volume: str = "volume",
+    width: int = 10,
+    sort: bool = False,
+) -> pl.DataFrame:
+    """Polars: Volume Profile (VP)
 
-    Calculates the Volume Profile by slicing price into ranges.
-    Note: Value Area is not calculated.
+    Calculates Volume Profile by slicing price into ranges and aggregating volume.
 
-    Sources:
-        https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:volume_by_price
-        https://www.tradingview.com/wiki/Volume_Profile
-        http://www.ranchodinero.com/volume-tpo-essentials/
-        https://www.tradingtechnologies.com/blog/2013/05/15/volume-at-price/
+    Note: This function takes a DataFrame and returns an aggregated DataFrame
+    with `width` rows (different from input length).
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        width (int): How many ranges to distrubute price into. Default: 10
-        sort (value, optional): Whether to sort by close before
-            splitting into ranges. Default: False
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        df: Input Polars DataFrame with close and volume columns
+        close: Column name for close prices. Default: "close"
+        volume: Column name for volume. Default: "volume"
+        width: Number of price ranges/bins. Default: 10
+        sort: If True, bin by price ranges. If False, split chronologically. Default: False
 
     Returns:
-        pd.DataFrame: New feature generated.
+        pl.DataFrame: Volume profile with columns:
+            - low_close: Lower price bound of range
+            - mean_close: Mean price in range
+            - high_close: Upper price bound of range
+            - pos_volume: Volume on up moves
+            - neg_volume: Volume on down moves
+            - total_volume: Total volume in range
     """
-    # Validate
-    width = v_pos_default(width, 10)
-    close = v_series(close, width)
-    volume = v_series(volume, width)
-
-    if close is None or volume is None:
-        return
-
-    sort = v_bool(sort, False)
-
-    # Calculate
-    signed_price = signed_series(close, 1)
-    pos_volume = volume * signed_price[signed_price > 0]
-    pos_volume.name = volume.name
-    neg_volume = -volume * signed_price[signed_price < 0]
-    neg_volume.name = volume.name
-    neut_volume = volume + signed_price[signed_price == 0]
-    neut_volume.name = volume.name
-    vp = concat([close, pos_volume, neg_volume, neut_volume], axis=1)
-
-    close_col = f"{vp.columns[0]}"
-    high_price_col = f"high_{close_col}"
-    low_price_col = f"low_{close_col}"
-    mean_price_col = f"mean_{close_col}"
-
-    volume_col = f"{vp.columns[1]}"
-    pos_volume_col = f"pos_{volume_col}"
-    neg_volume_col = f"neg_{volume_col}"
-    neut_volume_col = f"neut_{volume_col}"
-    total_volume_col = f"total_{volume_col}"
-    vp.columns = [close_col, pos_volume_col, neg_volume_col, neut_volume_col]
-
-    simplefilter(action="ignore", category=FutureWarning)
-    # sort: Sort by close before splitting into ranges. Default: False
-    # If False, it sorts by date index or chronological versus by price
+    if df is None or df.height < width:
+        return None
+    
+    # Add signed volume columns based on price direction
+    df_with_sign = df.with_columns([
+        pl.col(close).diff().sign().alias("_sign"),
+    ]).with_columns([
+        pl.when(pl.col("_sign") > 0).then(pl.col(volume)).otherwise(0.0).alias("_pos_vol"),
+        pl.when(pl.col("_sign") < 0).then(pl.col(volume)).otherwise(0.0).alias("_neg_vol"),
+    ])
+    
     if sort:
-        vp[mean_price_col] = vp[close_col]
-
-        vpdf = vp.groupby(
-            cut(vp[close_col], width, include_lowest=True, precision=2), observed=False
-        ).agg(
-            {
-                mean_price_col: mean,
-                pos_volume_col: sum,
-                neg_volume_col: sum,
-                neut_volume_col: sum,
-            }
-        )
-
-        vpdf[low_price_col] = [x.left for x in vpdf.index]
-        vpdf[high_price_col] = [x.right for x in vpdf.index]
-        vpdf = vpdf.reset_index(drop=True)
-
-        vpdf = vpdf[
-            [
-                low_price_col,
-                mean_price_col,
-                high_price_col,
-                pos_volume_col,
-                neg_volume_col,
-                neut_volume_col,
-            ]
-        ]
+        # Bin by price ranges using Polars cut
+        price_min = df.get_column(close).min()
+        price_max = df.get_column(close).max()
+        
+        # Create bin edges
+        bin_edges = [price_min + (price_max - price_min) * i / width for i in range(width + 1)]
+        
+        # Use cut to create bins
+        df_binned = df_with_sign.with_columns([
+            pl.col(close).cut(bin_edges[1:-1], labels=[str(i) for i in range(width)]).alias("_bin")
+        ])
+        
+        # Group by bin and aggregate
+        result = df_binned.group_by("_bin", maintain_order=True).agg([
+            pl.col(close).min().alias("low_close"),
+            pl.col(close).mean().alias("mean_close"),
+            pl.col(close).max().alias("high_close"),
+            pl.col("_pos_vol").sum().alias("pos_volume"),
+            pl.col("_neg_vol").sum().alias("neg_volume"),
+        ]).drop("_bin").with_columns([
+            (pl.col("pos_volume") + pl.col("neg_volume")).alias("total_volume")
+        ])
     else:
-        vp_ranges = array_split(vp, width)
-        result = list(
-            {
-                low_price_col: r[close_col].min(),
-                mean_price_col: r[close_col].mean(),
-                high_price_col: r[close_col].max(),
-                pos_volume_col: r[pos_volume_col].sum(),
-                neg_volume_col: r[neg_volume_col].sum(),
-                neut_volume_col: r[neut_volume_col].sum(),
-            }
-            for r in vp_ranges
-        )
-
-        vpdf = DataFrame(result)
-
-    vpdf[total_volume_col] = vpdf[pos_volume_col] + vpdf[neg_volume_col]
-
-    # Fill
-    if "fillna" in kwargs:
-        vpdf = vpdf.fillna(kwargs["fillna"])
-
-    # Name and Category
-    vpdf.name = f"VP_{width}"
-    vpdf.category = "volume"
-
-    return vpdf
+        # Split chronologically - add row index and divide into chunks
+        n = df.height
+        df_indexed = df_with_sign.with_row_index("_idx")
+        
+        # Create chunk assignments
+        df_chunked = df_indexed.with_columns([
+            (pl.col("_idx") * width // n).cast(pl.Int32).alias("_chunk")
+        ])
+        
+        # Group by chunk and aggregate
+        result = df_chunked.group_by("_chunk", maintain_order=True).agg([
+            pl.col(close).min().alias("low_close"),
+            pl.col(close).mean().alias("mean_close"),
+            pl.col(close).max().alias("high_close"),
+            pl.col("_pos_vol").sum().alias("pos_volume"),
+            pl.col("_neg_vol").sum().alias("neg_volume"),
+        ]).drop("_chunk").with_columns([
+            (pl.col("pos_volume") + pl.col("neg_volume")).alias("total_volume")
+        ])
+    
+    return result

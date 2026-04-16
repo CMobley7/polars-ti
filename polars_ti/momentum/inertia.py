@@ -1,132 +1,102 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import Series
+# =============================================================================
+# Polars Inertia Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import linreg
-from polars_ti.utils import (
-    v_bool,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-)
-from polars_ti.volatility import rvi
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def inertia(
-    close: Series,
-    high: Series | None = None,
-    low: Series | None = None,
-    length: int | None = None,
-    rvi_length: int | None = None,
-    scalar: int | float | None = None,
-    refined: bool | None = None,
-    thirds: bool | None = None,
-    drift: int | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Inertia (INERTIA)
+def pl_inertia(
+    close: IntoExpr,
+    high: IntoExpr | None = None,
+    low: IntoExpr | None = None,
+    length: int = 20,
+    rvi_length: int = 14,
+    scalar: float = 100.0,
+    refined: bool = False,
+    thirds: bool = False,
+    mamode: str = "ema",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Inertia (INERTIA)
 
-    Inertia was developed by Donald Dorsey and was introduced his article
-    in September, 1995. It is the Relative Vigor Index smoothed by the Least
-    Squares Moving Average. Positive Inertia when values are greater than 50,
-    Negative Inertia otherwise.
-
-    Sources:
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=285&Name=Inertia
-        https://www.tradingview.com/script/mLZJqxKn-Relative-Volatility-Index/
+    RVI smoothed by Least Squares Moving Average. 
+    Positive Inertia > 50, Negative Inertia < 50.
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 20
-        rvi_length (int): RVI period. Default: 14
-        refined (bool): Use 'refined' calculation. Default: False
-        thirds (bool): Use 'thirds' calculation. Default: False
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        high: Optional for refined/thirds mode
+        low: Optional for refined/thirds mode
+        length: LSMA period. Default: 20
+        rvi_length: RVI period. Default: 14
+        scalar: RVI scalar. Default: 100
+        refined: Use refined RVI. Default: False
+        thirds: Use thirds RVI. Default: False
+        mamode: MA mode for RVI. Default: 'ema'
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Inertia expression
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    rvi_length = v_pos_default(rvi_length, 14)
-    _length = 2 * max(length, rvi_length) - min(length, rvi_length) // 2 - 1
-    close = v_series(close, _length)
-
-    if close is None:
-        return
-
-    refined = v_bool(refined, False)
-    thirds = v_bool(thirds, False)
-
+    from polars_ti.volatility.rvi import pl_rvi
+    from polars_ti.overlap.linreg import pl_linreg
+    import numpy as np
+    
+    close_expr = v_expr(close)
+    _length = length
+    _rvi_length = rvi_length
+    _scalar = scalar
+    _refined = refined
+    _thirds = thirds
+    _mamode = mamode
+    
+    # For simple (non-refined, non-thirds) case only close is needed
     if refined or thirds:
-        high = v_series(high, _length)
-        low = v_series(low, _length)
-        if high is None or low is None:
-            return
-
-    scalar = v_scalar(scalar, 100)
-    mamode = v_mamode(mamode, "ema")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    if refined:
-        _mode = "r"
-        rvi_ = rvi(
-            close,
-            high=high,
-            low=low,
-            length=rvi_length,
-            scalar=scalar,
-            refined=refined,
-            mamode=mamode,
-        )
-    elif thirds:
-        _mode = "t"
-        rvi_ = rvi(
-            close,
-            high=high,
-            low=low,
-            length=rvi_length,
-            scalar=scalar,
-            thirds=thirds,
-            mamode=mamode,
-        )
+        high_expr = v_expr(high)
+        low_expr = v_expr(low)
+        
+        def compute(s: pl.Series) -> pl.Series:
+            df = s.struct.unnest()
+            c = df["close"]
+            h = df["high"]
+            l = df["low"]
+            
+            # Compute RVI
+            if _refined:
+                rvi_arr = df.select(pl_rvi("close", high="high", low="low", 
+                                          length=_rvi_length, scalar=_scalar,
+                                          refined=True, mamode=_mamode))[df.columns[0]]
+            else:  # thirds
+                rvi_arr = df.select(pl_rvi("close", high="high", low="low",
+                                          length=_rvi_length, scalar=_scalar,
+                                          thirds=True, mamode=_mamode))[df.columns[0]]
+            
+            # Apply linreg
+            rvi_df = pl.DataFrame({"rvi": rvi_arr})
+            result = rvi_df.select(pl_linreg("rvi", length=_length))
+            return result.to_series()
+        
+        struct_expr = pl.struct(close=close_expr, high=high_expr, low=low_expr)
+        inertia_expr = struct_expr.map_batches(compute, return_dtype=pl.Float64)
+        _mode = "r" if refined else "t"
     else:
+        # Simple case - compute RVI then apply linreg in map_batches
+        def compute_simple(s: pl.Series) -> pl.Series:
+            df = pl.DataFrame({"close": s})
+            rvi_result = df.select(pl_rvi("close", length=_rvi_length, 
+                                          scalar=_scalar, mamode=_mamode))
+            rvi_col = rvi_result.to_series()
+            rvi_df = pl.DataFrame({"rvi": rvi_col})
+            linreg_result = rvi_df.select(pl_linreg("rvi", length=_length))
+            return linreg_result.to_series()
+        
+        inertia_expr = close_expr.map_batches(compute_simple, return_dtype=pl.Float64)
         _mode = ""
-        rvi_ = rvi(close, length=rvi_length, scalar=scalar, mamode=mamode)
-
-    if all(isnan(rvi_)):
-        return  # Emergency Break
-
-    inertia = linreg(rvi_, length=length)
-    if all(isnan(inertia)):
-        return  # Emergency Break
-
-    # Offset
+    
     if offset != 0:
-        inertia = inertia.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        inertia = inertia.fillna(kwargs["fillna"])
-
-    # Name and Category
+        inertia_expr = inertia_expr.shift(offset)
+    
     _props = f"_{length}_{rvi_length}"
-    inertia.name = f"INERTIA{_mode}{_props}"
-    inertia.category = "momentum"
-
-    return inertia
+    return inertia_expr.alias(f"INERTIA{_mode}{_props}")

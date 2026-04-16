@@ -1,83 +1,75 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import convolve, ones
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import nb_prepend, v_offset, v_pos_default, v_series, v_talib
+from numba import njit
 
 
-# Fast SMA Options: https://github.com/numba/numba/issues/4119
 @njit(cache=True)
 def nb_sma(x, n):
     result = convolve(ones(n) / n, x)[n - 1 : 1 - n]
     return nb_prepend(result, n - 1)
 
 
-def sma(
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Simple Moving Average (SMA)
+# =============================================================================
+# Polars SMA Implementation
+# =============================================================================
+import polars as pl
 
-    The Simple Moving Average is the classic moving average that is the
-    equally weighted average over its length.
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+def pl_sma(
+    close: IntoExpr,
+    length: int = 10,
+    talib: bool = True,
+    min_periods: int | None = None,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Simple Moving Average (SMA)
+
+    The Simple Moving Average is the equally weighted average over its length.
 
     Sources:
         https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/simple-moving-average-sma/
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        adjust (bool): Default: True
-        presma (bool, optional): If True, uses SMA for initial value.
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        talib: Ignored (for API compatibility with Pandas version). Default: True
+        min_periods: Minimum periods required. Default: length
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: SMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    import numpy as np
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+
+    min_periods = min_periods if min_periods is not None else length
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    _length = length
+
+    if _use_talib:
+        def compute_sma(s: pl.Series) -> pl.Series:
+            from talib import SMA as TALIB_SMA
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_SMA(arr, timeperiod=_length)
+            return pl.Series(result)
+        sma_expr = close_expr.map_batches(compute_sma, return_dtype=pl.Float64)
     else:
-        min_periods = length
-    close = v_series(close, max(length, min_periods))
+        sma_expr = close_expr.rolling_mean(
+            window_size=length,
+            min_samples=min_periods
+        )
 
-    if close is None:
-        return
-
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal and length > 1:
-        from talib import SMA
-
-        sma = SMA(close, length)
-    else:
-        np_close = close.to_numpy()
-        sma = nb_sma(np_close, length)
-        sma = Series(sma, index=close.index)
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        sma = sma.shift(offset)
+        sma_expr = sma_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        sma = sma.fillna(kwargs["fillna"])
+    return sma_expr.alias(f"SMA_{length}")
 
-    # Name and Category
-    sma.name = f"SMA_{length}"
-    sma.category = "overlap"
-
-    return sma

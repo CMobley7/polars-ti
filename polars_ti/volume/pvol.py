@@ -1,54 +1,48 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars PVOL (Price-Volume) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import signed_series, v_bool, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def pvol(
-    close: Series,
-    volume: Series,
-    signed: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Price-Volume (PVOL)
+def pl_pvol(
+    close: IntoExpr,
+    volume: IntoExpr,
+    signed: bool = False,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Price-Volume (PVOL)
 
-    Returns a series of the product of price and volume.
+    Returns the product of price and volume.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        signed (bool): Keeps the sign of the difference in 'close's.
-            Default: False
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        signed: If True, apply sign of close diff. Default: False
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PVOL expression
     """
-    # Validate
-    close = v_series(close)
-    volume = v_series(volume)
-    signed = v_bool(signed, False)
-    offset = v_offset(offset)
-
-    # Calculate
-    pvol = close * volume
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
+    pvol_expr = close_expr * volume_expr
+    
     if signed:
-        pvol *= signed_series(close, 1)
-
-    # Offset
+        close_diff = close_expr.diff()
+        sign = pl.when(close_diff > 0).then(1).when(close_diff < 0).then(-1).otherwise(0)
+        sign = sign.fill_null(1)
+        pvol_expr = pvol_expr * sign
+    
     if offset != 0:
-        pvol = pvol.shift(offset)
+        pvol_expr = pvol_expr.shift(offset)
+    
+    return pvol_expr.alias("PVOL")
 
-    # Fill
-    if "fillna" in kwargs:
-        pvol = pvol.fillna(kwargs["fillna"])
-
-    # Name and Category
-    pvol.name = f"PVOL"
-    pvol.category = "volume"
-
-    return pvol

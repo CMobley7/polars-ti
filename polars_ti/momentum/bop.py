@@ -1,72 +1,77 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars BOP (Balance of Power) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.maps import Imports
-from polars_ti.utils import non_zero_range, v_offset, v_scalar, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
-def bop(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    scalar: int | float | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Balance of Power (BOP)
+def pl_bop(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    scalar: float = 1.0,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Balance of Power (BOP)
 
-    Balance of Power measure the market strength of buyers against sellers.
-
-    Sources:
-        http://www.worden.com/TeleChartHelp/Content/Indicators/Balance_of_Power.htm
+    Measures market strength of buyers vs sellers.
+    BOP = scalar * (close - open) / (high - low)
 
     Args:
-        open (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        scalar (float): How much to magnify. Default: 1
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        scalar: Magnification factor. Default: 1.0
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: BOP expression
     """
-    # Validate
-    open_ = v_series(open_)
-    high = v_series(high)
-    low = v_series(low)
-    close = v_series(close)
-    scalar = v_scalar(scalar, 1)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal and close.size:
-        from talib import BOP
-
-        bop = BOP(open_, high, low, close)
+    import numpy as np
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    
+    _use_talib = Imports["talib"] and v_talib(talib)
+    
+    if _use_talib:
+        def compute_bop(df: pl.DataFrame) -> pl.Series:
+            from talib import BOP as TALIB_BOP
+            o = df["open"].to_numpy().astype(np.float64)
+            h = df["high"].to_numpy().astype(np.float64)
+            l = df["low"].to_numpy().astype(np.float64)
+            c = df["close"].to_numpy().astype(np.float64)
+            result = TALIB_BOP(o, h, l, c)
+            return pl.Series("BOP", result)
+        
+        bop_expr = pl.struct([
+            open_expr.alias("open"),
+            high_expr.alias("high"),
+            low_expr.alias("low"),
+            close_expr.alias("close")
+        ]).map_batches(
+            lambda s: compute_bop(s.struct.unnest()),
+            return_dtype=pl.Float64
+        )
     else:
-        high_low_range = non_zero_range(high, low)
-        close_open_range = non_zero_range(close, open_)
-        bop = scalar * close_open_range / high_low_range
-
-    # Offset
+        # Use shared utility for zero-protected ranges (matches pandas-ta)
+        high_low_safe = pl_non_zero_range(high_expr, low_expr)
+        close_open_safe = pl_non_zero_range(close_expr, open_expr)
+        bop_expr = scalar * close_open_safe / high_low_safe
+    
     if offset != 0:
-        bop = bop.shift(offset)
+        bop_expr = bop_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        bop = bop.fillna(kwargs["fillna"])
-
-    # Name and Category
-    bop.name = f"BOP"
-    bop.category = "momentum"
-
-    return bop
+    return bop_expr.alias("BOP")

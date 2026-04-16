@@ -1,117 +1,83 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series, concat
+# =============================================================================
+# Polars RSI (Relative Strength Index) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.ma import ma
-from polars_ti.maps import Imports
-from polars_ti.utils import (
-    signals,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-    v_talib,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def rsi(
-    close: Series,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Relative Strength Index (RSI)
+def pl_rsi(
+    close: IntoExpr,
+    length: int = 14,
+    scalar: float = 100.0,
+    mamode: str = "rma",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Relative Strength Index (RSI)
 
-    The Relative Strength Index is popular momentum oscillator used to
-    measure the velocity as well as the magnitude of directional price
-    movements.
+    Popular momentum oscillator measuring velocity and magnitude
+    of directional price movements.
 
-    Sources:
-        https://www.tradingview.com/wiki/Relative_Strength_Index_(RSI)
+    RSI = scalar * avg_gain / (avg_gain + |avg_loss|)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        scalar (float): How much to magnify. Default: 100
-        mamode (str): See ``help(ti.ma)``. Default: 'rma'
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        scalar: Magnification (typically 100). Default: 100
+        mamode: MA type for smoothing. Default: 'rma'
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: RSI expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length + 1)
-
-    if close is None:
-        return
-
-    scalar = v_scalar(scalar, 100)
-    mamode = v_mamode(mamode, "rma")
-    mode_tal = v_talib(talib)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import RSI
-
-        rsi = RSI(close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    from polars_ti.ma import pl_ma
+    
+    close_expr = v_expr(close)
+    
+    if close_expr is None:
+        return None
+    
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _length = length
+    _scalar = scalar
+    
+    if _use_talib:
+        def compute_rsi(s: pl.Series) -> pl.Series:
+            from talib import RSI as TALIB_RSI
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_RSI(arr, timeperiod=_length)
+            return pl.Series(f"RSI_{_length}", result)
+        
+        rsi_expr = close_expr.map_batches(compute_rsi, return_dtype=pl.Float64)
     else:
-        negative = close.diff(drift)
-        positive = negative.copy()
-
-        positive[positive < 0] = 0  # Make negatives 0 for the positive series
-        negative[negative > 0] = 0  # Make positives 0 for the negative series
-
-        positive_avg = ma(mamode, positive, length=length, talib=mode_tal)
-        negative_avg = ma(mamode, negative, length=length, talib=mode_tal)
-
-        rsi = scalar * positive_avg / (positive_avg + negative_avg.abs())
-
-    # Offset
+        # Price change
+        diff = close_expr.diff(1)
+        
+        # Separate gains and losses - MATCH PANDAS EXACTLY
+        # Pandas: positive[positive < 0] = 0; negative[negative > 0] = 0
+        # Keep losses as NEGATIVE values (matches Pandas), apply .abs() at end
+        gains = pl.when(diff > 0).then(diff).otherwise(0.0)
+        losses = pl.when(diff < 0).then(diff).otherwise(0.0)  # Keep negative
+        
+        # Apply MA for smoothing (default RMA/Wilder's)
+        # Note: presma=False matches Pandas ewm(alpha=1/n, adjust=False) behavior
+        avg_gain = pl_ma(name=mamode, source=gains, length=length, talib=False, presma=False)
+        avg_loss = pl_ma(name=mamode, source=losses, length=length, talib=False, presma=False)
+        
+        # RSI calculation: scalar * avg_gain / (avg_gain + |avg_loss|)
+        # Note: avg_loss is negative, so .abs() is required to match Pandas
+        rsi_expr = _scalar * avg_gain / (avg_gain + avg_loss.abs())
+    
     if offset != 0:
-        rsi = rsi.shift(offset)
+        rsi_expr = rsi_expr.shift(offset)
+    
+    return rsi_expr.alias(f"RSI_{length}")
 
-    # Fill
-    if "fillna" in kwargs:
-        rsi = rsi.fillna(kwargs["fillna"])
 
-    # Name and Category
-    rsi.name = f"RSI_{length}"
-    rsi.category = "momentum"
-
-    signal_indicators = kwargs.pop("signal_indicators", False)
-    if signal_indicators:
-        signalsdf = concat(
-            [
-                DataFrame({rsi.name: rsi}),
-                signals(
-                    indicator=rsi,
-                    xa=kwargs.pop("xa", 80),
-                    xb=kwargs.pop("xb", 20),
-                    xserie=kwargs.pop("xserie", None),
-                    xserie_a=kwargs.pop("xserie_a", None),
-                    xserie_b=kwargs.pop("xserie_b", None),
-                    cross_values=kwargs.pop("cross_values", False),
-                    cross_series=kwargs.pop("cross_series", True),
-                    offset=offset,
-                ),
-            ],
-            axis=1,
-        )
-
-        return signalsdf
-    else:
-        return rsi

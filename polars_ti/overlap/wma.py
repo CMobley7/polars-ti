@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import arange, dot, float64, nan, zeros_like
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import v_ascending, v_offset, v_pos_default, v_series, v_talib
+from numba import njit
 
 
 @njit(cache=True)
@@ -26,15 +22,24 @@ def nb_wma(x, n, asc, prenan):
     return result
 
 
-def wma(
-    close: Series,
-    length: int | None = None,
-    asc: bool | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Weighted Moving Average (WMA)
+# =============================================================================
+# Polars WMA Implementation (using nb_wma kernel)
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+def pl_wma(
+    close: IntoExpr,
+    length: int = 10,
+    asc: bool = True,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Weighted Moving Average (WMA)
 
     The Weighted Moving Average where the weights are linearly increasing
     and the most recent data has the heaviest weight.
@@ -43,50 +48,43 @@ def wma(
         https://en.wikipedia.org/wiki/Moving_average#Weighted_moving_average
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        asc (bool): Recent values weigh more. Default: True
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        asc: Recent values weigh more. Default: True
+        talib: If True and TA-Lib is installed, uses TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: WMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and asc
+    _length = length
+    _asc = asc
 
-    asc = v_ascending(asc)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+    def compute_wma(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        
+        if _use_talib:
+            from talib import WMA as TALIB_WMA
+            result = TALIB_WMA(arr, timeperiod=_length)
+        else:
+            # Use nb_wma directly - much faster than rolling_map!
+            result = nb_wma(arr, _length, _asc, True)
+        
+        return pl.Series(result)
+    
+    wma_expr = close_expr.map_batches(compute_wma, return_dtype=pl.Float64)
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import WMA
-
-        wma = WMA(close, length)
-    else:
-        np_close = close.to_numpy()
-        wma_ = nb_wma(np_close, length, asc, True)
-        wma = Series(wma_, index=close.index)
-
-    # Offset
     if offset != 0:
-        wma = wma.shift(offset)
+        wma_expr = wma_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        wma = wma.fillna(kwargs["fillna"])
+    return wma_expr.alias(f"WMA_{length}")
 
-    # Name and Category
-    wma.name = f"WMA_{length}"
-    wma.category = "overlap"
 
-    return wma

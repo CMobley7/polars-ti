@@ -131,3 +131,67 @@ def unix_convert(ts: int | Series) -> datetime | str:
 mtd = df_month_to_date
 qtd = df_quarter_to_date
 ytd = df_year_to_date
+
+
+# =============================================================================
+# Polars Time Utilities (for Polars-TI conversion)
+# =============================================================================
+import polars as pl
+
+from polars_ti._typing import PlExpr, PolarsFrame
+
+
+def pl_total_time(df: pl.DataFrame, time_col: str, tf: str = "years") -> float:
+    """Polars: Calculates the total time span of a DataFrame.
+
+    Args:
+        df: Polars DataFrame with datetime column
+        time_col: Name of the datetime column
+        tf: Time frame - 'years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds'
+
+    Returns:
+        Total time in the specified unit
+    """
+    first = df[time_col].min()
+    last = df[time_col].max()
+
+    if first is None or last is None:
+        return 0.0
+
+    time_diff = last - first
+    total_seconds = time_diff.total_seconds()
+    days = total_seconds / 86400
+
+    TimeFrame = {
+        "years": days / 365.242199074074074,
+        "months": days / 30.417,
+        "weeks": days / 7,
+        "days": days,
+        "hours": total_seconds / 3600,
+        "minutes": total_seconds / 60,
+        "seconds": total_seconds,
+    }
+
+    return TimeFrame.get(tf, TimeFrame["years"])
+
+
+def pl_filter_dates(df: pl.DataFrame, time_col: str, dates: list[str]) -> pl.DataFrame:
+    """Polars: Filter DataFrame to specific dates."""
+    return df.filter(pl.col(time_col).dt.date().cast(str).is_in(dates))
+
+
+def pl_year_to_date(df: pl.DataFrame, time_col: str) -> pl.DataFrame:
+    """Polars: Filter to Year-to-Date records."""
+    from datetime import datetime
+
+    start_of_year = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    return df.filter(pl.col(time_col) >= start_of_year)
+
+
+def pl_month_to_date(df: pl.DataFrame, time_col: str) -> pl.DataFrame:
+    """Polars: Filter to Month-to-Date records."""
+    from datetime import datetime
+
+    start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return df.filter(pl.col(time_col) >= start_of_month)
+

@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import cos, exp, nan, sqrt, zeros_like
-from pandas import Series
-
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from numba import njit
 
 
-# Ehler's Trendflex
-# http://traders.com/Documentation/FEEDbk_docs/2020/02/TradersTips.html
 @njit(cache=True)
 def nb_trendflex(x, n, k, alpha, pi, sqrt2):
     m, ratio = x.size, 2 * sqrt2 / k
@@ -35,81 +30,52 @@ def nb_trendflex(x, n, k, alpha, pi, sqrt2):
     return result
 
 
-def trendflex(
-    close: Series,
-    length: int | None = None,
-    smooth: int | None = None,
-    alpha: int | float | None = None,
-    pi: int | float | None = None,
-    sqrt2: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Trendflex (TRENDFLEX)
+# =============================================================================
+# Polars TrendFlex Implementation (reuses nb_trendflex kernel)
+# =============================================================================
+import numpy as np
+import polars as pl
 
-    John F. Ehlers introduced two indicators within the article "Reflex: A New
-    Zero-Lag Indicator” in February 2020, TASC magazine. One of which is the
-    Trendflex, a lag reduced trend indicator.
-    Both indicators (Reflex/Trendflex) are oscillators and complement each
-    other with the focus for cycle and trend.
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
-    Coded by rengel8 (2021-08-11) based on the implementation on
-    ProRealCode (see Sources). Beyond the mentioned source, this
-    implementation has a separate control parameter for the internal applied
-    SuperSmoother.
 
-    Sources:
-        http://traders.com/Documentation/FEEDbk_docs/2020/02/TradersTips.html
-        https://www.prorealcode.com/prorealtime-indicators/reflex-and-trendflex-indicators-john-f-ehlers/
+def pl_trendflex(
+    close: IntoExpr,
+    length: int = 20,
+    smooth: int = 20,
+    alpha: float = 0.04,
+    pi: float = 3.14159,
+    sqrt2: float = 1.414,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: TrendFlex
+
+    Lag-reduced trend oscillator by John F. Ehlers.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 20
-        smooth (int): Period of internal SuperSmoother Default: 20
-        alpha (float): Alpha weight of Difference Sums. Default: 0.04
-        pi (float): The value of PI to use. The default is Ehler's
-            truncated value 3.14159. Adjust the value for more precision.
-            Default: 3.14159
-        sqrt2 (float): The value of sqrt(2) to use. The default is Ehler's
-            truncated value 1.414. Adjust the value for more precision.
-            Default: 1.414
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        length: Period. Default: 20
+        smooth: SuperSmoother period. Default: 20
+        alpha: Difference sums weight. Default: 0.04
+        pi: Pi value. Default: 3.14159
+        sqrt2: Sqrt(2) value. Default: 1.414
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: TrendFlex expression
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    smooth = v_pos_default(smooth, 20)
-    close = v_series(close, max(length, smooth) + 1)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    def _compute(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        result = nb_trendflex(arr, length, smooth, alpha, pi, sqrt2)
+        result[:length] = np.nan
+        return pl.Series(values=result, name=s.name)
 
-    alpha = v_pos_default(alpha, 0.04)
-    pi = v_pos_default(pi, 3.14159)
-    sqrt2 = v_pos_default(sqrt2, 1.414)
-    offset = v_offset(offset)
+    result = close_expr.map_batches(_compute, return_dtype=pl.Float64)
 
-    # Calculate
-    np_close = close.to_numpy()
-    result = nb_trendflex(np_close, length, smooth, alpha, pi, sqrt2)
-    result[:length] = nan
-    result = Series(result, index=close.index)
-
-    # Offset
     if offset != 0:
         result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        result = result.fillna(kwargs["fillna"])
-
-    # Name and Category
-    result.name = f"TRENDFLEX_{length}_{smooth}_{alpha}"
-    result.category = "trend"
-
-    return result
+    return result.alias(f"TRENDFLEX_{length}_{smooth}_{alpha}")

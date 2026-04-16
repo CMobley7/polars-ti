@@ -263,3 +263,83 @@ def speed_test(
         return tdf, total_timedf
     else:
         return tdf
+
+
+# =============================================================================
+# Polars DataFrame Namespace (for Polars-TI conversion)
+# =============================================================================
+import os
+
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr, PolarsFrame
+
+# GPU switch: set POLARS_TI_GPU=1 to enable RAPIDS GPU acceleration
+GPU_ENABLED = os.environ.get("POLARS_TI_GPU", "0") == "1"
+
+
+@pl.api.register_dataframe_namespace("ti")
+class PolarsTI:
+    """Polars DataFrame extension for Technical Indicators.
+
+    Usage:
+        import polars as pl
+        import polars_ti  # registers the namespace
+
+        df = pl.DataFrame({"close": [1.0, 2.0, 3.0, 4.0, 5.0]})
+        result = df.ti.sma("close", length=3)
+
+    GPU Acceleration:
+        Set POLARS_TI_GPU=1 environment variable to enable GPU execution.
+    """
+
+    def __init__(self, df: pl.DataFrame):
+        self._df = df
+
+    def _apply_expr(self, expr: PlExpr) -> pl.DataFrame:
+        """Apply expression with optional GPU acceleration."""
+        lf = self._df.lazy()
+        result = lf.with_columns(expr)
+        if GPU_ENABLED:
+            return result.collect(engine="gpu")
+        return result.collect()
+
+    def _apply_exprs(self, *exprs: PlExpr) -> pl.DataFrame:
+        """Apply multiple expressions with optional GPU acceleration."""
+        lf = self._df.lazy()
+        result = lf.with_columns(*exprs)
+        if GPU_ENABLED:
+            return result.collect(engine="gpu")
+        return result.collect()
+
+    def _get_column(self, col: IntoExpr) -> PlExpr:
+        """Convert column name or expression to pl.Expr."""
+        if isinstance(col, str):
+            return pl.col(col)
+        return col
+
+
+@pl.api.register_lazyframe_namespace("ti")
+class PolarsTILazy:
+    """Polars LazyFrame extension for Technical Indicators.
+
+    Enables lazy evaluation for optimal query planning.
+    """
+
+    def __init__(self, lf: pl.LazyFrame):
+        self._lf = lf
+
+    def _apply_expr(self, expr: PlExpr) -> pl.LazyFrame:
+        """Apply expression lazily."""
+        return self._lf.with_columns(expr)
+
+    def _apply_exprs(self, *exprs: PlExpr) -> pl.LazyFrame:
+        """Apply multiple expressions lazily."""
+        return self._lf.with_columns(*exprs)
+
+    def _get_column(self, col: IntoExpr) -> PlExpr:
+        """Convert column name or expression to pl.Expr."""
+        if isinstance(col, str):
+            return pl.col(col)
+        return col
+

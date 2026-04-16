@@ -1,105 +1,74 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars WB_TSV (Time Segmented Value) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.utils import (
-    signed_series,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    zero,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def wb_tsv(
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    signal: int | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Time Segmented Value (TSV)
+def pl_wb_tsv(
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 18,
+    signal: int = 10,
+    mamode: str = "sma",
+    drift: int = 1,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Time Segmented Value (TSV)
 
-    TSV is a proprietary technical indicator developed by Worden Brothers
-    Inc., classified as an oscillator. It compares various time segments of
-    both price and volume. It measures the amount money flowing at various
-    time segments for price and time; similar to On Balance Volume. The zero
-    line is called the baseline. Entry and exit points are commonly
-    determined when crossing the baseline.
-
-    Sources:
-        https://www.tradingview.com/script/6GR4ht9X-Time-Segmented-Volume/
-        https://help.tc2000.com/m/69404/l/747088-time-segmented-volume
-        https://usethinkscript.com/threads/time-segmented-volume-for-thinkorswim.519/
+    Worden Brothers proprietary oscillator comparing price and volume
+    over time segments.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): It's period. Default: 18
-        signal (int): It's avg period. Default: 10
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: TSV period. Default: 18
+        signal: Signal MA period. Default: 10
+        mamode: MA type. Default: 'sma'
+        drift: Difference period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: tsv, signal, ratio
+        list[pl.Expr]: [TSV, TSV_signal, TSV_ratio]
     """
-    # Validate
-    length = v_pos_default(length, 18)
-    signal = v_pos_default(signal, 10)
-    _length = max(length, signal) + 1
-    close = v_series(close, _length)
-
-    if close is None:
-        return
-
-    mamode = v_mamode(mamode, "sma")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    signed_volume = volume * signed_series(close, 1)  # > 0
-    signed_volume[signed_volume < 0] = -signed_volume  # < 0
-    signed_volume.apply(zero)  # ~ 0
-    cvd = signed_volume * close.diff(drift)
-
-    tsv = cvd.rolling(length).sum()
-    if all(isnan(tsv)):
-        return  # Emergency Break
-    signal_ = ma(mamode, tsv, length=signal, **kwargs)
-    ratio = tsv / signal_
-
-    # Offset
-    if offset != 0:
-        tsv = tsv.shift(offset)
-        signal_ = signal.shift(offset)
-        ratio = ratio.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        tsv = tsv.fillna(kwargs["fillna"])
-        signal_ = signal_.fillna(kwargs["fillna"])
-        ratio = ratio.fillna(kwargs["fillna"])
-
-    # Name and Category
+    from polars_ti.ma import pl_ma
+    
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
     _props = f"_{length}_{signal}"
-    tsv.name = f"TSV{_props}"
-    signal_.name = f"TSVs{_props}"
-    ratio.name = f"TSVr{_props}"
-    tsv.category = signal_.category = ratio.category = "volume"
+    
+    # Signed volume based on close direction
+    close_diff = close_expr.diff(1)
+    sign = pl.when(close_diff > 0).then(1).when(close_diff < 0).then(-1).otherwise(0)
+    signed_volume = volume_expr * sign.abs()  # Use absolute value for signed
+    
+    # CVD = signed_volume * diff(close, drift)
+    cvd = signed_volume * close_expr.diff(drift)
+    
+    # TSV = rolling_sum(cvd, length)
+    tsv_expr = cvd.rolling_sum(window_size=length, min_samples=length)
+    
+    # Signal = MA(TSV, signal)
+    signal_expr = pl_ma(name=mamode, source=tsv_expr, length=signal)
+    
+    # Ratio = TSV / Signal (with div/0 protection)
+    ratio_expr = tsv_expr / signal_expr
+    
+    if offset != 0:
+        tsv_expr = tsv_expr.shift(offset)
+        signal_expr = signal_expr.shift(offset)
+        ratio_expr = ratio_expr.shift(offset)
+    
+    return [
+        tsv_expr.alias(f"TSV{_props}"),
+        signal_expr.alias(f"TSVs{_props}"),
+        ratio_expr.alias(f"TSVr{_props}"),
+    ]
 
-    data = {tsv.name: tsv, signal_.name: signal_, ratio.name: ratio}
-    df = DataFrame(data, index=close.index)
-    df.name = f"TSV{_props}"
-    df.category = tsv.category
-
-    return df

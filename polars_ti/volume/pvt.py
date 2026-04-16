@@ -1,62 +1,49 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars PVT (Price-Volume Trend) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.momentum import roc
-from polars_ti.utils import v_drift, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def pvt(
-    close: Series,
-    volume: Series,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Price-Volume Trend (PVT)
+def pl_pvt(
+    close: IntoExpr,
+    volume: IntoExpr,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Price-Volume Trend (PVT)
 
-    The Price-Volume Trend utilizes the Rate of Change with volume to
-    and it's cumulative values to determine money flow.
-
-    Sources:
-        https://www.tradingview.com/wiki/Price_Volume_Trend_(PVT)
+    Uses Rate of Change with volume and cumulative sum for money flow.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        drift (int): The diff period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        drift: ROC period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PVT expression
     """
-    # Validate
-    drift = v_drift(drift)
-    _drift = drift + 1
-    close = v_series(close, _drift)
-    volume = v_series(volume, _drift)
-
-    if close is None or volume is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate
-    pv = roc(close=close, length=drift) * volume
-    pvt = pv.cumsum()
-
-    # Offset
+    from polars_ti.momentum.roc import pl_roc
+    
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
+    # PVT = cumsum(ROC * volume)
+    # Use pl_roc for code reuse
+    roc_expr = pl_roc(close_expr, length=drift, scalar=100.0, talib=False, offset=0)
+    
+    pv = roc_expr * volume_expr
+    pvt_expr = pv.cum_sum()
+    
     if offset != 0:
-        pvt = pvt.shift(offset)
+        pvt_expr = pvt_expr.shift(offset)
+    
+    return pvt_expr.alias("PVT")
 
-    # Fill
-    if "fillna" in kwargs:
-        pvt = pvt.fillna(kwargs["fillna"])
-
-    # Name and Category
-    pvt.name = f"PVT"
-    pvt.category = "volume"
-
-    return pvt

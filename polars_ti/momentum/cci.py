@@ -1,83 +1,90 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars CCI (Commodity Channel Index) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.overlap import hlc3, sma
-from polars_ti.statistics import mad
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def cci(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    c: int | float | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Commodity Channel Index (CCI)
+def pl_cci(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    c: float = 0.015,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Commodity Channel Index (CCI)
 
-    Commodity Channel Index is a momentum oscillator used to primarily
-    identify overbought and oversold levels relative to a mean.
+    Momentum oscillator for overbought/oversold levels.
+    CCI = (TP - SMA(TP)) / (c * MAD(TP))
+    where TP = (high + low + close) / 3
 
     Sources:
-        https://www.tradingview.com/wiki/Commodity_Channel_Index_(CCI)
+        https://www.investopedia.com/terms/c/commoditychannelindex.asp
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        c (float): Scaling Constant. Default: 0.015
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        c: Scaling constant (Lambert's constant). Default: 0.015
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: CCI expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    high = v_series(high, length)
-    low = v_series(low, length)
-    close = v_series(close, length)
-
-    if high is None or low is None or close is None:
-        return
-
-    c = v_pos_default(c, 0.015)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import CCI
-
-        cci = CCI(high, low, close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    
+    _use_talib = Imports["talib"] and v_talib(talib)
+    
+    if _use_talib:
+        _length = length
+        
+        def compute_cci_talib(struct: pl.Series) -> pl.Series:
+            from talib import CCI as TALIB_CCI
+            df = struct.struct.unnest()
+            h = df["_high"].to_numpy().astype(np.float64)
+            l = df["_low"].to_numpy().astype(np.float64)
+            cl = df["_close"].to_numpy().astype(np.float64)
+            result = TALIB_CCI(h, l, cl, timeperiod=_length)
+            return pl.Series(result)
+        
+        cci_expr = pl.struct([
+            high_expr.alias("_high"),
+            low_expr.alias("_low"),
+            close_expr.alias("_close")
+        ]).map_batches(compute_cci_talib, return_dtype=pl.Float64)
     else:
-        typical_price = hlc3(high=high, low=low, close=close, talib=mode_tal)
-        mean_typical_price = sma(typical_price, length=length, talib=mode_tal)
-        mad_typical_price = mad(typical_price, length=length)
-
-        cci = (typical_price - mean_typical_price) / (c * mad_typical_price)
-        # Protect against divide-by-zero when mad is near zero
-        cci[mad_typical_price < 1e-8] = 0
-
-    # Offset
+        # Clean composition matching Pandas approach
+        from polars_ti.overlap.hlc3 import pl_hlc3
+        from polars_ti.overlap.sma import pl_sma
+        from polars_ti.statistics.mad import pl_mad
+        
+        # Typical Price, SMA, and MAD
+        tp = pl_hlc3(high_expr, low_expr, close_expr, talib=False, offset=0)
+        tp_sma = pl_sma(tp, length=length, talib=False, offset=0)
+        tp_mad = pl_mad(tp, length=length, offset=0)
+        
+        # CCI = (TP - SMA(TP)) / (c * MAD(TP))
+        # Protect against divide-by-zero when MAD is near zero
+        cci_expr = pl.when(tp_mad < 1e-8).then(0.0).otherwise(
+            (tp - tp_sma) / (c * tp_mad)
+        )
+    
     if offset != 0:
-        cci = cci.shift(offset)
+        cci_expr = cci_expr.shift(offset)
+    
+    return cci_expr.alias(f"CCI_{length}_{c}")
 
-    # Fill
-    if "fillna" in kwargs:
-        cci = cci.fillna(kwargs["fillna"])
 
-    # Name and Category
-    cci.name = f"CCI_{length}_{c}"
-    cci.category = "momentum"
-
-    return cci

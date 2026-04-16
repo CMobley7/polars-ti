@@ -1,61 +1,46 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars BIAS Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.ma import pl_ma
 
 
-def bias(
-    close: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Bias (BIAS)
+def pl_bias(
+    close: IntoExpr,
+    length: int = 26,
+    mamode: str = "sma",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Bias (BIAS)
 
-    Rate of change between the source and a moving average.
-
-    Sources:
-        Few internet resources on definitive definition.
-        Request by Github user homily, issue #46
+    Rate of change between price and a moving average.
+    BIAS = (close / MA) - 1
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): The period. Default: 26
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: MA period. Default: 26
+        mamode: Moving average type. Default: 'sma'
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: BIAS expression
     """
-    # Validate
-    length = v_pos_default(length, 26)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    
+    # Use pl_ma for code reuse
+    ma_expr = pl_ma(mamode, close_expr, length=length, talib=False)
+    ma_name = f"{mamode.upper()}_{length}"
 
-    if close is None:
-        return
-
-    mamode = v_mamode(mamode, "sma")
-    offset = v_offset(offset)
-
-    # Calculate
-    bma = ma(mamode, close, length=length, **kwargs)
-    bias = (close / bma) - 1
-
-    # Offset
+    # BIAS = (close / MA) - 1 - Pure Polars expression
+    bias_expr = (close_expr / ma_expr) - 1.0
+    
     if offset != 0:
-        bias = bias.shift(offset)
+        bias_expr = bias_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        bias = bias.fillna(kwargs["fillna"])
+    return bias_expr.alias(f"BIAS_{ma_name}")
 
-    # Name and Category
-    bias.name = f"BIAS_{bma.name}"
-    bias.category = "momentum"
 
-    return bias

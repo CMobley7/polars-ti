@@ -1,84 +1,74 @@
 # -*- coding: utf-8 -*-
-from numpy import sign
-from pandas import Series
+# =============================================================================
+# Polars PSL (Psychological Line) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    nb_idiff,
-    v_drift,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def psl(
-    close: Series,
-    open_: Series | None = None,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Psychological Line (PSL)
+def pl_psl(
+    close: IntoExpr,
+    open_: IntoExpr | None = None,
+    length: int = 12,
+    scalar: float = 100.0,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Psychological Line (PSL)
 
-    The Psychological Line is an oscillator-type indicator that compares the
-    number of the rising periods to the total number of periods. In other
-    words, it is the percentage of bars that close above the previous
-    bar over a given period.
+    The Psychological Line measures the percentage of rising periods over a
+    lookback window. It's used to gauge market sentiment and identify
+    overbought/oversold conditions.
 
     Sources:
-        https://www.quantshare.com/item-851-psychological-line
+        https://iqoption.com/blog/psychological-line
+        
+    Calculation:
+        If open_ provided:
+            diff = sign(close - open_)
+        Else:
+            diff = sign(close.diff(drift))
+        diff = diff.clip(lower=0)  # Only count positive
+        PSL = scalar * rolling_sum(diff, length) / length
 
     Args:
-        close (pd.Series): Series of 'close's
-        open_ (pd.Series, optional): Series of 'open's
-        length (int): It's period. Default: 12
-        scalar (float): How much to magnify. Default: 100
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        open_: Column name or pl.Expr for 'open' prices (optional)
+        length: Rolling window period. Default: 12
+        scalar: Multiplication factor. Default: 100
+        drift: Difference period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PSL expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 12)
-    close = v_series(close, length)
-
-    if close is None:
-        return
-
-    scalar = v_scalar(scalar, 100)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+    
+    # Calculate diff based on open or drift
     if open_ is not None:
-        open_ = v_series(open_)
-        diff = sign(close - open_)
+        open_expr = v_expr(open_)
+        if open_expr is None:
+            return None
+        # sign(close - open): positive = +1, negative/zero = 0 after clipping
+        diff = (close_expr - open_expr).sign()
     else:
-        diff = sign(close.diff(drift))
-
-    diff = diff.fillna(0)
-    diff[diff <= 0] = 0  # Set negative values to zero
-
-    psl = scalar * diff.rolling(length).sum() / length
-
-    # Offset
+        # sign(close.diff(drift))
+        diff = close_expr.diff(drift).sign()
+    
+    # Fill NaN with 0, then clip to count only positive (rising) periods
+    diff = diff.fill_nan(0.0).fill_null(0.0)
+    # When diff <= 0, set to 0; when diff > 0, keep as 1
+    diff = pl.when(diff > 0).then(1.0).otherwise(0.0)
+    
+    # PSL = scalar * rolling_sum(diff) / length
+    psl = scalar * diff.rolling_sum(length) / length
+    
+    # Apply offset
     if offset != 0:
         psl = psl.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        psl = psl.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _props = f"_{length}"
-    psl.name = f"PSL{_props}"
-    psl.category = "momentum"
-
-    return psl
+    
+    return psl.alias(f"PSL_{length}")

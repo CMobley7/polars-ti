@@ -1,68 +1,52 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars EFI (Elder's Force Index) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.ma import ma
-from polars_ti.utils import v_drift, v_mamode, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def efi(
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Elder's Force Index (EFI)
+def pl_efi(
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 13,
+    mamode: str = "ema",
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Elder's Force Index (EFI)
 
     Elder's Force Index measures the power behind a price movement using
     price and volume as well as potential reversals and price corrections.
 
-    Sources:
-        https://www.tradingview.com/wiki/Elder%27s_Force_Index_(EFI)
-        https://www.motivewave.com/studies/elders_force_index.htm
-
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): The short period. Default: 13
-        drift (int): The diff period. Default: 1
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: MA smoothing period. Default: 13
+        mamode: MA type for smoothing. Default: 'ema'
+        drift: The diff period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: EFI expression
     """
-    # Validate
-    length = v_pos_default(length, 13)
-    close = v_series(close, length)
-    volume = v_series(volume, length)
-
-    if close is None or volume is None:
-        return
-
-    mamode = v_mamode(mamode, "ema")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    pv_diff = close.diff(drift) * volume
-    efi = ma(mamode, pv_diff, length=length, **kwargs)
-
-    # Offset
+    from polars_ti.ma import pl_ma
+    
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
+    
+    if close_expr is None or volume_expr is None:
+        return None
+    
+    # EFI = MA(close.diff(drift) * volume, length)
+    pv_diff = close_expr.diff(drift) * volume_expr
+    efi_expr = pl_ma(name=mamode, source=pv_diff, length=length)
+    
     if offset != 0:
-        efi = efi.shift(offset)
+        efi_expr = efi_expr.shift(offset)
+    
+    return efi_expr.alias(f"EFI_{length}")
 
-    # Fill
-    if "fillna" in kwargs:
-        efi = efi.fillna(kwargs["fillna"])
-
-    # Name and Category
-    efi.name = f"EFI_{length}"
-    efi.category = "volume"
-
-    return efi

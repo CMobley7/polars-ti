@@ -1,65 +1,55 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars CFO (Chande Forecast Oscillator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import linreg
-from polars_ti.utils import v_drift, v_offset, v_pos_default, v_scalar, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def cfo(
-    close: Series,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Chande Forcast Oscillator (CFO)
+def pl_cfo(
+    close: IntoExpr,
+    length: int = 9,
+    scalar: float = 100.0,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Chande Forecast Oscillator (CFO)
 
-    The Forecast Oscillator calculates the percentage difference between
-    the actual price and the Time Series Forecast (the endpoint of a
-    linear regression line).
+    Calculates the percentage difference between actual price and
+    the Time Series Forecast (endpoint of linear regression line).
+
+    Formula: CFO = scalar * (close - TSF) / close
 
     Sources:
         https://www.fmlabs.com/reference/default.htm?url=ForecastOscillator.htm
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): The period. Default: 9
-        scalar (float): How much to magnify. Default: 100
-        drift (int): The short period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 9
+        scalar: Magnification factor. Default: 100
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: CFO expression
     """
-    # Validate
-    length = v_pos_default(length, 9)
-    close = v_series(close, length)
-
-    if close is None:
-        return
-
-    scalar = v_scalar(scalar, 100)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    # Finding linear regression of Series
-    cfo = scalar * (close - linreg(close, length=length, tsf=True)) / close
-
-    # Offset
+    from polars_ti.overlap.linreg import pl_linreg
+    
+    close_expr = v_expr(close)
+    
+    # TSF = Time Series Forecast from linear regression
+    # Match Pandas default: talib=True 
+    tsf = pl_linreg(close_expr, length=length, tsf=True, offset=0)
+    
+    # CFO = scalar * (close - TSF) / close
+    # Protect against divide-by-zero
+    cfo_expr = pl.when(close_expr.abs() < 1e-10).then(None).otherwise(
+        scalar * (close_expr - tsf) / close_expr
+    )
+    
     if offset != 0:
-        cfo = cfo.shift(offset)
+        cfo_expr = cfo_expr.shift(offset)
+    
+    return cfo_expr.alias(f"CFO_{length}")
 
-    # Fill
-    if "fillna" in kwargs:
-        cfo = cfo.fillna(kwargs["fillna"])
 
-    # Name and Category
-    cfo.name = f"CFO_{length}"
-    cfo.category = "momentum"
-
-    return cfo

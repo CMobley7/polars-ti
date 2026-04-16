@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import roll, where
-from pandas import Series
-
-from polars_ti.utils import v_bool, v_offset, v_scalar, v_series
+from numba import njit
 
 
 @njit(cache=True)
@@ -13,75 +10,64 @@ def np_cdl_inside(high, low):
     return hdiff & ldiff
 
 
-def cdl_inside(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    asbool: bool | None = None,
-    scalar: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Candle Type: Inside Bar
+# =============================================================================
+# Polars CDL_INSIDE Implementation
+# =============================================================================
+import polars as pl
 
-    An Inside Bar is a bar that is engulfed by the prior highs and lows of
-    it's previous bar. In other words, the current bar is smaller than it's
-    previous bar.
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
-    Set asbool=True if you want to know if it is an Inside Bar. Note by
-    default asbool=False so this returns a 0 if it is not an Inside Bar, 1 if
-    it is an Inside Bar and close > open, and -1 if it is an Inside Bar
-    but close < open.
+
+def pl_cdl_inside(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    asbool: bool = False,
+    scalar: float = 100.0,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Candle Type - Inside Bar
+
+    An Inside Bar is a bar that is engulfed by the prior high and low.
+    Current bar: high < prev_high AND low > prev_low
+
+    Set asbool=True if you want boolean result. Default returns:
+    0 if not inside bar, scalar if inside bar.
 
     Sources:
         https://www.tradingview.com/script/IyIGN1WO-Inside-Bar/
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        asbool (bool): Returns the boolean result. Default: False
-        scalar (float): How much to magnify. Default: 100
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        asbool: Returns boolean result instead of scaled int. Default: False
+        scalar: Result multiplier. Default: 100.0
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature
+        pl.Expr: CDL_INSIDE expression
     """
-    # Validate
-    open_ = v_series(open_)
-    high = v_series(high)
-    low = v_series(low)
-    close = v_series(close)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
 
-    if open_ is None or high is None or low is None or close is None:
-        return
+    # Inside Bar: current high < previous high AND current low > previous low
+    prev_high = high_expr.shift(1)
+    prev_low = low_expr.shift(1)
 
-    asbool = v_bool(asbool, False)
-    scalar = v_scalar(scalar, 100)
-    offset = v_offset(offset)
+    is_inside = (high_expr < prev_high) & (low_expr > prev_low)
 
-    # Calculate
-    np_high, np_low = high.to_numpy(), low.to_numpy()
-    np_inside = np_cdl_inside(np_high, np_low)
-    inside = Series(np_inside, index=close.index, dtype=bool)
+    if asbool:
+        result = is_inside
+    else:
+        result = pl.when(is_inside).then(scalar).otherwise(0.0).cast(pl.Int64)
 
-    if not asbool:
-        inside = scalar * inside.astype(int)
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        inside = inside.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        inside = inside.fillna(kwargs["fillna"])
-    # Name and Category
-    inside.name = f"CDL_INSIDE"
-    inside.category = "candles"
+    return result.alias("CDL_INSIDE")
 
-    return inside

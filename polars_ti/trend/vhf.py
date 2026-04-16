@@ -1,63 +1,44 @@
 # -*- coding: utf-8 -*-
-from numpy import fabs, inf, nan
-from pandas import Series
+# =============================================================================
+# Polars VHF (Vertical Horizontal Filter) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import non_zero_range, v_drift, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def vhf(
-    close: Series,
-    length: int | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Vertical Horizontal Filter (VHF)
+def pl_vhf(
+    close: IntoExpr,
+    length: int = 28,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Vertical Horizontal Filter (VHF)
 
-    VHF was created by Adam White to identify trending and ranging markets.
+    Identifies trending vs ranging markets.
 
-    Sources:
-        https://www.incrediblecharts.com/indicators/vertical_horizontal_filter.php
+    Formula: VHF = |HCP - LCP| / sum(|diff(close, drift)|, length)
 
     Args:
-        source (pd.Series): Series of prices (usually close).
-        length (int): The period length. Default: 28
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        length: Period. Default: 28
+        drift: Difference period. Default: 1
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: VHF expression
     """
-    # Validate
-    length = v_pos_default(length, 28)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    hcp = close_expr.rolling_max(window_size=length)
+    lcp = close_expr.rolling_min(window_size=length)
+    diff_abs = close_expr.diff(drift).abs()
+    diff_sum = diff_abs.rolling_sum(window_size=length)
 
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    vhf_expr = (hcp - lcp).abs() / diff_sum
 
-    # Calculate
-    hcp = close.rolling(length).max()
-    lcp = close.rolling(length).min()
-    diff = fabs(close.diff(drift))
-    vhf = fabs(non_zero_range(hcp, lcp)) / diff.rolling(length).sum()
-    vhf = vhf.replace([inf, -inf], nan)
-    # np_vhf = where(np_vhf == inf, nan, np_vhf)
-
-    # Offset
     if offset != 0:
-        vhf = vhf.shift(offset)
+        vhf_expr = vhf_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        vhf = vhf.fillna(kwargs["fillna"])
-
-    # Name and Category
-    vhf.name = f"VHF_{length}"
-    vhf.category = "trend"
-
-    return vhf
+    return vhf_expr.alias(f"VHF_{length}")

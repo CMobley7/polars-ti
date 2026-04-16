@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import float64, zeros_like
-from pandas import Series
-
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_str
+from numba import njit
 
 
-# Exponential Decay - https://tulipindicators.org/edecay
 @njit(cache=True)
 def nb_exponential_decay(x, n):
     m, rate = x.size, 1.0 - (1.0 / n)
@@ -20,7 +16,6 @@ def nb_exponential_decay(x, n):
     return result
 
 
-# Linear Decay -https://tulipindicators.org/decay
 @njit(cache=True)
 def nb_linear_decay(x, n):
     m, rate = x.size, 1.0 / n
@@ -34,65 +29,52 @@ def nb_linear_decay(x, n):
     return result
 
 
-def decay(
-    close: Series,
-    length: int | None = None,
-    mode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Decay
+# =============================================================================
+# Polars Decay Implementation (uses existing Numba kernels)
+# =============================================================================
+import numpy as np
+import polars as pl
 
-    Creates a decay moving forward from prior signals like crosses.
-    The default is "linear".
-    Exponential is optional as "exponential" or "exp".
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
-    Sources:
-        https://tulipindicators.org/decay
+
+def pl_decay(
+    close: IntoExpr,
+    length: int = 1,
+    mode: str = "linear",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Decay
+
+    Creates a decay moving forward from prior signals. Supports linear
+    and exponential modes.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 1
-        mode (str): If 'exp' then "exponential" decay. Default: 'linear'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        length: Period. Default: 1
+        mode: 'linear' or 'exp'/'exponential'. Default: 'linear'
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Decay expression
     """
-    # Validate
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    _mode_str = mode.lower() if isinstance(mode, str) else "linear"
+    is_exp = _mode_str in ("exp", "exponential")
 
-    if close is None:
-        return
+    def _compute_decay(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        if is_exp:
+            result = nb_exponential_decay(arr, length)
+        else:
+            result = nb_linear_decay(arr, length)
+        return pl.Series(values=result, name=s.name)
 
-    length = v_pos_default(length, 1)
-    mode = v_str(mode, "linear")
-    offset = v_offset(offset)
+    _label = "EXP" if is_exp else "L"
+    result = close_expr.map_batches(_compute_decay, return_dtype=pl.Float64)
 
-    # Calculate
-    _mode, np_close = "L", close.to_numpy()
-
-    if mode in ["exp", "exponential"]:
-        _mode = "EXP"
-        result = nb_exponential_decay(np_close, length)
-    else:  # "linear"
-        result = nb_linear_decay(np_close, length)
-
-    result = Series(result, index=close.index)
-
-    # Offset
     if offset != 0:
         result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        result = result.fillna(kwargs["fillna"])
-
-    # Name and Category
-    result.name = f"{_mode}DECAY_{length}"
-    result.category = "trend"
-
-    return result
+    return result.alias(f"{_label}DECAY_{length}")

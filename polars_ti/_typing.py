@@ -61,3 +61,27 @@ MaybeSeriesFrame = T | Series | DataFrame
 AnyArray = Array | Series | DataFrame
 AnyArray1d = Array1d | Series
 AnyArray2d = Array2d | DataFrame
+
+# =============================================================================
+# Polars Type Aliases (for Polars-TI conversion)
+# =============================================================================
+import polars as pl
+
+# Core Polars expression type - functions return this for lazy evaluation
+PlExpr = pl.Expr
+
+# Input type for indicator functions - accepts column name or expression
+IntoExpr = pl.Expr | str
+
+# Polars DataFrame types
+PolarsFrame = pl.DataFrame | pl.LazyFrame
+PlDataFrame = pl.DataFrame
+PlLazyFrame = pl.LazyFrame
+
+# Dual-mode support for migration period
+DualFrame = DataFrame | pl.DataFrame | pl.LazyFrame
+DualSeries = Series | pl.Series
+
+# Polars-specific optional types
+PlExprOpt = pl.Expr | None
+
