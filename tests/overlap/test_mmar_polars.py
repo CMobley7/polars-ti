@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_mmar - Polars + Numba implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.mmar import pl_mmar
@@ -18,7 +17,7 @@ class TestPlMmar:
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': pd.Series(close),
+            'pd_close': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -42,21 +41,6 @@ class TestPlMmar:
         result = result.unnest(result.columns[0])
         assert "MMAR_5" in result.columns
         assert "MMAR_14" in result.columns  # 5 + 3*3 = 14
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = mmar(sample_data['pd_close'], length=10, step=5, num_ribbons=6)
-        pl_result = sample_data['pl_df'].select(pl_mmar('close')).unnest("MMAR_10_5_6")
-        
-        warmup = 40
-        for col in ["MMAR_10", "MMAR_15", "MMAR_20"]:
-            pd_vals = pd_result[col].iloc[warmup:].values
-            pl_vals = pl_result[col][warmup:].to_numpy()
-            valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-            if valid.sum() > 0:
-                diff = np.abs(pd_vals[valid] - pl_vals[valid])
-                assert np.max(diff) < 1e-10, f"{col} max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

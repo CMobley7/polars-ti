@@ -3,7 +3,6 @@
 
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 
 from polars_ti.momentum.trixh import pl_trixh
@@ -120,37 +119,6 @@ class TestPlTrixh:
         result = sample_data.select(pl_trixh(pl.col("close"), talib=False))
         
         assert result.shape[1] == 3
-
-    def test_parity_with_pandas(self) -> None:
-        """Test numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.trixh import trixh as pandas_trixh  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 1000
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({"close": close})
-        pldf = pl.DataFrame({"close": close})
-        
-        # Run both implementations
-        pandas_result = pandas_trixh(pdf["close"], length=18, signal=9, scalar=100.0, drift=1)
-        polars_result = pldf.select(pl_trixh("close", length=18, signal=9, scalar=100.0, drift=1, talib=False))
-        
-        # Compare TRIX
-        pandas_trix = pandas_result["TRIX_18_9"].to_numpy()
-        polars_trix = polars_result["TRIX_18_9"].to_numpy()
-        
-        warmup = 3 * 18 + 1 + 9  # EMA warmup + drift + signal
-        mask = ~np.isnan(pandas_trix[warmup:]) & ~np.isnan(polars_trix[warmup:])
-        
-        np.testing.assert_allclose(
-            pandas_trix[warmup:][mask],
-            polars_trix[warmup:][mask],
-            rtol=1e-10,
-            atol=1e-14
-        )
 
     def test_talib_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that talib parameter controls TA-Lib usage."""

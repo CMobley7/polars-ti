@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_ichimoku."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.ichimoku import pl_ichimoku
@@ -26,9 +25,9 @@ class TestPlIchimoku:
         low = 98 + np.cumsum(np.random.randn(n) * 0.3)
         close = 100 + np.cumsum(np.random.randn(n) * 0.4)
         return {
-            'pd_high': pd.Series(high),
-            'pd_low': pd.Series(low),
-            'pd_close': pd.Series(close),
+            'pd_high': high,
+            'pd_low': low,
+            'pd_close': close,
             'pl_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
         }
 
@@ -61,23 +60,6 @@ class TestPlIchimoku:
         assert "ISB_22" in main_df.columns
         assert "ITS_7" in main_df.columns
         assert "IKS_22" in main_df.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-
-        pd_main, _ = ichimoku(sample_data['pd_high'], sample_data['pd_low'], sample_data['pd_close'])
-        pl_main, _ = pl_ichimoku(sample_data['pl_df'])
-        
-        warmup = 60
-        for col in ["ISA_9", "ISB_26", "ITS_9", "IKS_26"]:
-            pd_vals = pd_main[col].iloc[warmup:-25].values  # Avoid edges
-            pl_vals = pl_main[col][warmup:-25].to_numpy()
-            
-            valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-            if valid.sum() > 0:
-                diff = np.abs(pd_vals[valid] - pl_vals[valid])
-                assert np.max(diff) < 1e-10, f"Max diff for {col}: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

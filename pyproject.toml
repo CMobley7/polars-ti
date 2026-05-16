@@ -11,7 +11,7 @@ version = "0.1.0"
 authors = [
   { name="Christopher Mobley" },
 ]
-description = "Polars Technical Indicators, Polars TI, is a free, Open Source, and easy to use Technical Indicators library with a Pandas DataFrame Extension. It has over 200 indicators, utility functions and TA Lib Candlestick Patterns."
+description = "Polars Technical Indicators (Polars-TI) is a free, open-source technical analysis library built on a pure Polars/Numba/NumPy architecture. It provides 200+ indicators and candlestick patterns as native Polars expressions, with zero runtime pandas dependency."
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.11"
@@ -34,7 +34,6 @@ keywords = [
 dependencies = [
     "numba~=0.63.1",
     "numpy~=2.3.5",
-    "pandas~=2.3.3",
     "polars>=1.0.0",
     "scipy~=1.16.3",
 ]
@@ -45,8 +44,11 @@ dependencies = [
 "Download" = "https://github.com/CMobley7/polars-ti.git"
 
 [project.optional-dependencies]
+talib = [
+    "TA-Lib~=0.6.8",
+]
 full = [
-    "polars-ti[test]", # Include test dependencies in full
+    "polars-ti[test,talib]",
     "vectorbt",
     "matplotlib~=3.10.8",
     "alpha-vantage",
@@ -58,7 +60,11 @@ full = [
     "tqdm",
 ]
 test = [
-    "TA-Lib~=0.6.8",
+    "polars-ti[talib]",
+    "pandas~=2.3.3",
     "yfinance~=1.0",
     "pytest~=9.0.2",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

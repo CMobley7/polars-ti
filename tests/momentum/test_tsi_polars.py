@@ -3,7 +3,6 @@
 
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 
 from polars_ti.momentum.tsi import pl_tsi
@@ -115,37 +114,6 @@ class TestPlTsi:
         result = sample_data.select(pl_tsi(pl.col("close")))
         
         assert result.shape[1] == 2
-
-    def test_parity_with_pandas(self) -> None:
-        """Test numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.tsi import tsi as pandas_tsi  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 1000
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({"close": close})
-        pldf = pl.DataFrame({"close": close})
-        
-        # Run both implementations
-        pandas_result = pandas_tsi(pdf["close"], fast=13, slow=25, signal=13, scalar=100.0)
-        polars_result = pldf.select(pl_tsi("close", fast=13, slow=25, signal=13, scalar=100.0))
-        
-        # Compare TSI
-        pandas_tsi_val = pandas_result["TSI_13_25_13"].to_numpy()
-        polars_tsi_val = polars_result["TSI_13_25_13"].to_numpy()
-        
-        warmup = 25 + 13 + 13 + 5  # slow + fast + signal + margin
-        mask = ~np.isnan(pandas_tsi_val[warmup:]) & ~np.isnan(polars_tsi_val[warmup:])
-        
-        np.testing.assert_allclose(
-            pandas_tsi_val[warmup:][mask],
-            polars_tsi_val[warmup:][mask],
-            rtol=1e-10,
-            atol=1e-14
-        )
 
     def test_mamode_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that different mamode values work."""

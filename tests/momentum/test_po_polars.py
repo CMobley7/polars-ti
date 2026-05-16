@@ -3,7 +3,6 @@
 import numpy as np
 import polars as pl
 import pytest
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 from polars_ti.momentum.po import pl_po
 
 
@@ -24,34 +23,6 @@ class TestPlPo:
         """Test that output column has correct name."""
         result = sample_df.select(pl_po("close", length=10))
         assert "PO_10" in result.columns
-
-    def test_numerical_parity_pandas(self, sample_df):
-        """Numerical parity with Pandas implementation."""
-        # Create pandas data directly
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        np.random.seed(42)
-        n = 100
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        sample_pdf = pd.DataFrame({'close': close})
-        
-        # Polars result
-        polars_result = sample_df.select(pl_po("close", length=14))
-        polars_arr = polars_result.to_numpy().flatten()
-        
-        # Pandas result
-        pandas_result = po(sample_pdf['close'], length=14)
-        pandas_arr = pandas_result.to_numpy()
-        
-        # Compare valid values after warmup
-        warmup = 14
-        valid_polars = polars_arr[warmup:]
-        valid_pandas = pandas_arr[warmup:]
-        
-        mask = ~np.isnan(valid_polars) & ~np.isnan(valid_pandas)
-        max_diff = np.max(np.abs(valid_polars[mask] - valid_pandas[mask]))
-        
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance 1e-6"
-
 
     def test_offset_shifts_result(self, sample_df):
         """Test that offset parameter shifts results correctly."""

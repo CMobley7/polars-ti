@@ -2,7 +2,6 @@
 """Tests for pl_cmo - Pure Polars + TA-Lib implementation."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.cmo import pl_cmo
 
@@ -60,21 +59,3 @@ class TestPlCmo:
         assert valid.min() >= -100
         assert valid.max() <= 100
 
-    def test_numerical_parity(self, sample_df):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.cmo import cmo as pandas_cmo  # REMOVED: pandas func removed
-        
-        close = sample_df["close"].to_numpy()
-        pdf = pd.DataFrame({'close': close})
-        
-        pandas_result = pandas_cmo(pdf['close'], length=14, talib=False)
-        polars_result = sample_df.select(pl_cmo("close", length=14, talib=False))
-        
-        pandas_arr = pandas_result.to_numpy()[20:]
-        polars_arr = polars_result["CMO_14"].to_numpy()[20:]
-        
-        valid_mask = ~np.isnan(pandas_arr) & ~np.isnan(polars_arr)
-        max_diff = np.max(np.abs(pandas_arr[valid_mask] - polars_arr[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

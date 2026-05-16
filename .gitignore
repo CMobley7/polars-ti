@@ -156,3 +156,5 @@ verification_logs/*
 polars_ti/current_prompt.md
 CONVERSION_TASKS.md
 .agent/*
+.tmp/*
+tmp/*

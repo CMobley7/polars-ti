@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_ohlc4."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.ohlc4 import pl_ohlc4
@@ -27,10 +26,10 @@ class TestPlOhlc4:
         low_arr = 98 + np.random.randn(n)
         close_arr = 101 + np.random.randn(n)
         return {
-            'pd_open': pd.Series(open_arr),
-            'pd_high': pd.Series(high_arr),
-            'pd_low': pd.Series(low_arr),
-            'pd_close': pd.Series(close_arr),
+            'pd_open': open_arr,
+            'pd_high': high_arr,
+            'pd_low': low_arr,
+            'pd_close': close_arr,
             'pl_df': pl.DataFrame({
                 'open': open_arr,
                 'high': high_arr,
@@ -56,24 +55,6 @@ class TestPlOhlc4:
             pl.col("open"), pl.col("high"), pl.col("low"), pl.col("close")
         ))
         assert "OHLC4" in result.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = ohlc4(
-            sample_data['pd_open'], sample_data['pd_high'],
-            sample_data['pd_low'], sample_data['pd_close']
-        )
-        pl_result = sample_data['pl_df'].select(
-            pl_ohlc4("open", "high", "low", "close")
-        ).to_series()
-        
-        pd_vals = pd_result.values
-        pl_vals = pl_result.to_numpy()
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

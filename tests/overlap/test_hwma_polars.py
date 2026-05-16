@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hwma."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.hwma import pl_hwma
@@ -20,7 +19,7 @@ class TestPlHwma:
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': pd.Series(close),
+            'pd_close': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -46,20 +45,6 @@ class TestPlHwma:
         result = sample_df.select(pl_hwma("close"))
         arr = result.get_column("HWMA_0.2_0.1_0.1").to_numpy()
         assert not np.any(np.isnan(arr))
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = hwma(sample_data['pd_close'], na=0.2, nb=0.1, nc=0.1)
-        pl_result = sample_data['pl_df'].select(pl_hwma('close')).to_series()
-        
-        pd_vals = pd_result.values
-        pl_vals = pl_result.to_numpy()
-        
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

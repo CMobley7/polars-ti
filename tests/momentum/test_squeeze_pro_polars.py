@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_squeeze_pro (Squeeze PRO) Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -17,7 +16,7 @@ def ohlc_data():
     high = close + np.abs(np.random.randn(n) * 0.3)
     low = close - np.abs(np.random.randn(n) * 0.3)
     return {
-        "pd_df": pd.DataFrame({"high": high, "low": low, "close": close}),
+        "pd_df": pl.DataFrame({"high": high, "low": low, "close": close}),
         "pl_df": pl.DataFrame({"high": high, "low": low, "close": close}),
     }
 
@@ -59,41 +58,6 @@ class TestPlSqueezeProBasic:
 
 class TestPlSqueezeProNumericalParity:
     """Numerical parity tests comparing Polars to Pandas implementation."""
-
-    def test_numerical_parity(self, ohlc_data):
-        """Test that pl_squeeze_pro matches pandas squeeze_pro output."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_df = ohlc_data["pd_df"]
-        pl_df = ohlc_data["pl_df"]
-
-        # Pandas result
-        pd_result = squeeze_pro(
-            pd_df["high"], pd_df["low"], pd_df["close"],
-            bb_length=20, bb_std=2.0, kc_length=20,
-            kc_scalar_wide=2.0, kc_scalar_normal=1.5, kc_scalar_narrow=1.0,
-            mom_length=12, mom_smooth=6, mamode="sma", tr=True
-        )
-
-        # Polars result
-        pl_result = pl_df.select(
-            pl_squeeze_pro(
-                bb_length=20, bb_std=2.0, kc_length=20,
-                kc_scalar_wide=2.0, kc_scalar_normal=1.5, kc_scalar_narrow=1.0,
-                mom_length=12, mom_smooth=6, mamode="sma", use_tr=True
-            )
-        ).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-
-        warmup = 30
-        sqzpro_col = [c for c in pd_result.columns if c.startswith("SQZPRO_") and not c.startswith("SQZPRO_ON") and not c.startswith("SQZPRO_OFF") and not c.startswith("SQZPRO_NO")][0]
-        
-        pd_sqz = pd_result[sqzpro_col].to_numpy()[warmup:]
-        pl_sqz = pl_result["SQZPRO_20_2.0_20_2.0_1.5_1.0"].to_numpy()[warmup:]
-        
-        mask = ~(np.isnan(pd_sqz) | np.isnan(pl_sqz))
-        if mask.sum() > 0:
-            max_diff = np.max(np.abs(pd_sqz[mask] - pl_sqz[mask]))
-            assert max_diff < 1e-6, f"SQZPRO failed with max diff {max_diff}"
-
 
 class TestPlSqueezeProEdgeCases:
     """Edge case tests for pl_squeeze_pro."""

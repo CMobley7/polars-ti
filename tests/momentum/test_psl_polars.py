@@ -3,7 +3,6 @@
 import numpy as np
 import polars as pl
 import pytest
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 from polars_ti.momentum.psl import pl_psl
 
 
@@ -25,53 +24,6 @@ class TestPlPsl:
         """Test that output column has correct name."""
         result = sample_df.select(pl_psl("close", length=14))
         assert "PSL_14" in result.columns
-
-    def test_numerical_parity_close_diff(self, sample_df):
-        """Numerical parity with Pandas (close.diff mode)."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        np.random.seed(42)
-        n = 100
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        sample_pdf = pd.DataFrame({'close': close})
-        
-        # Polars result
-        polars_result = sample_df.select(pl_psl("close", length=12))
-        polars_arr = polars_result.to_numpy().flatten()
-        
-        # Pandas result
-        pandas_result = psl(sample_pdf['close'], length=12)
-        pandas_arr = pandas_result.to_numpy()
-        
-        # Compare after warmup
-        warmup = 12
-        mask = ~np.isnan(polars_arr[warmup:]) & ~np.isnan(pandas_arr[warmup:])
-        max_diff = np.max(np.abs(polars_arr[warmup:][mask] - pandas_arr[warmup:][mask]))
-        
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"
-
-    def test_numerical_parity_with_open(self, sample_df):
-        """Numerical parity with Pandas (open_ mode)."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        np.random.seed(42)
-        n = 100
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        open_ = close + np.random.randn(n) * 0.2
-        sample_pdf = pd.DataFrame({'close': close, 'open': open_})
-        
-        # Polars result
-        polars_result = sample_df.select(pl_psl("close", open_="open", length=12))
-        polars_arr = polars_result.to_numpy().flatten()
-        
-        # Pandas result
-        pandas_result = psl(sample_pdf['close'], open_=sample_pdf['open'], length=12)
-        pandas_arr = pandas_result.to_numpy()
-        
-        # Compare after warmup
-        warmup = 12
-        mask = ~np.isnan(polars_arr[warmup:]) & ~np.isnan(pandas_arr[warmup:])
-        max_diff = np.max(np.abs(polars_arr[warmup:][mask] - pandas_arr[warmup:][mask]))
-        
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"
 
     def test_offset_shifts_result(self, sample_df):
         """Test that offset parameter shifts results correctly."""

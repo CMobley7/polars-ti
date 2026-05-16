@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_jma."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.jma import pl_jma
@@ -20,7 +19,7 @@ class TestPlJma:
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': pd.Series(close),
+            'pd_close': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -42,21 +41,6 @@ class TestPlJma:
         result = sample_df.select(pl_jma("close", offset=5))
         arr = result["JMA_7_0.0"].to_numpy()
         assert np.isnan(arr[:11]).all()
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = jma(sample_data['pd_close'], length=7, phase=0.0)
-        pl_result = sample_data['pl_df'].select(pl_jma('close')).to_series()
-        
-        warmup = 15
-        pd_vals = pd_result.iloc[warmup:].values
-        pl_vals = pl_result[warmup:].to_numpy()
-        
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

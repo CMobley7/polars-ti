@@ -11,6 +11,20 @@ from polars_ti.candles import pl_cdl, pl_cdl_doji, pl_cdl_inside, pl_cdl_pattern
 # Enable "ti" DataFrame Extension
 from polars_ti.core import TechnicalIndicators
 
+# Study DataClasses — primary API for grouping and running indicator sets
+from polars_ti.utils._study import (
+    AllStudy,
+    AllStrategy,
+    CommonStudy,
+    CommonStrategy,
+    Study,
+    Strategy,
+)
+
+# Utility functions and numba kernels
+from polars_ti import utils
+from polars_ti.utils import nb_prenan, nb_prepend, nb_rolling, nb_shift
+
 # Custom External Directory Commands. See help(import_dir)
 from polars_ti.custom import create_dir, import_dir
 from polars_ti.cycles import __all__ as cycles_all
@@ -222,6 +236,19 @@ __all__ = [
     "create_dir",
     "import_dir",
     "TechnicalIndicators",
+    # Study API
+    "Study",
+    "AllStudy",
+    "CommonStudy",
+    "Strategy",
+    "AllStrategy",
+    "CommonStrategy",
+    # Utilities
+    "utils",
+    "nb_prenan",
+    "nb_prepend",
+    "nb_rolling",
+    "nb_shift",
 ]
 
 __all__ += (
@@ -236,4 +263,3 @@ __all__ += (
     + volatility_all
     + volume_all
 )
-

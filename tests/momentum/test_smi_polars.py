@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_smi (SMI Ergodic Indicator) Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -15,7 +14,7 @@ def close_data():
     n = 200
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
     return {
-        "pd_df": pd.DataFrame({"close": close}),
+        "pd_df": pl.DataFrame({"close": close}),
         "pl_df": pl.DataFrame({"close": close}),
     }
 
@@ -51,41 +50,6 @@ class TestPlSmiBasic:
 
 class TestPlSmiNumericalParity:
     """Numerical parity tests comparing Polars to Pandas implementation."""
-
-    def test_numerical_parity(self, close_data):
-        """Test that pl_smi matches pandas smi output."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_df = close_data["pd_df"]
-        pl_df = close_data["pl_df"]
-
-        # Pandas result
-        pd_result = smi(pd_df["close"], fast=5, slow=20, signal=5, scalar=1)
-
-        # Polars result
-        pl_result = pl_df.select(
-            pl_smi(fast=5, slow=20, signal=5, scalar=1)
-        ).unnest("SMI_5_20_5_1")
-
-        warmup = 40
-        
-        # Compare SMI
-        pd_smi_vals = pd_result.iloc[:, 0].to_numpy()[warmup:]
-        pl_smi_vals = pl_result["SMI_5_20_5_1"].to_numpy()[warmup:]
-        
-        mask = ~(np.isnan(pd_smi_vals) | np.isnan(pl_smi_vals))
-        if mask.sum() > 0:
-            max_diff = np.max(np.abs(pd_smi_vals[mask] - pl_smi_vals[mask]))
-            assert max_diff < 1e-6, f"SMI failed with max diff {max_diff}"
-
-        # Compare Signal
-        pd_signal_vals = pd_result.iloc[:, 1].to_numpy()[warmup:]
-        pl_signal_vals = pl_result["SMIs_5_20_5_1"].to_numpy()[warmup:]
-        
-        mask = ~(np.isnan(pd_signal_vals) | np.isnan(pl_signal_vals))
-        if mask.sum() > 0:
-            max_diff = np.max(np.abs(pd_signal_vals[mask] - pl_signal_vals[mask]))
-            assert max_diff < 1e-6, f"SMIs failed with max diff {max_diff}"
-
 
 class TestPlSmiEdgeCases:
     """Edge case tests for pl_smi."""

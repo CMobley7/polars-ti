@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_pivots."""
+import datetime
 import numpy as np
 import polars as pl
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import pytest
 from polars_ti.overlap.pivots import pl_pivots
 
@@ -12,7 +12,8 @@ class TestPlPivots:
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
         n = 100
-        dates = pd.date_range(start='2024-01-01', periods=n, freq='D')
+        start = datetime.date(2024, 1, 1)
+        dates = [start + datetime.timedelta(days=i) for i in range(n)]
         return pl.DataFrame({
             'date': dates,
             'open': 100 + np.cumsum(np.random.randn(n) * 0.35),

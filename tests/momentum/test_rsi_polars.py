@@ -4,7 +4,6 @@ import numpy as np
 import polars as pl
 import pytest
 from polars_ti.momentum.rsi import pl_rsi
-# import pandas as pd  # REMOVED: pandas dependency
 
 
 class TestPlRsi:

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_smc (Smart Money Concept) Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -20,7 +19,7 @@ def ohlcv_data():
     volume = np.random.randint(1000, 10000, n)
 
     return {
-        "pd_df": pd.DataFrame({
+        "pd_df": pl.DataFrame({
             "open": open_,
             "high": high,
             "low": low,
@@ -78,65 +77,6 @@ class TestPlSmcBasic:
 
 class TestPlSmcNumericalParity:
     """Numerical parity tests comparing Polars to Pandas implementation."""
-
-    def test_numerical_parity(self, ohlcv_data):
-        """Test that pl_smc matches pandas smc output."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_df = ohlcv_data["pd_df"]
-        pl_df = ohlcv_data["pl_df"]
-
-        # Pandas result
-        pd_result = smc(
-            pd_df["open"], pd_df["high"], pd_df["low"], pd_df["close"],
-            abr_length=14, close_length=50, vol_length=20, percent=5,
-            vol_ratio=1.5, asint=True, mamode="sma", talib=False
-        )
-
-        # Polars result
-        pl_result = pl_df.select(
-            pl_smc(
-                abr_length=14, close_length=50, vol_length=20, percent=5,
-                vol_ratio=1.5, asint=True, mamode="sma", talib=False
-            )
-        ).unnest("SMC_14_50_20_5")
-
-        # Compare each column
-        warmup = 51
-        for col in pd_result.columns:
-            pd_vals = pd_result[col].to_numpy()[warmup:]
-            pl_vals = pl_result[col].to_numpy()[warmup:]
-            
-            # Find valid values (non-NaN)
-            mask = ~(np.isnan(pd_vals) | np.isnan(pl_vals))
-            if mask.sum() > 0:
-                max_diff = np.max(np.abs(pd_vals[mask] - pl_vals[mask]))
-                assert max_diff < 1e-6, f"Column {col} failed with max diff {max_diff}"
-
-    def test_parity_with_ema_mamode(self, ohlcv_data):
-        """Test parity with EMA as the moving average mode."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_df = ohlcv_data["pd_df"]
-        pl_df = ohlcv_data["pl_df"]
-
-        pd_result = smc(
-            pd_df["open"], pd_df["high"], pd_df["low"], pd_df["close"],
-            mamode="ema", talib=False
-        )
-
-        pl_result = pl_df.select(
-            pl_smc(mamode="ema", talib=False)
-        ).unnest("SMC_14_50_20_5")
-
-        warmup = 51
-        for col in pd_result.columns:
-            pd_vals = pd_result[col].to_numpy()[warmup:]
-            pl_vals = pl_result[col].to_numpy()[warmup:]
-            
-            mask = ~(np.isnan(pd_vals) | np.isnan(pl_vals))
-            if mask.sum() > 0:
-                max_diff = np.max(np.abs(pd_vals[mask] - pl_vals[mask]))
-                assert max_diff < 1e-6, f"Column {col} with EMA failed: {max_diff}"
-
 
 class TestPlSmcEdgeCases:
     """Edge case tests for pl_smc."""

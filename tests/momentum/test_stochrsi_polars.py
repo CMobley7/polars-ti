@@ -2,7 +2,6 @@
 """Tests for pl_stochrsi - Polars + Numba Stochastic RSI with TA-Lib support."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.stochrsi import pl_stochrsi
 
@@ -81,28 +80,3 @@ class TestPlStochrsi:
         result = df.select(pl_stochrsi("close", talib=False))
         assert result.height == 63
 
-    def test_numerical_parity(self):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.stochrsi import stochrsi as pandas_stochrsi  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 500
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({'close': close})
-        pldf = pl.DataFrame({'close': close})
-        
-        pandas_result = pandas_stochrsi(pdf['close'], length=14, rsi_length=14, 
-                                        k=3, d=3, talib=False)
-        polars_result = pldf.select(pl_stochrsi("close", length=14, rsi_length=14, 
-                                                 k=3, d=3, talib=False))
-        
-        stochrsi = polars_result["STOCHRSI"]
-        pandas_k = pandas_result["STOCHRSIk_14_14_3_3"].to_numpy()[40:]
-        polars_k = stochrsi.struct.field("STOCHRSIk_14_14_3_3").to_numpy()[40:]
-        
-        valid_mask = ~np.isnan(pandas_k) & ~np.isnan(polars_k)
-        max_diff = np.max(np.abs(pandas_k[valid_mask] - polars_k[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

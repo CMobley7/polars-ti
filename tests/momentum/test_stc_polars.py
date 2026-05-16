@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_stc (Schaff Trend Cycle) Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -15,7 +14,7 @@ def close_data():
     n = 200
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
     return {
-        "pd_df": pd.DataFrame({"close": close}),
+        "pd_df": pl.DataFrame({"close": close}),
         "pl_df": pl.DataFrame({"close": close}),
     }
 
@@ -51,33 +50,6 @@ class TestPlStcBasic:
 
 class TestPlStcNumericalParity:
     """Numerical parity tests comparing Polars to Pandas implementation."""
-
-    def test_numerical_parity(self, close_data):
-        """Test that pl_stc matches pandas stc output."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_df = close_data["pd_df"]
-        pl_df = close_data["pl_df"]
-
-        # Pandas result
-        pd_result = stc(pd_df["close"], tclength=10, fast=12, slow=26, factor=0.5)
-
-        # Polars result
-        pl_result = pl_df.select(
-            pl_stc(tclength=10, fast=12, slow=26, factor=0.5)
-        ).unnest("STC_10_12_26_0.5")
-
-        warmup = 36
-        
-        # Compare STC
-        stc_col = [c for c in pd_result.columns if c.startswith("STC_")][0]
-        pd_stc_vals = pd_result[stc_col].to_numpy()[warmup:]
-        pl_stc_vals = pl_result["STC_10_12_26_0.5"].to_numpy()[warmup:]
-        
-        mask = ~(np.isnan(pd_stc_vals) | np.isnan(pl_stc_vals))
-        if mask.sum() > 0:
-            max_diff = np.max(np.abs(pd_stc_vals[mask] - pl_stc_vals[mask]))
-            assert max_diff < 1e-6, f"STC failed with max diff {max_diff}"
-
 
 class TestPlStcEdgeCases:
     """Edge case tests for pl_stc."""

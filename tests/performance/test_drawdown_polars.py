@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_drawdown."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.performance.drawdown import pl_drawdown
@@ -18,7 +17,7 @@ class TestPlDrawdown:
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': pd.Series(close),
+            'pd_close': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -31,21 +30,6 @@ class TestPlDrawdown:
         assert "DD" in result.columns
         assert "DD_PCT" in result.columns
         assert "DD_LOG" in result.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = drawdown(sample_data['pd_close'])
-        pl_result = sample_data['pl_df'].select(pl_drawdown('close')).unnest("DRAWDOWN")
-        
-        warmup = 5
-        for col in ["DD", "DD_PCT", "DD_LOG"]:
-            pd_vals = pd_result[col].iloc[warmup:].values
-            pl_vals = pl_result[col][warmup:].to_numpy()
-            valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-            if valid.sum() > 0:
-                diff = np.abs(pd_vals[valid] - pl_vals[valid])
-                assert np.max(diff) < 1e-10, f"{col} max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

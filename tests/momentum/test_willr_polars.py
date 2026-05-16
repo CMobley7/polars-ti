@@ -3,7 +3,6 @@
 
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 
 from polars_ti.momentum.willr import pl_willr
@@ -92,39 +91,6 @@ class TestPlWillr:
         result = sample_data.select(pl_willr(pl.col("high"), pl.col("low"), pl.col("close"), talib=False))
         
         assert result.shape[1] == 1
-
-    def test_parity_with_pandas(self) -> None:
-        """Test numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.willr import willr as pandas_willr  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 1000
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        high = close + np.abs(np.random.randn(n) * 0.5)
-        low = close - np.abs(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({"high": high, "low": low, "close": close})
-        pldf = pl.DataFrame({"high": high, "low": low, "close": close})
-        
-        # Run both implementations
-        pandas_result = pandas_willr(pdf["high"], pdf["low"], pdf["close"], length=14, talib=False)
-        polars_result = pldf.select(pl_willr("high", "low", "close", length=14, talib=False))
-        
-        # Compare
-        pandas_val = pandas_result.to_numpy()
-        polars_val = polars_result["WILLR_14"].to_numpy()
-        
-        warmup = 20
-        mask = ~np.isnan(pandas_val[warmup:]) & ~np.isnan(polars_val[warmup:])
-        
-        np.testing.assert_allclose(
-            pandas_val[warmup:][mask],
-            polars_val[warmup:][mask],
-            rtol=1e-10,
-            atol=1e-14
-        )
 
     def test_talib_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that talib parameter controls TA-Lib usage."""

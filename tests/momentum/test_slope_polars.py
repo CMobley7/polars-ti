@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for Polars SLOPE implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -17,7 +16,7 @@ class TestPlSlope:
         np.random.seed(42)
         n = 200
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({"close": close}), pd.Series(close)
+        return pl.DataFrame({"close": close}), close
 
     def test_returns_expression(self, sample_data):
         """pl_slope should return a Polars expression."""
@@ -41,40 +40,6 @@ class TestPlSlope:
         pl_df, _ = sample_data
         result = pl_df.select(pl_slope("close", length=10, as_angle=True, to_degrees=True))
         assert "ANGLEd_10" in result.columns
-
-    def test_numerical_parity_slope_mode(self, sample_data):
-        """Polars SLOPE should match Pandas within 1e-6 tolerance in slope mode."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pl_df, pd_close = sample_data
-        length = 10
-
-        pd_result = slope(pd_close, length=length)
-        pd_arr = pd_result.to_numpy()
-
-        pl_result = pl_df.select(pl_slope("close", length=length))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-
-        warmup = length + 5
-        mask = ~np.isnan(pd_arr[warmup:]) & ~np.isnan(pl_arr[warmup:])
-        max_diff = np.max(np.abs(pl_arr[warmup:][mask] - pd_arr[warmup:][mask]))
-        assert max_diff < 1e-6
-
-    def test_numerical_parity_angle_mode(self, sample_data):
-        """Polars SLOPE should match Pandas in angle mode."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pl_df, pd_close = sample_data
-        length = 10
-
-        pd_result = slope(pd_close, length=length, as_angle=True, to_degrees=True)
-        pd_arr = pd_result.to_numpy()
-
-        pl_result = pl_df.select(pl_slope("close", length=length, as_angle=True, to_degrees=True))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-
-        warmup = length + 5
-        mask = ~np.isnan(pd_arr[warmup:]) & ~np.isnan(pl_arr[warmup:])
-        max_diff = np.max(np.abs(pl_arr[warmup:][mask] - pd_arr[warmup:][mask]))
-        assert max_diff < 1e-6
 
     def test_offset_shifts_result(self, sample_data):
         """Offset parameter should shift results."""

@@ -3,7 +3,6 @@
 
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 
 from polars_ti.momentum.vwmacd import pl_vwmacd
@@ -104,38 +103,6 @@ class TestPlVwmacd:
         result = sample_data.select(pl_vwmacd(pl.col("close"), pl.col("volume")))
         
         assert result.shape[1] == 3
-
-    def test_parity_with_pandas(self) -> None:
-        """Test numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.vwmacd import vwmacd as pandas_vwmacd  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 1000
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        volume = np.random.randint(1000, 10000, n).astype(float)
-        
-        pdf = pd.DataFrame({"close": close, "volume": volume})
-        pldf = pl.DataFrame({"close": close, "volume": volume})
-        
-        # Run both implementations
-        pandas_result = pandas_vwmacd(pdf["close"], pdf["volume"], fast=12, slow=26, signal=9)
-        polars_result = pldf.select(pl_vwmacd("close", "volume", fast=12, slow=26, signal=9))
-        
-        # Compare VWMACD
-        pandas_vwmacd_val = pandas_result["VWMACD_12_26_9"].to_numpy()
-        polars_vwmacd_val = polars_result["VWMACD_12_26_9"].to_numpy()
-        
-        warmup = 40
-        mask = ~np.isnan(pandas_vwmacd_val[warmup:]) & ~np.isnan(polars_vwmacd_val[warmup:])
-        
-        np.testing.assert_allclose(
-            pandas_vwmacd_val[warmup:][mask],
-            polars_vwmacd_val[warmup:][mask],
-            rtol=1e-10,
-            atol=1e-14
-        )
 
     def test_column_order(self, sample_data: pl.DataFrame) -> None:
         """Test that column order matches Pandas (VWMACD, Histogram, Signal)."""

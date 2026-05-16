@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_squeeze (TTM Squeeze) Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -17,7 +16,7 @@ def ohlc_data():
     high = close + np.abs(np.random.randn(n) * 0.3)
     low = close - np.abs(np.random.randn(n) * 0.3)
     return {
-        "pd_df": pd.DataFrame({"high": high, "low": low, "close": close}),
+        "pd_df": pl.DataFrame({"high": high, "low": low, "close": close}),
         "pl_df": pl.DataFrame({"high": high, "low": low, "close": close}),
     }
 
@@ -54,46 +53,6 @@ class TestPlSqueezeBasic:
 
 class TestPlSqueezeNumericalParity:
     """Numerical parity tests comparing Polars to Pandas implementation."""
-
-    def test_numerical_parity(self, ohlc_data):
-        """Test that pl_squeeze matches pandas squeeze output."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_df = ohlc_data["pd_df"]
-        pl_df = ohlc_data["pl_df"]
-
-        # Pandas result
-        pd_result = squeeze(
-            pd_df["high"], pd_df["low"], pd_df["close"],
-            bb_length=20, bb_std=2.0, kc_length=20, kc_scalar=1.5,
-            mom_length=12, mom_smooth=6, mamode="sma", tr=True
-        )
-
-        # Polars result
-        pl_result = pl_df.select(
-            pl_squeeze(
-                bb_length=20, bb_std=2.0, kc_length=20, kc_scalar=1.5,
-                mom_length=12, mom_smooth=6, mamode="sma", use_tr=True
-            )
-        ).unnest("SQZ_20_2.0_20_1.5")
-
-        warmup = 30
-        sqz_col = [c for c in pd_result.columns if c.startswith("SQZ_")][0]
-        
-        pd_sqz = pd_result[sqz_col].to_numpy()[warmup:]
-        pl_sqz = pl_result["SQZ_20_2.0_20_1.5"].to_numpy()[warmup:]
-        
-        mask = ~(np.isnan(pd_sqz) | np.isnan(pl_sqz))
-        if mask.sum() > 0:
-            max_diff = np.max(np.abs(pd_sqz[mask] - pl_sqz[mask]))
-            assert max_diff < 1e-6, f"SQZ failed with max diff {max_diff}"
-
-        # Compare flags
-        for col in ["SQZ_ON", "SQZ_OFF", "SQZ_NO"]:
-            pd_vals = pd_result[col].to_numpy()[warmup:].astype(float)
-            pl_vals = pl_result[col].to_numpy()[warmup:].astype(float)
-            max_diff = np.max(np.abs(pd_vals - pl_vals))
-            assert max_diff < 1e-6, f"{col} failed with max diff {max_diff}"
-
 
 class TestPlSqueezeEdgeCases:
     """Edge case tests for pl_squeeze."""

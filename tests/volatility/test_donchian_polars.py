@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_donchian."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.volatility.donchian import pl_donchian
@@ -24,20 +23,6 @@ class TestPlDonchian:
         df = pl.DataFrame(sample_data)
         result = df.select(pl_donchian("high", "low"))
         assert "DC" in result.columns[0]
-
-    def test_numerical_parity(self, sample_data):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_data["high"])
-        pd_low = pd.Series(sample_data["low"])
-        pl_df = pl.DataFrame(sample_data)
-        pd_result = donchian(pd_high, pd_low, lower_length=20, upper_length=20)
-        pl_result = pl_df.select(pl_donchian("high", "low", lower_length=20, upper_length=20)).unnest("DC_20_20")
-        warmup = 25
-        pd_mid = pd_result["DCM_20_20"].to_numpy()[warmup:]
-        pl_mid = pl_result["DCM_20_20"].to_numpy()[warmup:]
-        mask = np.isfinite(pd_mid) & np.isfinite(pl_mid)
-        max_diff = np.abs(pd_mid[mask] - pl_mid[mask]).max()
-        assert max_diff < 1e-6
 
     def test_with_null_values(self, sample_data):
         data = sample_data.copy()

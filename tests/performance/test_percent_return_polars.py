@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_percent_return."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.performance.percent_return import pl_percent_return
@@ -18,7 +17,7 @@ class TestPlPercentReturn:
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': pd.Series(close),
+            'pd_close': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -29,20 +28,6 @@ class TestPlPercentReturn:
     def test_output_has_correct_alias(self, sample_df):
         result = sample_df.select(pl_percent_return("close", length=1))
         assert "PCTRET_1" in result.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = percent_return(sample_data['pd_close'], length=1)
-        pl_result = sample_data['pl_df'].select(pl_percent_return('close', length=1)).to_series()
-        
-        warmup = 5
-        pd_vals = pd_result.iloc[warmup:].values
-        pl_vals = pl_result[warmup:].to_numpy()
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_cumulative_mode(self, sample_data):
         """Cumulative percent return works."""

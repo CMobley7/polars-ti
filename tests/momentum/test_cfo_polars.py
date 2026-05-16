@@ -2,7 +2,6 @@
 """Tests for pl_cfo - Polars Chande Forecast Oscillator."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.cfo import pl_cfo
 
@@ -80,21 +79,3 @@ class TestPlCfo:
         val_1 = result_1["CFO_9"].to_numpy()[15]
         assert abs(val_100 / val_1 - 100) < 1e-10
 
-    def test_numerical_parity(self, sample_df):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.cfo import cfo as pandas_cfo  # REMOVED: pandas func removed
-        
-        close = sample_df["close"].to_numpy()
-        pdf = pd.DataFrame({'close': close})
-        
-        pandas_result = pandas_cfo(pdf['close'], length=9, scalar=100.0)
-        polars_result = sample_df.select(pl_cfo("close", length=9, scalar=100.0))
-        
-        pandas_arr = pandas_result.to_numpy()[15:]
-        polars_arr = polars_result["CFO_9"].to_numpy()[15:]
-        
-        valid_mask = ~np.isnan(pandas_arr) & ~np.isnan(polars_arr)
-        max_diff = np.max(np.abs(pandas_arr[valid_mask] - polars_arr[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

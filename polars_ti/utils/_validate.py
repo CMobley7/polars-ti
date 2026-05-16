@@ -1,17 +1,12 @@
 # -*- coding: utf-8 -*-
 from functools import partial
 
-from pandas import DataFrame, Series
-from pandas.api.types import is_datetime64_any_dtype
-
 from polars_ti._typing import (
     Float,
     Int,
     IntFloat,
     List,
-    MaybeSeriesFrame,
     Optional,
-    SeriesFrame,
     np_floating,
     np_integer,
 )
@@ -30,9 +25,9 @@ def v_bool(var: bool, default: bool = True) -> bool:
     return default
 
 
-def v_dataframe(obj: MaybeSeriesFrame) -> None:
-    if not isinstance(obj, (DataFrame, Series)):
-        print("[X] Requires a Pandas Series or DataFrame.")
+def v_dataframe(obj) -> None:
+    """Legacy validator — no-op retained for API compatibility."""
+    pass
 
 
 def v_float(var: IntFloat, default: IntFloat, ne: Optional[IntFloat] = 0.0) -> Float:
@@ -65,13 +60,8 @@ def v_ascending(var: bool) -> bool:
     return partial(v_bool, default=True)(var=var)
 
 
-def v_datetime_ordered(df: SeriesFrame) -> bool:
-    if df.shape[0] < 2:
-        return False
-    if is_datetime64_any_dtype(df.index):
-        np_dt_index = df.index.to_numpy()
-        if np_dt_index[0] < np_dt_index[-1]:
-            return True
+def v_datetime_ordered(df) -> bool:
+    """Legacy validator — always returns False (pandas index ordering not applicable)."""
     return False
 
 
@@ -142,12 +132,19 @@ def v_scalar(var: IntFloat, default: Optional[IntFloat] = 1) -> Float:
     return float(default)
 
 
-def v_series(series: Series, length: Optional[IntFloat] = 0) -> Optional[Series]:
-    """Returns None if the Pandas Series does not meet the minimum length
-    required for the indicator."""
-    if series is not None and isinstance(series, Series):
-        if series.size >= v_pos_default(length, 0):
-            return series
+def v_series(series, length: Optional[IntFloat] = 0):
+    """Legacy validator — returns the series unchanged if it has sufficient length.
+
+    Accepts any sequence-like object; size checked via len() for duck-typed compat.
+    """
+    if series is None:
+        return None
+    try:
+        size = len(series)
+    except TypeError:
+        return None
+    if size >= v_pos_default(length, 0):
+        return series
     return None
 
 

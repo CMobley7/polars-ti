@@ -2,7 +2,6 @@
 """Tests for pl_tmo - Polars + Numba True Momentum Oscillator."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.tmo import pl_tmo
 
@@ -94,29 +93,3 @@ class TestPlTmo:
         result = df.select(pl_tmo("open", "close"))
         assert result.height == 63
 
-    def test_numerical_parity(self):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.tmo import tmo as pandas_tmo  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 500
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        open_ = close - np.random.randn(n) * 0.3
-        
-        pdf = pd.DataFrame({'open': open_, 'close': close})
-        pldf = pl.DataFrame({'open': open_, 'close': close})
-        
-        pandas_result = pandas_tmo(pdf['open'], pdf['close'],
-                                   tmo_length=14, calc_length=5, smooth_length=3)
-        polars_result = pldf.select(pl_tmo("open", "close",
-                                           tmo_length=14, calc_length=5, smooth_length=3))
-        
-        tmo = polars_result["TMO"]
-        pandas_main = pandas_result["TMO_14_5_3"].to_numpy()[30:]
-        polars_main = tmo.struct.field("TMO_14_5_3").to_numpy()[30:]
-        
-        valid_mask = ~np.isnan(pandas_main) & ~np.isnan(polars_main)
-        max_diff = np.max(np.abs(pandas_main[valid_mask] - polars_main[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

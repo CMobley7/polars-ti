@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_halftrend."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.volatility.halftrend import pl_halftrend
@@ -25,22 +24,6 @@ class TestPlHalftrend:
         df = pl.DataFrame(sample_data)
         result = df.select(pl_halftrend("high", "low", "close"))
         assert "HT" in result.columns[0]
-
-    def test_numerical_parity(self, sample_data):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_data["high"])
-        pd_low = pd.Series(sample_data["low"])
-        pd_close = pd.Series(sample_data["close"])
-        pl_df = pl.DataFrame(sample_data)
-        pd_result = halftrend(pd_high, pd_low, pd_close)
-        pl_result = pl_df.select(pl_halftrend("high", "low", "close")).unnest("HT_14_2_2")
-        warmup = 20
-        pd_vals = pd_result["HT_close_14_2_2"].to_numpy()[warmup:]
-        pl_vals = pl_result["ht_close"].to_numpy()[warmup:]
-        mask = np.isfinite(pd_vals) & np.isfinite(pl_vals)
-        if mask.sum() > 0:
-            max_diff = np.abs(pd_vals[mask] - pl_vals[mask]).max()
-            assert max_diff < 1e-6
 
     def test_with_null_values(self, sample_data):
         data = sample_data.copy()

@@ -100,7 +100,7 @@ def import_dir(path: str, verbose: bool = True):
     A brief example of usage:
 
     1. Loading the 'ti' module:
-    >>> import pandas as pd
+    >>> import polars as pl
     >>> import polars_ti as ti
 
     2. Create an empty directory on your machine where you want to work with

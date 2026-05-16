@@ -25,7 +25,7 @@ from numpy import (
     triu,
     zeros,
 )
-from pandas import DataFrame, Series
+
 
 from polars_ti._typing import Array, DictLike, Float, Int, IntFloat, List, Optional
 from polars_ti.maps import Imports
@@ -88,7 +88,7 @@ def fibonacci(n, weighted):
     return result
 
 
-def geometric_mean(series: Series) -> Float:
+def geometric_mean(series) -> Float:
     """Returns the Geometric Mean for a Series of positive values."""
     n = series.size
     if n < 1:
@@ -114,7 +114,7 @@ def hpoly(x: Array, v: IntFloat) -> Float:
     Example:
     coeffs_0 = [4, -3, 0, 1] # 4x^3 - 3x^2 + 0x + 1
     coeffs_1 = np.array(coeffs_0) # Faster
-    coeffs_2 = pd.Series(coeffs_0).values
+    coeffs_2 = np.array(coeffs_0)  # equivalent to np.array(coeffs_0)
     x = -6.5
 
     hpoly(coeffs_0, x) => -1224.25
@@ -130,7 +130,7 @@ def hpoly(x: Array, v: IntFloat) -> Float:
     return y
 
 
-def linear_regression(x: Series, y: Series) -> DictLike:
+def linear_regression(x, y) -> DictLike:
     """Classic Linear Regression in Numpy or Scikit-Learn"""
     x, y = v_series(x), v_series(y)
     m, n = x.size, y.size
@@ -145,7 +145,7 @@ def linear_regression(x: Series, y: Series) -> DictLike:
         return _linear_regression_np(x, y)
 
 
-def log_geometric_mean(series: Series) -> Float:
+def log_geometric_mean(series) -> Float:
     """Returns the Logarithmic Geometric Mean"""
     n = series.size
     if n > 1:
@@ -246,12 +246,12 @@ def zero(x: IntFloat) -> IntFloat:
 
 
 def df_error_analysis(
-    A: DataFrame,
-    B: DataFrame,
+    A,
+    B,
     plot: bool = False,
     triangular: bool = False,
     method: str = "pearson",
-) -> DataFrame:
+):
     """DataFrame Correlation Analysis helper"""
     _r_method = ["pearson", "kendall", "spearman"]
     corr_method = method if method in _r_method else _r_method[0]
@@ -273,7 +273,7 @@ def df_error_analysis(
 
 
 # PRIVATE
-def _linear_regression_np(x: Series, y: Series) -> DictLike:
+def _linear_regression_np(x, y) -> DictLike:
     """Simple Linear Regression in Numpy
     for two 1d arrays for environments without the sklearn package."""
     result = {"a": nan, "b": nan, "r": nan, "t": nan, "line": nan}
@@ -304,12 +304,14 @@ def _linear_regression_np(x: Series, y: Series) -> DictLike:
     return result
 
 
-def _linear_regression_sklearn(x: Series, y: Series) -> DictLike:
+def _linear_regression_sklearn(x, y) -> DictLike:
     """Simple Linear Regression in Scikit Learn for two 1d arrays for
     environments with the sklearn package."""
     from sklearn.linear_model import LinearRegression
+    import numpy as _np
 
-    X = DataFrame(x)
+    X = _np.asarray(x).reshape(-1, 1)
+    y = _np.asarray(y)
     lr = LinearRegression().fit(X, y=y)
     r = lr.score(X, y=y)
     a, b = lr.intercept_, lr.coef_[0]
@@ -319,7 +321,7 @@ def _linear_regression_sklearn(x: Series, y: Series) -> DictLike:
         "b": b,
         "r": r,
         "t": r / sqrt((1 - r * r) / (x.size - 2)),
-        "line": a + b * x,
+        "line": a + b * _np.asarray(x),
     }
     return result
 

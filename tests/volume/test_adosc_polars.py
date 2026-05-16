@@ -4,7 +4,6 @@ import numpy as np
 import polars as pl
 import pytest
 from polars_ti.volume.adosc import pl_adosc
-# import pandas as pd  # REMOVED: pandas dependency
 
 
 class TestPlAdosc:

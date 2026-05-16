@@ -2,7 +2,6 @@
 """Tests for pl_kdj - Polars implementation."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.kdj import pl_kdj
 
@@ -48,23 +47,3 @@ class TestPlKdj:
         assert "D_14_5" in result.columns
         assert "J_14_5" in result.columns
 
-    def test_numerical_parity(self, sample_df):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.kdj import kdj as pandas_kdj  # REMOVED: pandas func removed
-        
-        h = sample_df["high"].to_numpy()
-        l = sample_df["low"].to_numpy()
-        c = sample_df["close"].to_numpy()
-        
-        pandas_result = pandas_kdj(pd.Series(h), pd.Series(l), pd.Series(c), length=9, signal=3)
-        polars_result = sample_df.select(pl_kdj("high", "low", "close", length=9, signal=3))
-        
-        for col in ['K_9_3', 'D_9_3', 'J_9_3']:
-            pandas_arr = pandas_result[col].to_numpy()[20:]
-            polars_arr = polars_result[col].to_numpy()[20:]
-            
-            valid_mask = ~np.isnan(pandas_arr) & ~np.isnan(polars_arr)
-            max_diff = np.max(np.abs(pandas_arr[valid_mask] - polars_arr[valid_mask]))
-            assert max_diff < 1e-6, f"{col} max diff {max_diff} exceeds tolerance"

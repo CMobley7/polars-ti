@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hlc3."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.hlc3 import pl_hlc3
@@ -24,9 +23,9 @@ class TestPlHlc3:
         low = 98 + np.random.randn(100)
         close = 100 + np.random.randn(100)
         return {
-            'pd_high': pd.Series(high),
-            'pd_low': pd.Series(low),
-            'pd_close': pd.Series(close),
+            'pd_high': high,
+            'pd_low': low,
+            'pd_close': close,
             'pl_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
         }
 
@@ -44,20 +43,6 @@ class TestPlHlc3:
     def test_with_expressions(self, sample_df):
         result = sample_df.select(pl_hlc3(pl.col("high"), pl.col("low"), pl.col("close")))
         assert "HLC3" in result.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = hlc3(sample_data['pd_high'], sample_data['pd_low'], sample_data['pd_close'], talib=False)
-        pl_result = sample_data['pl_df'].select(pl_hlc3('high', 'low', 'close')).to_series()
-        
-        pd_vals = pd_result.values
-        pl_vals = pl_result.to_numpy()
-        
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

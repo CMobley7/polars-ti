@@ -4,7 +4,6 @@ import numpy as np
 import polars as pl
 import pytest
 from polars_ti.volume.mfi import pl_mfi
-# import pandas as pd  # REMOVED: pandas dependency
 
 
 class TestPlMfi:

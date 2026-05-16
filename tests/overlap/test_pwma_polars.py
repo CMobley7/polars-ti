@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/overlap/pwma.py Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -17,7 +16,7 @@ class TestPlPwma:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': pd.Series(close, name='close'),
+            'pd_series': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -30,21 +29,6 @@ class TestPlPwma:
         """Output column has correct alias."""
         result = sample_data['pl_df'].select(pl_pwma('close', length=10))
         assert result.columns[0] == 'PWMA_10'
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = pwma(sample_data['pd_series'], length=10)
-        pl_result = sample_data['pl_df'].select(pl_pwma('close', length=10)).to_series()
-        
-        warmup = 15
-        pd_vals = pd_result.iloc[warmup:].values
-        pl_vals = pl_result[warmup:].to_numpy()
-        
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

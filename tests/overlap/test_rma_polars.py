@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_rma."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.rma import pl_rma
@@ -23,20 +22,6 @@ class TestPlRma:
         df = pl.DataFrame(sample_data)
         result = df.select(pl_rma("close", length=14))
         assert result.columns[0] == "RMA_14"
-
-    def test_numerical_parity(self, sample_data):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_close = pd.Series(sample_data["close"])
-        pl_df = pl.DataFrame(sample_data)
-        pd_result = rma(pd_close, length=14)
-        pl_result = pl_df.select(pl_rma("close", length=14))
-        warmup = 20
-        pd_vals = pd_result.to_numpy()[warmup:]
-        pl_vals = pl_result[pl_result.columns[0]].to_numpy()[warmup:]
-        mask = np.isfinite(pd_vals) & np.isfinite(pl_vals)
-        if mask.sum() > 0:
-            max_diff = np.abs(pd_vals[mask] - pl_vals[mask]).max()
-            assert max_diff < 1e-6
 
     def test_presma_true_mode(self, sample_data):
         """Test that presma=True mode starts at index length-1."""

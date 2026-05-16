@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
-
 from polars_ti.utils._core import non_zero_range
 
 
-def candle_color(open_: Series, close: Series) -> Series:
+def candle_color(open_, close):
     """Candle Change
 
     Returns 1 or -1 if close >= open_ respectively.
@@ -15,7 +13,7 @@ def candle_color(open_: Series, close: Series) -> Series:
     return color
 
 
-def high_low_range(high: Series, low: Series) -> Series:
+def high_low_range(high, low):
     """High Low Range
 
     Returns high - low = epsilon > 0
@@ -23,7 +21,7 @@ def high_low_range(high: Series, low: Series) -> Series:
     return non_zero_range(high, low)
 
 
-def real_body(open_: Series, close: Series) -> Series:
+def real_body(open_, close):
     """Body Low Range
 
     Returns close - open_ = epsilon > 0

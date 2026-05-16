@@ -2,7 +2,6 @@
 """Tests for pl_cg - Polars + Numba implementation."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.cg import pl_cg
 
@@ -53,21 +52,3 @@ class TestPlCg:
         valid_values = result["CG_10"].filter(~result["CG_10"].is_nan())
         assert valid_values.mean() < 0
 
-    def test_numerical_parity(self, sample_df):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.cg import cg as pandas_cg  # REMOVED: pandas func removed
-        
-        close = sample_df["close"].to_numpy()
-        pdf = pd.DataFrame({'close': close})
-        
-        pandas_result = pandas_cg(pdf['close'], length=10)
-        polars_result = sample_df.select(pl_cg("close", length=10))
-        
-        pandas_arr = pandas_result.to_numpy()[15:]
-        polars_arr = polars_result["CG_10"].to_numpy()[15:]
-        
-        valid_mask = ~np.isnan(pandas_arr) & ~np.isnan(polars_arr)
-        max_diff = np.max(np.abs(pandas_arr[valid_mask] - polars_arr[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

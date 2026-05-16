@@ -2,7 +2,6 @@
 """Tests for pl_trix - Polars + Numba TRIX with TA-Lib support."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.trix import pl_trix
 
@@ -71,30 +70,6 @@ class TestPlTrix:
         })
         result = df.select(pl_trix("close"))
         assert result.height == 150
-
-    def test_numerical_parity(self):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.trix import trix as pandas_trix  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 500
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({'close': close})
-        pldf = pl.DataFrame({'close': close})
-        
-        pandas_result = pandas_trix(pdf['close'], length=30, signal=9)
-        polars_result = pldf.select(pl_trix("close", length=30, signal=9, talib=False))
-        
-        trix = polars_result["TRIX"]
-        pandas_main = pandas_result["TRIX_30_9"].to_numpy()[100:]
-        polars_main = trix.struct.field("TRIX_30_9").to_numpy()[100:]
-        
-        valid_mask = ~np.isnan(pandas_main) & ~np.isnan(polars_main)
-        max_diff = np.max(np.abs(pandas_main[valid_mask] - polars_main[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"
 
     def test_talib_parity(self):
         """Verify TA-Lib path produces same results as direct TA-Lib call."""

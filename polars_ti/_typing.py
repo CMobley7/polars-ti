@@ -11,7 +11,6 @@ from numpy import floating as np_floating
 from numpy import generic as np_generic
 from numpy import integer as np_integer
 from numpy import ndarray, recarray, void
-from pandas import DataFrame, Series
 
 nan = np.nan  # NumPy 2.0+ compatible
 
@@ -55,12 +54,14 @@ Record = void
 RecordArray = ndarray
 RecArray = recarray
 MaybeArray = T | Array
-SeriesFrame = Series | DataFrame
-MaybeSeries = T | Series
-MaybeSeriesFrame = T | Series | DataFrame
-AnyArray = Array | Series | DataFrame
-AnyArray1d = Array1d | Series
-AnyArray2d = Array2d | DataFrame
+
+# Legacy pandas-era aliases retained for API compatibility but now simplified.
+# The union members that referenced pandas Series/DataFrame are removed; callers
+# in polars_ti/utils/ that relied on these for pure-Polars code should use the
+# pl.* types directly.
+AnyArray = Array
+AnyArray1d = Array1d
+AnyArray2d = Array2d
 
 # =============================================================================
 # Polars Type Aliases (for Polars-TI conversion)
@@ -78,10 +79,9 @@ PolarsFrame = pl.DataFrame | pl.LazyFrame
 PlDataFrame = pl.DataFrame
 PlLazyFrame = pl.LazyFrame
 
-# Dual-mode support for migration period
-DualFrame = DataFrame | pl.DataFrame | pl.LazyFrame
-DualSeries = Series | pl.Series
+# Dual-mode support (migration complete — pure Polars only)
+DualFrame = pl.DataFrame | pl.LazyFrame
+DualSeries = pl.Series
 
 # Polars-specific optional types
 PlExprOpt = pl.Expr | None
-

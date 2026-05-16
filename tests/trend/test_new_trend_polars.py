@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for all newly implemented trend Polars indicators."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -25,7 +24,7 @@ def ohlcv_df() -> pl.DataFrame:
 @pytest.fixture
 def pd_ohlcv(ohlcv_df):
     """Pandas DataFrameversion of OHLCV data (no pyarrow needed)."""
-    return pd.DataFrame({
+    return pl.DataFrame({
         col: ohlcv_df[col].to_numpy() for col in ohlcv_df.columns
     })
 
@@ -36,35 +35,11 @@ class TestPlDpo:
         result = ohlcv_df.select(pl_dpo("close"))
         assert result.height == 200
 
-    def test_parity_non_centered(self, ohlcv_df, pd_ohlcv):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        from polars_ti.trend.dpo import pl_dpo
-        pd_result = dpo(pd_ohlcv["close"], length=20, centered=False)
-        pl_result = ohlcv_df.select(pl_dpo("close", length=20, centered=False, lookahead=False))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr)
-        if mask.sum() > 0:
-            assert np.allclose(pl_arr[mask], pd_arr[mask], atol=1e-6)
-
-
 class TestPlQstick:
     def test_returns_expression(self, ohlcv_df):
         from polars_ti.trend.qstick import pl_qstick
         result = ohlcv_df.select(pl_qstick("open", "close"))
         assert result.height == 200
-
-    def test_parity(self, ohlcv_df, pd_ohlcv):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        from polars_ti.trend.qstick import pl_qstick
-        pd_result = qstick(pd_ohlcv["open"], pd_ohlcv["close"], length=10)
-        pl_result = ohlcv_df.select(pl_qstick("open", "close", length=10))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr)
-        if mask.sum() > 0:
-            assert np.allclose(pl_arr[mask], pd_arr[mask], atol=1e-6)
-
 
 class TestPlVhf:
     def test_returns_expression(self, ohlcv_df):
@@ -72,46 +47,11 @@ class TestPlVhf:
         result = ohlcv_df.select(pl_vhf("close"))
         assert result.height == 200
 
-    def test_parity(self, ohlcv_df, pd_ohlcv):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        from polars_ti.trend.vhf import pl_vhf
-        pd_result = vhf(pd_ohlcv["close"], length=28)
-        pl_result = ohlcv_df.select(pl_vhf("close", length=28))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr)
-        if mask.sum() > 0:
-            assert np.allclose(pl_arr[mask], pd_arr[mask], atol=1e-6)
-
-
 class TestPlDecay:
     def test_linear(self, ohlcv_df):
         from polars_ti.trend.decay import pl_decay
         result = ohlcv_df.select(pl_decay("close", length=5))
         assert result.height == 200
-
-    def test_parity_linear(self, ohlcv_df, pd_ohlcv):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        from polars_ti.trend.decay import pl_decay
-        pd_result = decay(pd_ohlcv["close"], length=5, mode="linear")
-        pl_result = ohlcv_df.select(pl_decay("close", length=5, mode="linear"))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr)
-        if mask.sum() > 0:
-            assert np.allclose(pl_arr[mask], pd_arr[mask], atol=1e-6)
-
-    def test_parity_exponential(self, ohlcv_df, pd_ohlcv):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        from polars_ti.trend.decay import pl_decay
-        pd_result = decay(pd_ohlcv["close"], length=5, mode="exp")
-        pl_result = ohlcv_df.select(pl_decay("close", length=5, mode="exp"))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr)
-        if mask.sum() > 0:
-            assert np.allclose(pl_arr[mask], pd_arr[mask], atol=1e-6)
-
 
 class TestPlTtmTrend:
     def test_returns_expression(self, ohlcv_df):

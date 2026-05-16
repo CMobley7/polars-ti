@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_alligator - Native Polars pl.Expr API."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.alligator import pl_alligator
@@ -18,7 +17,7 @@ class TestPlAlligator:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': pd.Series(close, name='close'),
+            'pd_series': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -45,22 +44,6 @@ class TestPlAlligator:
     def test_custom_parameters(self, sample_df):
         result = sample_df.select(pl_alligator("close", jaw=10, teeth=6, lips=4))
         assert "AG_10_6_4" in result.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = alligator(sample_data['pd_series'], talib=False)
-        pl_result = sample_data['pl_df'].select(pl_alligator('close')).unnest("AG_13_8_5")
-        
-        warmup = 20
-        for col in ["AGj_13_8_5", "AGt_13_8_5", "AGl_13_8_5"]:
-            pd_vals = pd_result[col].iloc[warmup:].values
-            pl_vals = pl_result[col][warmup:].to_numpy()
-            
-            valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-            if valid.sum() > 0:
-                diff = np.abs(pd_vals[valid] - pl_vals[valid])
-                assert np.max(diff) < 1e-10, f"Max diff for {col}: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

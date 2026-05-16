@@ -2,7 +2,6 @@
 """Tests for pl_stoch - Polars + Numba Stochastic Oscillator with TA-Lib support."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.stoch import pl_stoch
 
@@ -99,34 +98,6 @@ class TestPlStoch:
         })
         result = df.select(pl_stoch("high", "low", "close", talib=False))
         assert result.height == 60
-
-    def test_numerical_parity(self):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.stoch import stoch as pandas_stoch  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 500
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        high = close + np.abs(np.random.randn(n) * 0.5)
-        low = close - np.abs(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({'high': high, 'low': low, 'close': close})
-        pldf = pl.DataFrame({'high': high, 'low': low, 'close': close})
-        
-        pandas_result = pandas_stoch(pdf['high'], pdf['low'], pdf['close'], 
-                                     k=14, d=3, smooth_k=3, talib=False)
-        polars_result = pldf.select(pl_stoch("high", "low", "close", 
-                                             k=14, d=3, smooth_k=3, talib=False))
-        
-        stoch = polars_result["STOCH"]
-        pandas_k = pandas_result["STOCHk_14_3_3"].to_numpy()[25:]
-        polars_k = stoch.struct.field("STOCHk_14_3_3").to_numpy()[25:]
-        
-        valid_mask = ~np.isnan(pandas_k) & ~np.isnan(polars_k)
-        max_diff = np.max(np.abs(pandas_k[valid_mask] - polars_k[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"
 
     def test_talib_parity(self):
         """Verify TA-Lib path produces same results as direct TA-Lib call."""

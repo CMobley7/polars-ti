@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hl2."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.hl2 import pl_hl2
@@ -24,8 +23,8 @@ class TestPlHl2:
         high = 102 + np.random.randn(100)
         low = 98 + np.random.randn(100)
         return {
-            'pd_high': pd.Series(high),
-            'pd_low': pd.Series(low),
+            'pd_high': high,
+            'pd_low': low,
             'pl_df': pl.DataFrame({'high': high, 'low': low}),
         }
 
@@ -43,20 +42,6 @@ class TestPlHl2:
     def test_with_expressions(self, sample_df):
         result = sample_df.select(pl_hl2(pl.col("high"), pl.col("low")))
         assert "HL2" in result.columns
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = hl2(sample_data['pd_high'], sample_data['pd_low'])
-        pl_result = sample_data['pl_df'].select(pl_hl2('high', 'low')).to_series()
-        
-        pd_vals = pd_result.values
-        pl_vals = pl_result.to_numpy()
-        
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

@@ -2,7 +2,6 @@
 """Tests for pl_cci - Polars + Numba implementation with TA-Lib support."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.momentum.cci import pl_cci
 
@@ -61,29 +60,4 @@ class TestPlCci:
         })
         result = df.select(pl_cci("high", "low", "close", talib=False))
         assert result.height == 53
-
-    def test_numerical_parity(self):
-        """Verify numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        import pandas as pd
-        # from polars_ti.momentum.cci import cci as pandas_cci  # REMOVED: pandas func removed
-        
-        np.random.seed(42)
-        n = 500
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        high = close + np.abs(np.random.randn(n) * 0.5)
-        low = close - np.abs(np.random.randn(n) * 0.5)
-        
-        pdf = pd.DataFrame({'high': high, 'low': low, 'close': close})
-        pldf = pl.DataFrame({'high': high, 'low': low, 'close': close})
-        
-        pandas_result = pandas_cci(pdf['high'], pdf['low'], pdf['close'], length=14, c=0.015, talib=False)
-        polars_result = pldf.select(pl_cci("high", "low", "close", length=14, c=0.015, talib=False))
-        
-        pandas_arr = pandas_result.to_numpy()[20:]
-        polars_arr = polars_result["CCI_14_0.015"].to_numpy()[20:]
-        
-        valid_mask = ~np.isnan(pandas_arr) & ~np.isnan(polars_arr)
-        max_diff = np.max(np.abs(pandas_arr[valid_mask] - polars_arr[valid_mask]))
-        assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"
 

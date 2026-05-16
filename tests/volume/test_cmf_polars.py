@@ -4,7 +4,6 @@ import numpy as np
 import polars as pl
 import pytest
 from polars_ti.volume.cmf import pl_cmf
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 
 
 class TestPlCmf:
@@ -30,23 +29,6 @@ class TestPlCmf:
     def test_output_has_correct_alias(self, sample_df):
         result = sample_df.select(pl_cmf("high", "low", "close", "volume", length=10))
         assert "CMF_10" in result.columns
-
-    def test_numerical_parity(self, sample_df):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_df["high"].to_numpy())
-        pd_low = pd.Series(sample_df["low"].to_numpy())
-        pd_close = pd.Series(sample_df["close"].to_numpy())
-        pd_volume = pd.Series(sample_df["volume"].to_numpy())
-        pd_result = cmf(pd_high, pd_low, pd_close, pd_volume, length=20)
-        
-        pl_result = sample_df.select(pl_cmf("high", "low", "close", "volume", length=20))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr)
-        max_diff = np.max(np.abs(pl_arr[mask] - pd_arr[mask]))
-        assert max_diff < 1e-6, f"Max diff: {max_diff}"
 
     def test_offset_shifts_result(self, sample_df):
         result = sample_df.select(pl_cmf("high", "low", "close", "volume", offset=5))

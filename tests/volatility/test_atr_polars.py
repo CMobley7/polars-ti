@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_atr."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.volatility.atr import pl_atr
@@ -26,25 +25,6 @@ class TestPlAtr:
         result = df.select(pl_atr("high", "low", "close", length=14))
         assert "ATR" in result.columns[0]
 
-    def test_numerical_parity_pandas(self, sample_data):
-        """Test parity with Pandas ATR (mamode=rma, default)."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_data["high"])
-        pd_low = pd.Series(sample_data["low"])
-        pd_close = pd.Series(sample_data["close"])
-        pl_df = pl.DataFrame(sample_data)
-        
-        pd_result = atr(pd_high, pd_low, pd_close, length=14, mamode='rma', talib=False, presma=True)
-        pl_result = pl_df.select(pl_atr("high", "low", "close", length=14, mamode='rma', talib=False))
-        
-        warmup = 20
-        pd_vals = pd_result.to_numpy()[warmup:]
-        pl_vals = pl_result[pl_result.columns[0]].to_numpy()[warmup:]
-        mask = np.isfinite(pd_vals) & np.isfinite(pl_vals)
-        if mask.sum() > 0:
-            max_diff = np.abs(pd_vals[mask] - pl_vals[mask]).max()
-            assert max_diff < 1e-6, f"RMA parity failed: {max_diff}"
-
     def test_talib_option(self, sample_data):
         """Test TA-Lib path if available."""
         pl_df = pl.DataFrame(sample_data)
@@ -63,44 +43,6 @@ class TestPlAtr:
                 assert max_diff < 1e-6, f"TA-Lib parity failed: {max_diff}"
         except ImportError:
             pytest.skip("TA-Lib not installed")
-
-    def test_mamode_sma(self, sample_data):
-        """Test SMA mode for feature parity."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_data["high"])
-        pd_low = pd.Series(sample_data["low"])
-        pd_close = pd.Series(sample_data["close"])
-        pl_df = pl.DataFrame(sample_data)
-        
-        pd_result = atr(pd_high, pd_low, pd_close, length=14, mamode='sma', talib=False, presma=True)
-        pl_result = pl_df.select(pl_atr("high", "low", "close", length=14, mamode='sma', talib=False))
-        
-        warmup = 30
-        pd_vals = pd_result.to_numpy()[warmup:]
-        pl_vals = pl_result[pl_result.columns[0]].to_numpy()[warmup:]
-        mask = np.isfinite(pd_vals) & np.isfinite(pl_vals)
-        if mask.sum() > 0:
-            max_diff = np.abs(pd_vals[mask] - pl_vals[mask]).max()
-            assert max_diff < 1e-6, f"SMA parity failed: {max_diff}"
-
-    def test_mamode_ema(self, sample_data):
-        """Test EMA mode for feature parity."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_data["high"])
-        pd_low = pd.Series(sample_data["low"])
-        pd_close = pd.Series(sample_data["close"])
-        pl_df = pl.DataFrame(sample_data)
-        
-        pd_result = atr(pd_high, pd_low, pd_close, length=14, mamode='ema', talib=False, presma=True)
-        pl_result = pl_df.select(pl_atr("high", "low", "close", length=14, mamode='ema', talib=False))
-        
-        warmup = 20
-        pd_vals = pd_result.to_numpy()[warmup:]
-        pl_vals = pl_result[pl_result.columns[0]].to_numpy()[warmup:]
-        mask = np.isfinite(pd_vals) & np.isfinite(pl_vals)
-        if mask.sum() > 0:
-            max_diff = np.abs(pd_vals[mask] - pl_vals[mask]).max()
-            assert max_diff < 1e-6, f"EMA parity failed: {max_diff}"
 
     def test_with_null_values(self, sample_data):
         data = sample_data.copy()

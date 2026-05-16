@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_mcgd."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.mcgd import pl_mcgd
@@ -18,7 +17,7 @@ class TestPlMcgd:
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': pd.Series(close),
+            'pd_close': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
 
@@ -33,21 +32,6 @@ class TestPlMcgd:
     def test_has_valid_values(self, sample_df):
         result = sample_df.select(pl_mcgd("close"))
         assert (~np.isnan(result["MCGD_10"].to_numpy())).sum() > 80
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = mcgd(sample_data['pd_close'], length=10)
-        pl_result = sample_data['pl_df'].select(pl_mcgd('close')).to_series()
-        
-        warmup = 15
-        pd_vals = pd_result.iloc[warmup:].values
-        pl_vals = pl_result[warmup:].to_numpy()
-        
-        valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-        if valid.sum() > 0:
-            diff = np.abs(pd_vals[valid] - pl_vals[valid])
-            assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

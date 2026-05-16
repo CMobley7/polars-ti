@@ -2,7 +2,6 @@
 """Tests for pl_long_run."""
 import numpy as np
 import polars as pl
-import pandas as pd
 import pytest
 from polars_ti.trend.long_run import pl_long_run
 
@@ -34,21 +33,6 @@ class TestPlLongRun:
     def test_output_has_correct_alias(self, sample_df):
         result = sample_df.select(pl_long_run("fast", "slow", length=3))
         assert "LR_3" in result.columns
-
-    def test_numerical_parity(self, sample_df):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_fast = pd.Series(sample_df["fast"].to_numpy())
-        pd_slow = pd.Series(sample_df["slow"].to_numpy())
-        pd_result = long_run(pd_fast, pd_slow, length=2)
-        
-        pl_result = sample_df.select(pl_long_run("fast", "slow", length=2))
-        pl_arr = pl_result[pl_result.columns[0]].to_numpy()
-        pd_arr = pd_result.to_numpy()
-        
-        mask = ~np.isnan(pd_arr) & ~np.isnan(pl_arr.astype(float))
-        if mask.sum() > 0:
-            assert np.allclose(pl_arr[mask], pd_arr[mask])
 
     def test_offset_shifts_result(self, sample_df):
         result = sample_df.select(pl_long_run("fast", "slow", offset=5))

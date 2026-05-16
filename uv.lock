@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -1497,7 +1497,6 @@ source = { editable = "." }
 dependencies = [
     { name = "numba" },
     { name = "numpy" },
-    { name = "pandas" },
     { name = "polars" },
     { name = "scipy" },
 ]
@@ -1507,6 +1506,7 @@ full = [
     { name = "alpha-vantage" },
     { name = "matplotlib" },
     { name = "mplfinance" },
+    { name = "pandas" },
     { name = "pytest" },
     { name = "python-dotenv" },
     { name = "scikit-learn" },
@@ -1517,7 +1517,11 @@ full = [
     { name = "vectorbt" },
     { name = "yfinance" },
 ]
+talib = [
+    { name = "ta-lib" },
+]
 test = [
+    { name = "pandas" },
     { name = "pytest" },
     { name = "ta-lib" },
     { name = "yfinance" },
@@ -1530,21 +1534,22 @@ requires-dist = [
     { name = "mplfinance", marker = "extra == 'full'" },
     { name = "numba", specifier = "~=0.63.1" },
     { name = "numpy", specifier = "~=2.3.5" },
-    { name = "pandas", specifier = "~=2.3.3" },
+    { name = "pandas", marker = "extra == 'test'", specifier = "~=2.3.3" },
     { name = "polars", specifier = ">=1.0.0" },
-    { name = "polars-ti", extras = ["test"], marker = "extra == 'full'" },
+    { name = "polars-ti", extras = ["talib"], marker = "extra == 'test'" },
+    { name = "polars-ti", extras = ["test", "talib"], marker = "extra == 'full'" },
     { name = "pytest", marker = "extra == 'test'", specifier = "~=9.0.2" },
     { name = "python-dotenv", marker = "extra == 'full'" },
     { name = "scikit-learn", marker = "extra == 'full'" },
     { name = "scipy", specifier = "~=1.16.3" },
     { name = "statsmodels", marker = "extra == 'full'" },
     { name = "stochastic", marker = "extra == 'full'" },
-    { name = "ta-lib", marker = "extra == 'test'", specifier = "~=0.6.8" },
+    { name = "ta-lib", marker = "extra == 'talib'", specifier = "~=0.6.8" },
     { name = "tqdm", marker = "extra == 'full'" },
     { name = "vectorbt", marker = "extra == 'full'" },
     { name = "yfinance", marker = "extra == 'test'", specifier = "~=1.0" },
 ]
-provides-extras = ["full", "test"]
+provides-extras = ["talib", "full", "test"]
 
 [[package]]
 name = "prompt-toolkit"

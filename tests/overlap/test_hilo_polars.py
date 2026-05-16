@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hilo (Gann HiLo Activator)."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.overlap.hilo import pl_hilo
@@ -31,9 +30,9 @@ class TestPlHilo:
         high = close + np.abs(np.random.randn(n) * 0.5)
         low = close - np.abs(np.random.randn(n) * 0.5)
         return {
-            'pd_high': pd.Series(high),
-            'pd_low': pd.Series(low),
-            'pd_close': pd.Series(close),
+            'pd_high': high,
+            'pd_low': low,
+            'pd_close': close,
             'pl_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
         }
 
@@ -81,22 +80,6 @@ class TestPlHilo:
         
         non_null = ~np.isnan(hilo)
         assert non_null.sum() > 50
-
-    def test_numerical_parity(self, sample_data):
-        """Numerical parity with Pandas implementation."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = hilo(sample_data['pd_high'], sample_data['pd_low'], sample_data['pd_close'], talib=False)
-        pl_result = pl_hilo(sample_data['pl_df'], talib=False)
-        
-        warmup = 30
-        for col in ["HILO_13_21", "HILOl_13_21", "HILOs_13_21"]:
-            pd_vals = pd_result[col].iloc[warmup:].values
-            pl_vals = pl_result[col][warmup:].to_numpy()
-            
-            valid = ~np.isnan(pd_vals) & ~np.isnan(pl_vals)
-            if valid.sum() > 0:
-                diff = np.abs(pd_vals[valid] - pl_vals[valid])
-                assert np.max(diff) < 1e-10, f"Max diff for {col}: {np.max(diff)}"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""

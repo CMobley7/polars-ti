@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/overlap/sma.py Polars implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -17,35 +16,9 @@ class TestPlSma:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': pd.Series(close, name='close'),
+            'pd_series': close,
             'pl_df': pl.DataFrame({'close': close}),
         }
-
-    def test_numerical_parity_length_10(self, sample_data):
-        """Test numerical parity with Pandas for length=10."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = sma(sample_data['pd_series'], length=10)
-        pl_result = sample_data['pl_df'].select(pl_sma('close', length=10)).to_series()
-        
-        warmup = 10
-        pd_vals = pd_result.iloc[warmup:].values
-        pl_vals = pl_result[warmup:].to_numpy()
-        
-        diff = np.abs(pd_vals - pl_vals)
-        assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
-
-    def test_numerical_parity_length_20(self, sample_data):
-        """Test numerical parity with Pandas for length=20."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_result = sma(sample_data['pd_series'], length=20)
-        pl_result = sample_data['pl_df'].select(pl_sma('close', length=20)).to_series()
-        
-        warmup = 20
-        pd_vals = pd_result.iloc[warmup:].values
-        pl_vals = pl_result[warmup:].to_numpy()
-        
-        diff = np.abs(pd_vals - pl_vals)
-        assert np.max(diff) < 1e-10, f"Max diff: {np.max(diff)}"
 
     def test_output_has_correct_alias(self, sample_data):
         """Test that output column has correct alias."""

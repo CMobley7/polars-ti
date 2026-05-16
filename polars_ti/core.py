@@ -385,6 +385,85 @@ class TechnicalIndicators:
         """Return the DataFrame in reverse row order."""
         return self._df.reverse()
 
+    def study(self, study, cores: int = 0, talib: bool = False, **kwargs) -> pl.DataFrame:
+        """Run a :class:`~polars_ti.Study` against this DataFrame.
+
+        Mirrors the original pandas-ti ``df.ti.study()`` API. Each indicator
+        dict in ``study.ti`` is dispatched to the matching ``df.ti.<kind>``
+        method with ``append=True``.  The *all* study (``study.ti is None``)
+        runs every registered indicator.
+
+        Args:
+            study: A :class:`~polars_ti.Study` instance, or a category string
+                (e.g. ``"momentum"``), or a ``type`` reference such as
+                ``ti.AllStudy`` / ``ti.CommonStudy``.
+            cores (int): Reserved for future multiprocessing support.
+                Currently ignored; all indicators run sequentially.
+            talib (bool): Pass ``talib=True`` to each indicator call.
+            **kwargs: Additional keyword arguments forwarded to every indicator.
+
+        Returns:
+            The DataFrame with all study columns appended in-place via
+            ``app        """
+        from polars_ti.utils._study import Study
+        from polars_ti.maps import Category
+
+        def _run(kind: str, kw: dict) -> None:
+            """Dispatch one indicator and hstack new columns onto self._df."""
+            fn = getattr(self, kind.lower(), None)
+            if fn is None:
+                return
+            try:
+                result = fn(**kw)
+                if isinstance(result, pl.DataFrame) and result.width > 0:
+                    new_cols = [c for c in result.columns if c not in self._df.columns]
+                    if new_cols:
+                        self._df = self._df.hstack(result.select(new_cols))
+            except Exception:
+                pass  # Skip indicators that fail (e.g. missing required columns)
+
+        # Accept a Study class/instance, a category string, or AllStudy sentinel
+        if isinstance(study, type) and issubclass(study, Study):
+            study = study()  # instantiate if a class was passed
+
+        if isinstance(study, str):
+            # Category shorthand: "momentum", "overlap", etc.
+            category = study.lower()
+            if category not in Category:
+                raise ValueError(f"Unknown category '{category}'. Valid: {list(Category.keys())}")
+            for kind in Category[category]:
+                kw = dict(kwargs)
+                if talib:
+                    kw["talib"] = True
+                _run(kind, kw)
+            return self._df
+
+        # AllStudy (ti is None) -> run every indicator in every category
+        if not isinstance(study, Study) or study.ti is None:
+            for category_inds in Category.values():
+                for kind in category_inds:
+                    kw = dict(kwargs)
+                    if talib:
+                        kw["talib"] = True
+                    _run(kind, kw)
+            return self._df
+
+        # Custom Study: study.ti is a list of indicator dicts
+        for ind_spec in study.ti:
+            if not isinstance(ind_spec, dict) or "kind" not in ind_spec:
+                continue
+            # Shallow-copy so we never mutate the Study definition
+            kw = {k: v for k, v in ind_spec.items() if k != "kind"}
+            kw.update(kwargs)
+            if talib:
+                kw["talib"] = True
+            _run(ind_spec["kind"], kw)
+
+        return self._df
+
+    # Alias for backwards-compatibility with the original pandas-ti API
+    strategy = study
+
     # ------------------------------------------------------------------
     # Helpers for repeated OHLCV column extraction
     # ------------------------------------------------------------------

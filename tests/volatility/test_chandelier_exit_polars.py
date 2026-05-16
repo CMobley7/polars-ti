@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_chandelier_exit."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 from polars_ti.volatility.chandelier_exit import pl_chandelier_exit
@@ -25,21 +24,6 @@ class TestPlChandelierExit:
         df = pl.DataFrame(sample_data)
         result = df.select(pl_chandelier_exit("high", "low", "close"))
         assert "CHDLREXT" in result.columns[0]
-
-    def test_numerical_parity(self, sample_data):
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pd_high = pd.Series(sample_data["high"])
-        pd_low = pd.Series(sample_data["low"])
-        pd_close = pd.Series(sample_data["close"])
-        pl_df = pl.DataFrame(sample_data)
-        pd_result = chandelier_exit(pd_high, pd_low, pd_close, high_length=22, low_length=22, atr_length=14, multiplier=2.0, talib=False)
-        pl_result = pl_df.select(pl_chandelier_exit("high", "low", "close", high_length=22, low_length=22, atr_length=14, multiplier=2.0)).unnest(pl_df.select(pl_chandelier_exit("high", "low", "close")).columns[0])
-        warmup = 20
-        pd_long = pd_result.iloc[:, 0].to_numpy()[warmup:]
-        pl_long = pl_result["long"].to_numpy()[warmup:]
-        mask = np.isfinite(pd_long) & np.isfinite(pl_long)
-        max_diff = np.abs(pd_long[mask] - pl_long[mask]).max()
-        assert max_diff < 1e-6
 
     def test_with_null_values(self, sample_data):
         data = sample_data.copy()

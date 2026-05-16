@@ -4,7 +4,6 @@ import numpy as np
 import polars as pl
 import pytest
 from polars_ti.volume.efi import pl_efi
-# import pandas as pd  # REMOVED: pandas dependency
 
 
 class TestPlEfi:

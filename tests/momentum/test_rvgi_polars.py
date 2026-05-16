@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for Polars RVGI (Relative Vigor Index) implementation."""
 import numpy as np
-import pandas as pd  # REMOVED: pandas dependency  # Restored for fixtures
 import polars as pl
 import pytest
 
@@ -22,7 +21,7 @@ class TestPlRvgi:
         open_ = close + np.random.randn(n) * 0.2
         
         pl_df = pl.DataFrame({"open": open_, "high": high, "low": low, "close": close})
-        pd_df = pd.DataFrame({"open": open_, "high": high, "low": low, "close": close})
+        pd_df = pl.DataFrame({"open": open_, "high": high, "low": low, "close": close})
         return pl_df, pd_df
 
     def test_returns_expression(self, sample_data):
@@ -39,36 +38,6 @@ class TestPlRvgi:
         struct = result["RVGI"]
         assert "RVGI_14_4" in struct.struct.fields
         assert "RVGIs_14_4" in struct.struct.fields
-
-    def test_numerical_parity_with_pandas(self, sample_data):
-        """Polars RVGI should match Pandas RVGI within 1e-6 tolerance."""
-        pytest.skip("Pandas implementation removed in Phase 4 purge")
-        pl_df, pd_df = sample_data
-        length = 14
-        swma_length = 4
-
-        # Pandas result
-        pd_result = rvgi(pd_df["open"], pd_df["high"], pd_df["low"], pd_df["close"],
-                        length=length, swma_length=swma_length)
-        pd_rvgi = pd_result[f"RVGI_{length}_{swma_length}"].to_numpy()
-        pd_signal = pd_result[f"RVGIs_{length}_{swma_length}"].to_numpy()
-
-        # Polars result
-        pl_result = pl_df.select(pl_rvgi("open", "high", "low", "close", length=length, swma_length=swma_length))
-        pl_struct = pl_result["RVGI"]
-        pl_rvgi_arr = pl_struct.struct.field(f"RVGI_{length}_{swma_length}").to_numpy()
-        pl_signal_arr = pl_struct.struct.field(f"RVGIs_{length}_{swma_length}").to_numpy()
-
-        # Compare after warmup
-        warmup = length + swma_length + 10
-        mask_rvgi = ~np.isnan(pd_rvgi[warmup:]) & ~np.isnan(pl_rvgi_arr[warmup:])
-        mask_signal = ~np.isnan(pd_signal[warmup:]) & ~np.isnan(pl_signal_arr[warmup:])
-
-        rvgi_max_diff = np.max(np.abs(pl_rvgi_arr[warmup:][mask_rvgi] - pd_rvgi[warmup:][mask_rvgi]))
-        signal_max_diff = np.max(np.abs(pl_signal_arr[warmup:][mask_signal] - pd_signal[warmup:][mask_signal]))
-
-        assert rvgi_max_diff < 1e-6, f"RVGI max diff {rvgi_max_diff} exceeds tolerance"
-        assert signal_max_diff < 1e-6, f"Signal max diff {signal_max_diff} exceeds tolerance"
 
     def test_offset_shifts_result(self, sample_data):
         """Offset parameter should shift results."""

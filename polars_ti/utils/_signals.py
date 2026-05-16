@@ -1,26 +1,36 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+import polars as pl
 
 from polars_ti._typing import DictLike, Int, IntFloat
-from polars_ti.utils._math import zero
 from polars_ti.utils._validate import v_offset, v_series
 
 
+def _as_series(value, name: str | None = None, length: int | None = None) -> pl.Series:
+    if isinstance(value, pl.Series):
+        return value.rename(name) if name else value
+    if isinstance(value, (int, float, complex)):
+        if length is None:
+            raise ValueError("length is required for scalar signal comparisons")
+        return pl.Series(name or f"{value}".replace(".", "_"), [value] * length)
+    return pl.Series(name or getattr(value, "name", "series"), value)
+
+
+def _set_name(series: pl.Series, name: str) -> pl.Series:
+    return series.rename(name)
+
+
 def _above_below(
-    series_a: Series,
-    series_b: Series,
+    series_a,
+    series_b,
     above: bool = True,
     asint: bool = True,
     offset: Int = None,
     **kwargs,
-) -> Series:
+):
     # Verify
-    series_a = v_series(series_a)
-    series_b = v_series(series_b)
+    series_a = _as_series(v_series(series_a))
+    series_b = _as_series(v_series(series_b))
     offset = v_offset(offset)
-
-    series_a.apply(zero)
-    series_b.apply(zero)
 
     # Calculate
     if above:
@@ -29,34 +39,31 @@ def _above_below(
         current = series_a <= series_b
 
     if asint:
-        current = current.astype(int)
+        current = current.cast(pl.Int64)
 
     # Offset
     if offset != 0:
         current = current.shift(offset)
 
     # Name and Category
-    current.name = f"{series_a.name}_{'A' if above else 'B'}_{series_b.name}"
-    current.category = "utility"
-
-    return current
+    return _set_name(current, f"{series_a.name}_{'A' if above else 'B'}_{series_b.name}")
 
 
 def above(
-    series_a: Series, series_b: Series, asint: bool = True, offset: Int = None, **kwargs
-) -> Series:
+    series_a, series_b, asint: bool = True, offset: Int = None, **kwargs
+):
     return _above_below(
         series_a, series_b, above=True, asint=asint, offset=offset, **kwargs
     )
 
 
 def above_value(
-    series_a: Series, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs
-) -> Series:
+    series_a, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs
+):
     if not isinstance(value, (int, float, complex)):
         print("[X] value is not a number")
         return
-    series_b = Series(value, index=series_a.index, name=f"{value}".replace(".", "_"))
+    series_b = _as_series(value, name=f"{value}".replace(".", "_"), length=len(series_a))
 
     return _above_below(
         series_a, series_b, above=True, asint=asint, offset=offset, **kwargs
@@ -64,55 +71,52 @@ def above_value(
 
 
 def below(
-    series_a: Series, series_b: Series, asint: bool = True, offset: Int = None, **kwargs
-) -> Series:
+    series_a, series_b, asint: bool = True, offset: Int = None, **kwargs
+):
     return _above_below(
         series_a, series_b, above=False, asint=asint, offset=offset, **kwargs
     )
 
 
 def below_value(
-    series_a: Series, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs
-) -> Series:
+    series_a, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs
+):
     if not isinstance(value, (int, float, complex)):
         print("[X] value is not a number")
         return
-    series_b = Series(value, index=series_a.index, name=f"{value}".replace(".", "_"))
+    series_b = _as_series(value, name=f"{value}".replace(".", "_"), length=len(series_a))
     return _above_below(
         series_a, series_b, above=False, asint=asint, offset=offset, **kwargs
     )
 
 
 def cross_value(
-    series_a: Series,
+    series_a,
     value: IntFloat,
     above: bool = True,
     equal: bool = True,
     asint: bool = True,
     offset: Int = None,
     **kwargs,
-) -> Series:
-    series_b = Series(value, index=series_a.index, name=f"{value}".replace(".", "_"))
+):
+    series_b = _as_series(value, name=f"{value}".replace(".", "_"), length=len(series_a))
 
     return cross(series_a, series_b, above, equal, asint, offset, **kwargs)
 
 
 def cross(
-    series_a: Series,
-    series_b: Series,
+    series_a,
+    series_b,
     above: bool = True,
     equal: bool = True,
     asint: bool = True,
     offset: Int = None,
     **kwargs: DictLike,
-) -> Series:
+):
     # Validate
-    series_a = v_series(series_a)
-    series_b = v_series(series_b)
+    series_a = _as_series(v_series(series_a))
+    series_b = _as_series(v_series(series_b))
     offset = v_offset(offset)
-
-    series_a.apply(zero)
-    series_b.apply(zero)
 
     # Calculate
     if above:
@@ -124,54 +128,48 @@ def cross(
 
     cross = current & previous
     # ensure there is no cross on the first entry
-    cross.iloc[0] = False
+    cross = pl.Series(cross.name, [False] + cross.slice(1).to_list())
 
     if asint:
-        cross = cross.astype(int)
+        cross = cross.cast(pl.Int64)
 
     # Offset
     if offset != 0:
         cross = cross.shift(offset)
 
     # Name and Category
-    cross.name = f"{series_a.name}_{'XA' if above else 'XB'}_{series_b.name}"
-    cross.category = "utility"
-
-    return cross
+    return _set_name(cross, f"{series_a.name}_{'XA' if above else 'XB'}_{series_b.name}")
 
 
 def signals(
-    indicator: Series,
+    indicator,
     xa: IntFloat,
     xb: IntFloat,
     cross_values: bool,
-    xserie: Series,
-    xserie_a: Series,
-    xserie_b: Series,
+    xserie,
+    xserie_a,
+    xserie_b,
     cross_series: bool,
     offset: Int,
-) -> DataFrame:
-
-    df = DataFrame()
+):
+    df = pl.DataFrame()
     if xa is not None and isinstance(xa, (int, float)):
         if cross_values:
             crossed_above_start = cross_value(indicator, xa, above=True, offset=offset)
             crossed_above_end = cross_value(indicator, xa, above=False, offset=offset)
-            df[crossed_above_start.name] = crossed_above_start
-            df[crossed_above_end.name] = crossed_above_end
+            df = df.with_columns(crossed_above_start, crossed_above_end)
         else:
             crossed_above = above_value(indicator, xa, offset=offset)
-            df[crossed_above.name] = crossed_above
+            df = df.with_columns(crossed_above)
 
     if xb is not None and isinstance(xb, (int, float)):
         if cross_values:
             crossed_below_start = cross_value(indicator, xb, above=True, offset=offset)
             crossed_below_end = cross_value(indicator, xb, above=False, offset=offset)
-            df[crossed_below_start.name] = crossed_below_start
-            df[crossed_below_end.name] = crossed_below_end
+            df = df.with_columns(crossed_below_start, crossed_below_end)
         else:
             crossed_below = below_value(indicator, xb, offset=offset)
-            df[crossed_below.name] = crossed_below
+            df = df.with_columns(crossed_below)
 
     # xseries is the default value for both xserie_a and xserie_b
     if xserie_a is None:
@@ -185,7 +183,7 @@ def signals(
         else:
             cross_serie_above = above(indicator, xserie_a, offset=offset)
 
-        df[cross_serie_above.name] = cross_serie_above
+        df = df.with_columns(cross_serie_above)
 
     if xserie_b is not None and v_series(xserie_b):
         if cross_series:
@@ -193,6 +191,6 @@ def signals(
         else:
             cross_serie_below = below(indicator, xserie_b, offset=offset)
 
-        df[cross_serie_below.name] = cross_serie_below
+        df = df.with_columns(cross_serie_below)
 
     return df
