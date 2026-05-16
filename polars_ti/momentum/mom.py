@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from numba import njit
+from polars_ti.utils._numba import nb_idiff
 
 
 @njit(cache=True)
@@ -62,5 +63,4 @@ def pl_mom(
         mom_expr = mom_expr.shift(offset)
     
     return mom_expr.alias(f"MOM_{length}")
-
 

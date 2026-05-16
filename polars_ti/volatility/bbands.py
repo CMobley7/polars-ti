@@ -57,8 +57,10 @@ def pl_bbands(
             
             # Bandwidth and percent
             ulr = upper - lower
-            bandwidth = np.where(mid != 0, 100 * ulr / mid, np.nan)
-            percent = np.where(ulr != 0, (arr - lower) / ulr, np.nan)
+            bandwidth = np.full_like(ulr, np.nan, dtype=np.float64)
+            percent = np.full_like(ulr, np.nan, dtype=np.float64)
+            np.divide(100 * ulr, mid, out=bandwidth, where=mid != 0)
+            np.divide(arr - lower, ulr, out=percent, where=ulr != 0)
             
             if _offset != 0:
                 lower = np.roll(lower, _offset)
@@ -124,5 +126,4 @@ def pl_bbands(
             bandwidth.alias(f"BBB{_props}"),
             percent.alias(f"BBP{_props}")
         ]).alias(f"BBANDS{_props}")
-
 

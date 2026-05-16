@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from numpy import convolve, ones
 from numba import njit
+from polars_ti.utils._numba import nb_prepend
 
 
 @njit(cache=True)
@@ -72,4 +73,3 @@ def pl_sma(
         sma_expr = sma_expr.shift(offset)
 
     return sma_expr.alias(f"SMA_{length}")
-

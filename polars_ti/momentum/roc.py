@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from numba import njit
+from polars_ti.utils._numba import nb_idiff, nb_shift
 
 
 @njit(cache=True)
@@ -66,5 +67,4 @@ def pl_roc(
         roc_expr = roc_expr.shift(offset)
     
     return roc_expr.alias(f"ROC_{length}")
-
 

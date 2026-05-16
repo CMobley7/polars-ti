@@ -1498,7 +1498,6 @@ dependencies = [
     { name = "numba" },
     { name = "numpy" },
     { name = "polars" },
-    { name = "scipy" },
 ]
 
 [package.optional-dependencies]
@@ -1541,7 +1540,6 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = "~=9.0.2" },
     { name = "python-dotenv", marker = "extra == 'full'" },
     { name = "scikit-learn", marker = "extra == 'full'" },
-    { name = "scipy", specifier = "~=1.16.3" },
     { name = "statsmodels", marker = "extra == 'full'" },
     { name = "stochastic", marker = "extra == 'full'" },
     { name = "ta-lib", marker = "extra == 'talib'", specifier = "~=0.6.8" },

@@ -33,9 +33,9 @@ import polars_ti as ti
 
 # Pre-warm all Numba JIT kernels once per session to prevent concurrent
 # JIT compilation crashes when multiple indicator modules are loaded together.
-import polars_ti.momentum  # noqa: F401 — triggers @njit cache
-import polars_ti.volatility  # noqa: F401 — triggers @njit cache
-import polars_ti.overlap  # noqa: F401 — triggers @njit cache
+import polars_ti.momentum
+import polars_ti.volatility
+import polars_ti.overlap
 
 TEST_ROWS = 200
 TEST_CSV = f"data/SPY_D.csv"

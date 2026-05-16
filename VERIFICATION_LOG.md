@@ -15,7 +15,7 @@ Date: 2026-05-16
 ## Test Results
 
 - Active/default suite: `.venv/bin/python -m pytest --tb=short -q`
-  - Result: `1128 passed, 1 warning in 4.03s`.
+  - Result: `1128 passed in 3.77s`.
 - Numba helper shard: `.venv/bin/python -m pytest tests/test_numba.py --tb=short -q`
   - Result: `7 passed in 1.62s`.
 - Earlier active Polars category suite:
@@ -24,10 +24,27 @@ Date: 2026-05-16
 
 ## Known Difference
 
-- `tests/volatility/test_bbands_polars.py::TestPlBbands::test_with_zeros` emits:
-  - `RuntimeWarning: divide by zero encountered in divide`
-  - Source: `polars_ti/volatility/bbands.py`
-  - Behavior: test still passes; the zero-width band case returns the expected null/NaN-safe output.
+- Previous `tests/volatility/test_bbands_polars.py::TestPlBbands::test_with_zeros`
+  divide-by-zero warning was fixed by using `np.divide(..., where=...)` in
+  `polars_ti/volatility/bbands.py`.
+- `scipy` is no longer a core runtime dependency. It remains available as an
+  optional/transitive extra dependency and is used opportunistically by
+  `polars_ti.utils.inv_norm` when installed.
+
+## Audit Follow-up
+
+- High-confidence Ruff audit: `uvx ruff check polars_ti tests scripts --select E9,F63,F7,F82,RUF100,RUF103,RUF104`
+  - Result: `All checks passed!`
+- Syntax audit: `.venv/bin/python -m compileall -q polars_ti tests scripts`
+  - Result: passed.
+- Security-pattern audit:
+  - `rg -n "eval\(|exec\(|pickle\.|yaml\.load\(|shell=True|os\.system\(" polars_ti scripts tests --glob '*.py'`
+  - Result: no matches.
+- Dependency audit: `uvx pip-audit --desc off --progress-spinner off`
+  - Result: no known vulnerabilities found.
+- CI added at `.github/workflows/ci.yml` for install, Ruff high-confidence checks,
+  compileall, runtime pandas purge, pytest, and dependency audit on Python 3.11
+  and 3.12.
 
 ## Legacy Test Collection
 
