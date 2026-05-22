@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_vwap with anchor and bands support."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -16,9 +17,9 @@ class TestPlVwap:
         high = close + np.abs(np.random.randn(n) * 0.2)
         low = close - np.abs(np.random.randn(n) * 0.2)
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({'high': high, 'low': low, 'close': close, 'volume': volume})
+        return pl.DataFrame({"high": high, "low": low, "close": close, "volume": volume})
 
-    @pytest.fixture  
+    @pytest.fixture
     def sample_df_with_datetime(self) -> pl.DataFrame:
         np.random.seed(42)
         n = 100
@@ -28,14 +29,16 @@ class TestPlVwap:
         volume = np.abs(np.random.randn(n) * 1000) + 100
         # Create datetime spanning 5 days (20 rows per day)
         base = datetime(2024, 1, 1, 9, 0, 0)
-        datetimes = [base + timedelta(hours=i//20*24, minutes=(i%20)*30) for i in range(n)]
-        return pl.DataFrame({
-            'datetime': datetimes,
-            'high': high, 
-            'low': low, 
-            'close': close, 
-            'volume': volume
-        })
+        datetimes = [base + timedelta(hours=i // 20 * 24, minutes=(i % 20) * 30) for i in range(n)]
+        return pl.DataFrame(
+            {
+                "datetime": datetimes,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
 
     def test_returns_list_of_expressions(self, sample_df):
         result = sample_df.select(pl_vwap("high", "low", "close", "volume"))
@@ -52,12 +55,14 @@ class TestPlVwap:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "high": [None] + [101.0] * 99,
-            "low": [None] + [99.0] * 99,
-            "close": [None] + [100.0] * 99,
-            "volume": [None] + [1000.0] * 99
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [101.0] * 99,
+                "low": [None] + [99.0] * 99,
+                "close": [None] + [100.0] * 99,
+                "volume": [None] + [1000.0] * 99,
+            }
+        )
         result = df.select(pl_vwap("high", "low", "close", "volume"))
         assert result.height == 100
 
@@ -78,11 +83,7 @@ class TestPlVwap:
 
     def test_anchored_vwap(self, sample_df_with_datetime):
         """Test anchored VWAP resets each period."""
-        exprs = pl_vwap(
-            "high", "low", "close", "volume",
-            datetime_col="datetime",
-            anchor="1d"
-        )
+        exprs = pl_vwap("high", "low", "close", "volume", datetime_col="datetime", anchor="1d")
         result = sample_df_with_datetime.select(exprs)
         assert "VWAP_1D" in result.columns
         # Anchored VWAP should reset each day, so first value of each day should be close to typical price

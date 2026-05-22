@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_imi - Pure Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,7 +14,7 @@ class TestPlImi:
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         open_ = close + np.random.randn(n) * 0.3
-        return pl.DataFrame({'open': open_, 'close': close})
+        return pl.DataFrame({"open": open_, "close": close})
 
     def test_returns_expr(self):
         expr = pl_imi("open", "close")

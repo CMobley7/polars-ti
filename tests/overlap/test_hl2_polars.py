@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hl2."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,10 +13,12 @@ class TestPlHl2:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'high': 102 + np.random.randn(100),
-            'low': 98 + np.random.randn(100),
-        })
+        return pl.DataFrame(
+            {
+                "high": 102 + np.random.randn(100),
+                "low": 98 + np.random.randn(100),
+            }
+        )
 
     @pytest.fixture
     def sample_data(self):
@@ -23,9 +26,9 @@ class TestPlHl2:
         high = 102 + np.random.randn(100)
         low = 98 + np.random.randn(100)
         return {
-            'pd_high': high,
-            'pd_low': low,
-            'pl_df': pl.DataFrame({'high': high, 'low': low}),
+            "pd_high": high,
+            "pd_low": low,
+            "pl_df": pl.DataFrame({"high": high, "low": low}),
         }
 
     def test_returns_correct_column(self, sample_df):
@@ -35,9 +38,7 @@ class TestPlHl2:
     def test_formula_correct(self, sample_df):
         result = sample_df.select(pl_hl2("high", "low"))
         expected = (sample_df["high"] + sample_df["low"]) / 2
-        np.testing.assert_array_almost_equal(
-            result["HL2"].to_numpy(), expected.to_numpy()
-        )
+        np.testing.assert_array_almost_equal(result["HL2"].to_numpy(), expected.to_numpy())
 
     def test_with_expressions(self, sample_df):
         result = sample_df.select(pl_hl2(pl.col("high"), pl.col("low")))
@@ -45,19 +46,23 @@ class TestPlHl2:
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
-        df = pl.DataFrame({
-            "high": [None] + [102.0] * 29,
-            "low": [None] + [98.0] * 29,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [102.0] * 29,
+                "low": [None] + [98.0] * 29,
+            }
+        )
         result = df.select(pl_hl2("high", "low"))
         assert result.height == 30
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            "high": [0.0] * 5 + [102.0] * 25,
-            "low": [0.0] * 5 + [98.0] * 25,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [0.0] * 5 + [102.0] * 25,
+                "low": [0.0] * 5 + [98.0] * 25,
+            }
+        )
         result = df.select(pl_hl2("high", "low"))
         assert result.height == 30
 
@@ -66,4 +71,3 @@ class TestPlHl2:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(pl_hl2("high", "low")).collect()
         assert "HL2" in result.columns
-

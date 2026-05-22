@@ -1,9 +1,18 @@
 # -*- coding: utf-8 -*-
-from numpy import clip, cumsum, float64, int64, isnan, nan, nan_to_num, where, zeros_like
+from numpy import (
+    clip,
+    cumsum,
+    float64,
+    int64,
+    isnan,
+    nan,
+    nan_to_num,
+    where,
+    zeros_like,
+)
 from numba import njit
 
 from polars_ti.utils import nb_ffill, nb_idiff
-
 
 
 @njit(cache=True)
@@ -71,29 +80,29 @@ def pl_exhc(
     _length = length
     _cap = cap
     _show_all = show_all
-    
+
     def compute_exhc(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
         dn, up = nb_exhc(arr, _length, _cap, 6, 9, _show_all)
         # Return as struct
         return pl.Series([{"dn": d, "up": u} for d, u in zip(dn, up)])
-    
+
     struct_expr = close_expr.map_batches(compute_exhc, return_dtype=pl.Struct({"dn": pl.Float64, "up": pl.Float64}))
-    
+
     dn_expr = struct_expr.struct.field("dn")
     up_expr = struct_expr.struct.field("up")
-    
+
     if asint:
         dn_expr = dn_expr.cast(pl.Int64)
         up_expr = up_expr.cast(pl.Int64)
-    
+
     if nozeros:
         dn_expr = pl.when(dn_expr == 0).then(None).otherwise(dn_expr)
         up_expr = pl.when(up_expr == 0).then(None).otherwise(up_expr)
-    
+
     if offset != 0:
         dn_expr = dn_expr.shift(offset)
         up_expr = up_expr.shift(offset)
-    
+
     suffix = "a" if show_all else ""
     return [dn_expr.alias(f"EXHC_DN{suffix}"), up_expr.alias(f"EXHC_UP{suffix}")]

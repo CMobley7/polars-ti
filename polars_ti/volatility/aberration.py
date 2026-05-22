@@ -39,41 +39,41 @@ def pl_aberration(
     from polars_ti.volatility.atr import pl_atr
     from polars_ti.overlap.hlc3 import pl_hlc3
     from polars_ti.overlap.sma import pl_sma
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     # HLC3 using pl_hlc3 composition
     hlc3_expr = pl_hlc3(high_expr, low_expr, close_expr)
-    
+
     # ZG = SMA(HLC3, length) using pl_sma composition
     zg = pl_sma(hlc3_expr, length=length)
-    
+
     # ATR using pl_atr composition
     atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, talib=talib)
-    
+
     # SG = ZG + ATR, XG = ZG - ATR
     sg = zg + atr_expr
     xg = zg - atr_expr
-    
+
     # Apply offset
     if offset != 0:
         zg = zg.shift(offset)
         sg = sg.shift(offset)
         xg = xg.shift(offset)
         atr_expr = atr_expr.shift(offset)
-    
+
     _props = f"_{length}_{atr_length}"
-    
-    return pl.struct([
-        zg.alias(f"ABER_ZG{_props}"),
-        sg.alias(f"ABER_SG{_props}"),
-        xg.alias(f"ABER_XG{_props}"),
-        atr_expr.alias(f"ABER_ATR{_props}"),
-    ]).alias(f"ABER{_props}")
 
-
+    return pl.struct(
+        [
+            zg.alias(f"ABER_ZG{_props}"),
+            sg.alias(f"ABER_SG{_props}"),
+            xg.alias(f"ABER_XG{_props}"),
+            atr_expr.alias(f"ABER_ATR{_props}"),
+        ]
+    ).alias(f"ABER{_props}")

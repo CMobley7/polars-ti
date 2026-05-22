@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_fisher - Polars + Numba implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,7 +14,7 @@ class TestPlFisher:
         n = 100
         high = 101 + np.cumsum(np.random.randn(n) * 0.5)
         low = high - np.abs(np.random.randn(n) * 0.3)
-        return pl.DataFrame({'high': high, 'low': low})
+        return pl.DataFrame({"high": high, "low": low})
 
     def test_returns_list_of_expr(self):
         result = pl_fisher("high", "low")

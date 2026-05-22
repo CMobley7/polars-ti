@@ -34,10 +34,10 @@ def pl_ao(
     """
     from polars_ti.overlap.hl2 import pl_hl2
     from polars_ti.overlap.sma import pl_sma
-    
+
     if slow < fast:
         fast, slow = slow, fast
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
 
@@ -50,10 +50,8 @@ def pl_ao(
 
     # AO = fast SMA - slow SMA
     ao_expr = fast_sma - slow_sma
-    
+
     if offset != 0:
         ao_expr = ao_expr.shift(offset)
 
     return ao_expr.alias(f"AO_{fast}_{slow}")
-
-

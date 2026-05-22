@@ -19,6 +19,7 @@ Strategy:
 - Keep: encoding, @njit blocks before the pandas function, Polars section
 - Remove: pandas function + its imports
 """
+
 import re
 import sys
 from pathlib import Path
@@ -88,10 +89,30 @@ def get_kernel_numpy_imports(kernel_text: str) -> set[str]:
     """Determine which numpy names a kernel uses."""
     names = set()
     numpy_names = [
-        "nan", "zeros", "zeros_like", "isnan", "floor", "roll",
-        "arctan", "rad2deg", "empty", "float64", "copy", "exp",
-        "cos", "sqrt", "log", "log10", "full", "ones", "abs",
-        "maximum", "minimum", "where", "array", "arange",
+        "nan",
+        "zeros",
+        "zeros_like",
+        "isnan",
+        "floor",
+        "roll",
+        "arctan",
+        "rad2deg",
+        "empty",
+        "float64",
+        "copy",
+        "exp",
+        "cos",
+        "sqrt",
+        "log",
+        "log10",
+        "full",
+        "ones",
+        "abs",
+        "maximum",
+        "minimum",
+        "where",
+        "array",
+        "arange",
     ]
     for name in numpy_names:
         if re.search(rf"\b{name}\b", kernel_text):
@@ -190,8 +211,16 @@ def main():
     root = Path("polars_ti")
 
     categories = [
-        "candles", "cycles", "momentum", "overlap", "performance",
-        "statistics", "transform", "trend", "volatility", "volume",
+        "candles",
+        "cycles",
+        "momentum",
+        "overlap",
+        "performance",
+        "statistics",
+        "transform",
+        "trend",
+        "volatility",
+        "volume",
     ]
 
     results = {"ok": 0, "skip": 0, "errors": []}
@@ -208,10 +237,12 @@ def main():
                 if info["status"] == "ok":
                     results["ok"] += 1
                     if dry_run:
-                        print(f"  {filepath}: L{info['polars_start']}, "
-                              f"{info['kernels']} kernels, "
-                              f"pd_fn={info['pandas_fn']}, "
-                              f"{info['orig_lines']}->{info['new_lines']} lines")
+                        print(
+                            f"  {filepath}: L{info['polars_start']}, "
+                            f"{info['kernels']} kernels, "
+                            f"pd_fn={info['pandas_fn']}, "
+                            f"{info['orig_lines']}->{info['new_lines']} lines"
+                        )
                 else:
                     results["skip"] += 1
                     print(f"  SKIP: {filepath} ({info.get('reason', '?')})")
@@ -219,8 +250,7 @@ def main():
                 results["errors"].append((str(filepath), str(e)))
                 print(f"  ERROR: {filepath}: {e}")
 
-    print(f"\nDone: {results['ok']} stripped, {results['skip']} skipped, "
-          f"{len(results['errors'])} errors")
+    print(f"\nDone: {results['ok']} stripped, {results['skip']} skipped, {len(results['errors'])} errors")
     if results["errors"]:
         for fp, err in results["errors"]:
             print(f"  {fp}: {err}")

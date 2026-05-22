@@ -44,14 +44,10 @@ def pl_swma(
     def triangle_weighted_mean(s: pl.Series) -> float:
         vals = s.to_numpy()
         if len(vals) < _length:
-            return float('nan')
-        return (vals * _weights[-len(vals):]).sum()
+            return float("nan")
+        return (vals * _weights[-len(vals) :]).sum()
 
-    swma_expr = close_expr.rolling_map(
-        function=triangle_weighted_mean,
-        window_size=length,
-        min_samples=length
-    )
+    swma_expr = close_expr.rolling_map(function=triangle_weighted_mean, window_size=length, min_samples=length)
 
     # Apply offset
     if offset != 0:

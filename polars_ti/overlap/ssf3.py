@@ -17,9 +17,7 @@ def nb_ssf3(x, n, pi, sqrt3):
 
     # result[:3] = x[:3]
     for i in range(3, m):
-        result[i] = (
-            d1 * x[i] + d2 * result[i - 1] + d3 * result[i - 2] + d4 * result[i - 3]
-        )
+        result[i] = d1 * x[i] + d2 * result[i - 1] + d3 * result[i - 2] + d4 * result[i - 3]
 
     return result
 
@@ -56,7 +54,7 @@ def pl_ssf3(
         pl.Expr: SSF3 expression
     """
     close_expr = v_expr(close)
-    
+
     def compute_ssf3(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
         # Use existing Numba kernel directly
@@ -66,6 +64,5 @@ def pl_ssf3(
             if offset > 0:
                 result[:offset] = np.nan
         return pl.Series(result)
-    
-    return close_expr.map_batches(compute_ssf3, return_dtype=pl.Float64).alias(f"SSF3_{length}")
 
+    return close_expr.map_batches(compute_ssf3, return_dtype=pl.Float64).alias(f"SSF3_{length}")

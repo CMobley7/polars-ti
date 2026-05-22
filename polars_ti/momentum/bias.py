@@ -30,17 +30,15 @@ def pl_bias(
         pl.Expr: BIAS expression
     """
     close_expr = v_expr(close)
-    
+
     # Use pl_ma for code reuse
     ma_expr = pl_ma(mamode, close_expr, length=length, talib=False)
     ma_name = f"{mamode.upper()}_{length}"
 
     # BIAS = (close / MA) - 1 - Pure Polars expression
     bias_expr = (close_expr / ma_expr) - 1.0
-    
+
     if offset != 0:
         bias_expr = bias_expr.shift(offset)
 
     return bias_expr.alias(f"BIAS_{ma_name}")
-
-

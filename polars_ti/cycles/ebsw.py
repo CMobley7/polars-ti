@@ -38,14 +38,14 @@ def pl_ebsw(
         callable: Function to apply to DataFrame
     """
     _offset = offset  # Capture for closure
-    
+
     def compute_ebsw(df: pl.DataFrame) -> pl.DataFrame:
         close_arr = df[close].to_numpy()
         m = len(close_arr)
 
         lastHP = lastClose = 0.0
         filtHist = zeros(3)
-        result = [float('nan')] * (length - 1) + [0.0]
+        result = [float("nan")] * (length - 1) + [0.0]
 
         angle = 2 * pi / length
         alpha1 = (1 - sin(angle)) / cos(angle)
@@ -75,11 +75,11 @@ def pl_ebsw(
             result.append(wave)
 
         result_df = pl.DataFrame({f"EBSW_{length}_{bars}": result})
-        
+
         # Apply offset if needed
         if _offset != 0:
             result_df = result_df.select([pl.all().shift(_offset)])
-        
+
         return result_df
 
     return compute_ebsw
@@ -102,4 +102,3 @@ def pl_ebsw_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     compute_fn = pl_ebsw(close, length, bars)
     ebsw_df = compute_fn(df)
     return df.hstack(ebsw_df)
-

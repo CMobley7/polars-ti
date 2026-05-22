@@ -12,19 +12,67 @@ from polars_ti.candles.cdl_inside import pl_cdl_inside
 
 # Full list of TA-Lib candle patterns (used when talib=True)
 ALL_PATTERNS = [
-    "2crows", "3blackcrows", "3inside", "3linestrike", "3outside",
-    "3starsinsouth", "3whitesoldiers", "abandonedbaby", "advanceblock",
-    "belthold", "breakaway", "closingmarubozu", "concealbabyswall",
-    "counterattack", "darkcloudcover", "doji", "dojistar", "dragonflydoji",
-    "engulfing", "eveningdojistar", "eveningstar", "gapsidesidewhite",
-    "gravestonedoji", "hammer", "hangingman", "harami", "haramicross",
-    "highwave", "hikkake", "hikkakemod", "homingpigeon", "identical3crows",
-    "inneck", "inside", "invertedhammer", "kicking", "kickingbylength",
-    "ladderbottom", "longleggeddoji", "longline", "marubozu", "matchinglow",
-    "mathold", "morningdojistar", "morningstar", "onneck", "piercing",
-    "rickshawman", "risefall3methods", "separatinglines", "shootingstar",
-    "shortline", "spinningtop", "stalledpattern", "sticksandwich", "takuri",
-    "tasukigap", "thrusting", "tristar", "unique3river", "upsidegap2crows",
+    "2crows",
+    "3blackcrows",
+    "3inside",
+    "3linestrike",
+    "3outside",
+    "3starsinsouth",
+    "3whitesoldiers",
+    "abandonedbaby",
+    "advanceblock",
+    "belthold",
+    "breakaway",
+    "closingmarubozu",
+    "concealbabyswall",
+    "counterattack",
+    "darkcloudcover",
+    "doji",
+    "dojistar",
+    "dragonflydoji",
+    "engulfing",
+    "eveningdojistar",
+    "eveningstar",
+    "gapsidesidewhite",
+    "gravestonedoji",
+    "hammer",
+    "hangingman",
+    "harami",
+    "haramicross",
+    "highwave",
+    "hikkake",
+    "hikkakemod",
+    "homingpigeon",
+    "identical3crows",
+    "inneck",
+    "inside",
+    "invertedhammer",
+    "kicking",
+    "kickingbylength",
+    "ladderbottom",
+    "longleggeddoji",
+    "longline",
+    "marubozu",
+    "matchinglow",
+    "mathold",
+    "morningdojistar",
+    "morningstar",
+    "onneck",
+    "piercing",
+    "rickshawman",
+    "risefall3methods",
+    "separatinglines",
+    "shootingstar",
+    "shortline",
+    "spinningtop",
+    "stalledpattern",
+    "sticksandwich",
+    "takuri",
+    "tasukigap",
+    "thrusting",
+    "tristar",
+    "unique3river",
+    "upsidegap2crows",
     "xsidegap3methods",
 ]
 
@@ -68,9 +116,9 @@ def pl_cdl_pattern(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
+
     _use_talib = Imports["talib"] and v_talib(talib)
 
-    
     if name == "all":
         if _use_talib:
             patterns = ALL_PATTERNS
@@ -82,7 +130,7 @@ def pl_cdl_pattern(
         patterns = list(name)
 
     result_df = df
-    
+
     for pattern in patterns:
         # Try native Polars first
         if pattern in POLARS_PATTERNS:
@@ -94,38 +142,40 @@ def pl_cdl_pattern(
         elif _use_talib and pattern in ALL_PATTERNS:
             # Use TA-Lib via map_batches
             import talib.abstract as tala
-            
+
             _pattern = pattern
             _scalar = scalar
             _offset = offset
-            
+
             def compute_pattern(struct: pl.Series) -> pl.Series:
                 # Extract OHLC from struct
                 o = struct.struct.field("o").to_numpy().astype(np.float64)
                 h = struct.struct.field("h").to_numpy().astype(np.float64)
                 l = struct.struct.field("l").to_numpy().astype(np.float64)
                 c = struct.struct.field("c").to_numpy().astype(np.float64)
-                
+
                 pf = tala.Function(f"CDL{_pattern.upper()}")
                 result = 0.01 * _scalar * pf(o, h, l, c)
-                
+
                 if _offset != 0:
                     result = np.roll(result, _offset)
                     if _offset > 0:
                         result[:_offset] = np.nan
                     else:
                         result[_offset:] = np.nan
-                
+
                 return pl.Series(result)
 
             # Create struct with OHLC, then apply pattern detection
-            struct_expr = pl.struct([
-                pl.col(open_).alias("o"),
-                pl.col(high).alias("h"),
-                pl.col(low).alias("l"),
-                pl.col(close).alias("c"),
-            ])
-            
+            struct_expr = pl.struct(
+                [
+                    pl.col(open_).alias("o"),
+                    pl.col(high).alias("h"),
+                    pl.col(low).alias("l"),
+                    pl.col(close).alias("c"),
+                ]
+            )
+
             pattern_result = df.select(
                 struct_expr.map_batches(compute_pattern, return_dtype=pl.Float64).alias(f"CDL_{pattern.upper()}")
             )
@@ -159,4 +209,3 @@ def pl_cdl_inside_expr(
 
 
 pl_cdl = pl_cdl_pattern  # Alias matching pandas naming convention
-

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_kdj - Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -14,7 +15,7 @@ class TestPlKdj:
         high = 100 + np.cumsum(np.random.randn(n) * 0.5) + np.random.rand(n)
         low = 100 + np.cumsum(np.random.randn(n) * 0.5) - np.random.rand(n)
         close = (high + low) / 2
-        return pl.DataFrame({'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"high": high, "low": low, "close": close})
 
     def test_returns_list(self):
         exprs = pl_kdj("high", "low", "close")
@@ -46,4 +47,3 @@ class TestPlKdj:
         assert "K_14_5" in result.columns
         assert "D_14_5" in result.columns
         assert "J_14_5" in result.columns
-

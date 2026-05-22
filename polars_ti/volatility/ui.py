@@ -36,32 +36,31 @@ def pl_ui(
         pl.Expr: UI expression
     """
     from polars_ti.overlap.sma import pl_sma
-    
+
     close_expr = v_expr(close)
-    
+
     if close_expr is None:
         return None
-    
+
     # Highest close over rolling window
     highest_close = close_expr.rolling_max(window_size=length, min_samples=1)
-    
+
     # Downside = scalar * (close - highest) / highest
     downside = pl.lit(scalar) * (close_expr - highest_close) / highest_close
     d2 = downside * downside
-    
+
     # Everget uses SMA instead of SUM
     if everget:
         _ui = pl_sma(d2, length=length)
     else:
         _ui = d2.rolling_sum(window_size=length, min_samples=length)
-    
+
     # UI = sqrt(_ui / length)
     result = (_ui / pl.lit(length)).sqrt()
-    
+
     # Apply offset
     if offset != 0:
         result = result.shift(offset)
-    
+
     _name = f"UI{'' if not everget else 'e'}_{length}"
     return result.alias(_name)
-

@@ -268,14 +268,16 @@ def pl_zigzag(
 
         _props = f"_{deviation}%_{legs}"
         n = len(h)
-        return pl.Series(values=[
-            {
-                f"ZIGZAGs{_props}": zz_swing[i],
-                f"ZIGZAGv{_props}": zz_value[i],
-                f"ZIGZAGd{_props}": zz_dev[i],
-            }
-            for i in range(n)
-        ])
+        return pl.Series(
+            values=[
+                {
+                    f"ZIGZAGs{_props}": zz_swing[i],
+                    f"ZIGZAGv{_props}": zz_value[i],
+                    f"ZIGZAGd{_props}": zz_dev[i],
+                }
+                for i in range(n)
+            ]
+        )
 
     _props = f"_{deviation}%_{legs}"
     fields = [
@@ -283,8 +285,11 @@ def pl_zigzag(
         pl.Field(f"ZIGZAGv{_props}", pl.Float64),
         pl.Field(f"ZIGZAGd{_props}", pl.Float64),
     ]
-    return pl.struct(
-        high_expr.alias("_h"),
-        low_expr.alias("_l"),
-    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"ZIGZAG{_props}")
-
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"ZIGZAG{_props}")
+    )

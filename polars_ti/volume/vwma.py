@@ -19,7 +19,7 @@ def pl_vwma(
     Uses composition: pl_sma for calculating moving averages.
 
     Formula: VWMA = SMA(Close * Volume, n) / SMA(Volume, n)
-    
+
     Note: Since SMA = SUM/n, the n's cancel out giving VWMA = SUM(pv)/SUM(v)
 
     Sources:
@@ -35,20 +35,18 @@ def pl_vwma(
         pl.Expr: VWMA expression
     """
     from polars_ti.overlap.sma import pl_sma
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     # VWMA = SMA(close * volume) / SMA(volume) - matches Pandas exactly
     pv = close_expr * volume_expr
     result = pl_sma(pv, length=length) / pl_sma(volume_expr, length=length)
-    
+
     if offset != 0:
         result = result.shift(offset)
-    
+
     return result.alias(f"VWMA_{length}")
-
-

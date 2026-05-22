@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_mama."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,9 +11,11 @@ class TestPlMama:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'close': 100 + np.cumsum(np.random.randn(100) * 0.5),
-        })
+        return pl.DataFrame(
+            {
+                "close": 100 + np.cumsum(np.random.randn(100) * 0.5),
+            }
+        )
 
     def test_returns_dataframe(self, sample_df):
         result = pl_mama(sample_df)

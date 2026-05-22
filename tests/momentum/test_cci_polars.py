@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_cci - Polars + Numba implementation with TA-Lib support."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -14,7 +15,7 @@ class TestPlCci:
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         high = close + np.abs(np.random.randn(n) * 0.5)
         low = close - np.abs(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"high": high, "low": low, "close": close})
 
     def test_returns_expr(self):
         expr = pl_cci("high", "low", "close")
@@ -53,11 +54,12 @@ class TestPlCci:
         assert "CCI_14_0.02" in result.columns
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            'high': [101.0, None, 103.0] + [102.0] * 50,
-            'low': [99.0, 100.0, None] + [98.0] * 50,
-            'close': [100.0, 101.0, 102.0] + [100.0] * 50
-        })
+        df = pl.DataFrame(
+            {
+                "high": [101.0, None, 103.0] + [102.0] * 50,
+                "low": [99.0, 100.0, None] + [98.0] * 50,
+                "close": [100.0, 101.0, 102.0] + [100.0] * 50,
+            }
+        )
         result = df.select(pl_cci("high", "low", "close", talib=False))
         assert result.height == 53
-

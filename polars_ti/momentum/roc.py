@@ -42,29 +42,31 @@ def pl_roc(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1
     _length = length
     _scalar = scalar
-    
+
     if _use_talib:
+
         def compute_roc(s: pl.Series) -> pl.Series:
             from talib import ROC as TALIB_ROC
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_ROC(arr, timeperiod=_length)
             return pl.Series(result)
+
         roc_expr = close_expr.map_batches(compute_roc, return_dtype=pl.Float64)
     else:
         # Pure Polars: ROC = scalar * (close - close.shift(n)) / close.shift(n)
         shifted = close_expr.shift(length)
         roc_expr = _scalar * (close_expr - shifted) / shifted
-    
+
     if offset != 0:
         roc_expr = roc_expr.shift(offset)
-    
-    return roc_expr.alias(f"ROC_{length}")
 
+    return roc_expr.alias(f"ROC_{length}")

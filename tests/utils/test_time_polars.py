@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/utils/_time.py Polars utilities."""
+
 import polars as pl
 import pytest
 from datetime import datetime, timedelta

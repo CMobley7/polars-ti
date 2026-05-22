@@ -35,6 +35,7 @@ def pl_sinwma(
 
     # Calculate sine weights
     import numpy as np
+
     sine_weights = np.array([np.sin((i + 1) * np.pi / (length + 1)) for i in range(length)])
     weights_sum = sine_weights.sum()
     weights_list = (sine_weights / weights_sum).tolist()
@@ -45,14 +46,10 @@ def pl_sinwma(
     def sine_weighted_mean(s: pl.Series) -> float:
         vals = s.to_numpy()
         if len(vals) < _length:
-            return float('nan')
-        return (vals * _weights[-len(vals):]).sum()
+            return float("nan")
+        return (vals * _weights[-len(vals) :]).sum()
 
-    sinwma_expr = close_expr.rolling_map(
-        function=sine_weighted_mean,
-        window_size=length,
-        min_samples=length
-    )
+    sinwma_expr = close_expr.rolling_map(function=sine_weighted_mean, window_size=length, min_samples=length)
 
     # Apply offset
     if offset != 0:

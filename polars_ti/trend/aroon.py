@@ -83,18 +83,18 @@ def pl_aroon(
                 down[:offset] = np.nan
                 osc[:offset] = np.nan
 
-        return pl.Series(values=[
-            {"AROONU": u, "AROOND": d, "AROONOSC": o}
-            for u, d, o in zip(up, down, osc)
-        ])
+        return pl.Series(values=[{"AROONU": u, "AROOND": d, "AROONOSC": o} for u, d, o in zip(up, down, osc)])
 
     fields = [
         pl.Field("AROONU", pl.Float64),
         pl.Field("AROOND", pl.Float64),
         pl.Field("AROONOSC", pl.Float64),
     ]
-    return pl.struct(
-        high_expr.alias("_high"),
-        low_expr.alias("_low"),
-    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"AROON_{length}")
-
+    return (
+        pl.struct(
+            high_expr.alias("_high"),
+            low_expr.alias("_low"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"AROON_{length}")
+    )

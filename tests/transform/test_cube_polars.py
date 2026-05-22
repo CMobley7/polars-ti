@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_cube."""
+
 import numpy as np
 import polars as pl
 import pytest

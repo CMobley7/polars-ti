@@ -28,22 +28,21 @@ def pl_pvt(
         pl.Expr: PVT expression
     """
     from polars_ti.momentum.roc import pl_roc
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     # PVT = cumsum(ROC * volume)
     # Use pl_roc for code reuse
     roc_expr = pl_roc(close_expr, length=drift, scalar=100.0, talib=False, offset=0)
-    
+
     pv = roc_expr * volume_expr
     pvt_expr = pv.cum_sum()
-    
+
     if offset != 0:
         pvt_expr = pvt_expr.shift(offset)
-    
-    return pvt_expr.alias("PVT")
 
+    return pvt_expr.alias("PVT")

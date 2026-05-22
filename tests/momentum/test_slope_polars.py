@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for Polars SLOPE implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -53,11 +54,7 @@ class TestPlSlope:
         with_offset_vals = result_with_offset[result_with_offset.columns[0]].to_numpy()
 
         valid_idx = 20
-        assert np.isclose(
-            no_offset_vals[valid_idx],
-            with_offset_vals[valid_idx + offset],
-            atol=1e-10
-        )
+        assert np.isclose(no_offset_vals[valid_idx], with_offset_vals[valid_idx + offset], atol=1e-10)
 
     def test_lazy_execution(self, sample_data):
         """pl_slope should work with lazy DataFrames."""
@@ -70,7 +67,7 @@ class TestPlSlope:
     def test_different_length_parameters(self, sample_data):
         """SLOPE should work with different length parameters."""
         pl_df, _ = sample_data
-        
+
         for length in [1, 5, 10, 20]:
             result = pl_df.select(pl_slope("close", length=length))
             assert f"SLOPE_{length}" in result.columns

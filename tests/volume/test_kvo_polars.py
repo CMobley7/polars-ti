@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_kvo."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -15,12 +16,14 @@ class TestPlKvo:
         high = close + np.abs(np.random.randn(n) * 0.3)
         low = close - np.abs(np.random.randn(n) * 0.3)
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': volume,
-        })
+        return pl.DataFrame(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
 
     def test_returns_list_of_expressions(self, sample_df):
         exprs = pl_kvo("high", "low", "close", "volume")
@@ -40,12 +43,14 @@ class TestPlKvo:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "high": [None] + [101.0] * 79,
-            "low": [None] + [99.0] * 79,
-            "close": [None] + [100.0] * 79,
-            "volume": [None] + [1000.0] * 79
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [101.0] * 79,
+                "low": [None] + [99.0] * 79,
+                "close": [None] + [100.0] * 79,
+                "volume": [None] + [1000.0] * 79,
+            }
+        )
         exprs = pl_kvo("high", "low", "close", "volume")
         result = df.select(exprs)
         assert result.height == 80

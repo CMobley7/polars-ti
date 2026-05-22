@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_wb_tsv."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,7 +14,7 @@ class TestPlWbTsv:
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({'close': close, 'volume': volume})
+        return pl.DataFrame({"close": close, "volume": volume})
 
     def test_returns_list_of_expressions(self, sample_df):
         exprs = pl_wb_tsv("close", "volume")
@@ -34,10 +35,7 @@ class TestPlWbTsv:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 99,
-            "volume": [None] + [1000.0] * 99
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 99, "volume": [None] + [1000.0] * 99})
         exprs = pl_wb_tsv("close", "volume")
         result = df.select(exprs)
         assert result.height == 100

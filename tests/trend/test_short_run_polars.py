@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_short_run."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -22,10 +23,12 @@ class TestPlShortRun:
         np.random.seed(42)
         # Create fast and slow EMAs
         close = 100 + np.cumsum(np.random.randn(100) * 0.5)
-        return pl.DataFrame({
-            'fast': _np_ema(close, span=5),
-            'slow': _np_ema(close, span=20),
-        })
+        return pl.DataFrame(
+            {
+                "fast": _np_ema(close, span=5),
+                "slow": _np_ema(close, span=20),
+            }
+        )
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_short_run("fast", "slow"))
@@ -41,18 +44,12 @@ class TestPlShortRun:
         assert all(v is None or np.isnan(float(v)) for v in arr[:5] if v is not None)
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "fast": [None] + [100.0] * 49,
-            "slow": [None] + [100.0] * 49
-        })
+        df = pl.DataFrame({"fast": [None] + [100.0] * 49, "slow": [None] + [100.0] * 49})
         result = df.select(pl_short_run("fast", "slow", length=2))
         assert result.height == 50
 
     def test_with_zeros(self):
-        df = pl.DataFrame({
-            "fast": [0.0] * 50,
-            "slow": [0.0] * 50
-        })
+        df = pl.DataFrame({"fast": [0.0] * 50, "slow": [0.0] * 50})
         result = df.select(pl_short_run("fast", "slow", length=2))
         assert result.height == 50
 

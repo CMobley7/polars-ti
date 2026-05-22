@@ -108,6 +108,7 @@ def pl_rvi(
         result = struct_expr.map_batches(compute_refined, return_dtype=pl.Float64)
         _mode = "r" if refined else "t"
     else:
+
         def compute_simple(s: pl.Series) -> pl.Series:
             arr = s.to_numpy().astype(np.float64)
             return pl.Series(_pl_rvi_single(arr, _length, _scalar, _mamode, _drift))

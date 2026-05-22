@@ -22,9 +22,7 @@ def nb_hwc(close, na, nb, nc, nd, scalar):
         curr_res = F + V + 0.5 * A
         result[i] = curr_res
 
-        var = (1.0 - nd) * last_var + nd * (last_price - last_result) * (
-            last_price - last_result
-        )
+        var = (1.0 - nd) * last_var + nd * (last_price - last_result) * (last_price - last_result)
         stddev = np.sqrt(last_var)
 
         upper[i] = curr_res + scalar * stddev
@@ -83,21 +81,21 @@ def pl_hwc(
         pl.Expr: Struct with HWM (Mid), HWU (Upper), HWL (Lower) columns
     """
     close_expr = v_expr(close)
-    
+
     if close_expr is None:
         return None
-    
+
     _na = na
     _nb = nb
     _nc = nc
     _nd = nd
     _scalar = scalar
     _offset = offset
-    
+
     def compute_hwc(s: pl.Series) -> pl.Series:
         np_close = s.to_numpy().astype(np.float64)
         result, upper, lower = nb_hwc(np_close, _na, _nb, _nc, _nd, _scalar)
-        
+
         if _offset != 0:
             result = np.roll(result, _offset)
             upper = np.roll(upper, _offset)
@@ -106,20 +104,12 @@ def pl_hwc(
                 result[:_offset] = np.nan
                 upper[:_offset] = np.nan
                 lower[:_offset] = np.nan
-        
-        return pl.DataFrame({
-            "hwm": result,
-            "hwu": upper,
-            "hwl": lower
-        }).to_struct("hwc")
-    
-    _props = f"_{int(scalar)}"
-    
-    return close_expr.map_batches(
-        compute_hwc, return_dtype=pl.Struct({
-            "hwm": pl.Float64,
-            "hwu": pl.Float64,
-            "hwl": pl.Float64
-        })
-    ).alias(f"HWC{_props}")
 
+        return pl.DataFrame({"hwm": result, "hwu": upper, "hwl": lower}).to_struct("hwc")
+
+    _props = f"_{int(scalar)}"
+
+    return close_expr.map_batches(
+        compute_hwc,
+        return_dtype=pl.Struct({"hwm": pl.Float64, "hwu": pl.Float64, "hwl": pl.Float64}),
+    ).alias(f"HWC{_props}")

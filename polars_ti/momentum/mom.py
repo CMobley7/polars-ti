@@ -40,27 +40,29 @@ def pl_mom(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1
     _length = length
-    
+
     if _use_talib:
+
         def compute_mom(s: pl.Series) -> pl.Series:
             from talib import MOM as TALIB_MOM
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_MOM(arr, timeperiod=_length)
             return pl.Series(result)
+
         mom_expr = close_expr.map_batches(compute_mom, return_dtype=pl.Float64)
     else:
         # Pure Polars: MOM = close - close.shift(length)
         mom_expr = close_expr - close_expr.shift(length)
-    
+
     if offset != 0:
         mom_expr = mom_expr.shift(offset)
-    
-    return mom_expr.alias(f"MOM_{length}")
 
+    return mom_expr.alias(f"MOM_{length}")

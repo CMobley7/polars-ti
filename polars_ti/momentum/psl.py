@@ -24,7 +24,7 @@ def pl_psl(
 
     Sources:
         https://iqoption.com/blog/psychological-line
-        
+
     Calculation:
         If open_ provided:
             diff = sign(close - open_)
@@ -47,7 +47,7 @@ def pl_psl(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     # Calculate diff based on open or drift
     if open_ is not None:
         open_expr = v_expr(open_)
@@ -58,17 +58,17 @@ def pl_psl(
     else:
         # sign(close.diff(drift))
         diff = close_expr.diff(drift).sign()
-    
+
     # Fill NaN with 0, then clip to count only positive (rising) periods
     diff = diff.fill_nan(0.0).fill_null(0.0)
     # When diff <= 0, set to 0; when diff > 0, keep as 1
     diff = pl.when(diff > 0).then(1.0).otherwise(0.0)
-    
+
     # PSL = scalar * rolling_sum(diff) / length
     psl = scalar * diff.rolling_sum(length) / length
-    
+
     # Apply offset
     if offset != 0:
         psl = psl.shift(offset)
-    
+
     return psl.alias(f"PSL_{length}")

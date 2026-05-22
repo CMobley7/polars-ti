@@ -99,10 +99,7 @@ def pl_kdj(
         d_arr = _nb_rma(k_arr, _signal)
         j_arr = 3.0 * k_arr - 2.0 * d_arr
 
-        return pl.Series([
-            {"K": float(kv), "D": float(dv), "J": float(jv)}
-            for kv, dv, jv in zip(k_arr, d_arr, j_arr)
-        ])
+        return pl.Series([{"K": float(kv), "D": float(dv), "J": float(jv)} for kv, dv, jv in zip(k_arr, d_arr, j_arr)])
 
     struct_expr = pl.struct(high=high_expr, low=low_expr, close=close_expr)
     result = struct_expr.map_batches(

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/overlap/linreg.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -16,8 +17,8 @@ class TestPlLinreg:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': close,
-            'pl_df': pl.DataFrame({'close': close}),
+            "pd_series": close,
+            "pl_df": pl.DataFrame({"close": close}),
         }
 
     def test_returns_expression(self):
@@ -27,18 +28,18 @@ class TestPlLinreg:
 
     def test_output_has_correct_alias(self, sample_data):
         """Output column has correct alias."""
-        result = sample_data['pl_df'].select(pl_linreg('close', length=14))
-        assert result.columns[0] == 'LINREG_14'
+        result = sample_data["pl_df"].select(pl_linreg("close", length=14))
+        assert result.columns[0] == "LINREG_14"
 
     def test_slope_mode(self, sample_data):
         """Slope mode works correctly."""
-        result = sample_data['pl_df'].select(pl_linreg('close', length=14, slope=True))
-        assert 'LINREGm_14' in result.columns[0]
+        result = sample_data["pl_df"].select(pl_linreg("close", length=14, slope=True))
+        assert "LINREGm_14" in result.columns[0]
 
     def test_intercept_mode(self, sample_data):
         """Intercept mode works correctly."""
-        result = sample_data['pl_df'].select(pl_linreg('close', length=14, intercept=True))
-        assert 'LINREGb_14' in result.columns[0]
+        result = sample_data["pl_df"].select(pl_linreg("close", length=14, intercept=True))
+        assert "LINREGb_14" in result.columns[0]
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
@@ -54,6 +55,6 @@ class TestPlLinreg:
 
     def test_lazy_execution(self, sample_data):
         """Works with LazyFrame."""
-        lazy_df = sample_data['pl_df'].lazy()
+        lazy_df = sample_data["pl_df"].lazy()
         result = lazy_df.select(pl_linreg("close", length=14)).collect()
         assert "LINREG_14" in result.columns

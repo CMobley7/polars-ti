@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_trix - Polars + Numba TRIX with TA-Lib support."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlTrix:
         np.random.seed(42)
         n = 150
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_trix("close")
@@ -65,9 +66,7 @@ class TestPlTrix:
         assert "TRIX_20_5" in trix.struct.fields
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            'close': [None] + [100.0] * 149
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 149})
         result = df.select(pl_trix("close"))
         assert result.height == 150
 
@@ -77,19 +76,19 @@ class TestPlTrix:
             from talib import TRIX as TALIB_TRIX
         except ImportError:
             pytest.skip("TA-Lib not installed")
-        
+
         np.random.seed(42)
         n = 500
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        
-        pldf = pl.DataFrame({'close': close})
-        
+
+        pldf = pl.DataFrame({"close": close})
+
         talib_trix = TALIB_TRIX(close, timeperiod=30)
-        
+
         polars_result = pldf.select(pl_trix("close", talib=True))
         trix = polars_result["TRIX"]
         polars_main = trix.struct.field("TRIX_30_9").to_numpy()
-        
+
         valid_mask = ~np.isnan(talib_trix) & ~np.isnan(polars_main)
         max_diff = np.max(np.abs(talib_trix[valid_mask] - polars_main[valid_mask]))
         assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

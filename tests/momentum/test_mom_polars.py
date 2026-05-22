@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_mom."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,9 +11,11 @@ class TestPlMom:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'close': 100 + np.cumsum(np.random.randn(100) * 0.5),
-        })
+        return pl.DataFrame(
+            {
+                "close": 100 + np.cumsum(np.random.randn(100) * 0.5),
+            }
+        )
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_mom("close"))

@@ -38,9 +38,7 @@ def df_quarter_to_date(df):
     """Yields the Quarter-to-Date (QTD) DataFrame"""
     now = datetime.now()
     quarter_start_month = ((now.month - 1) // 3) * 3 + 1
-    start = now.replace(
-        month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0
-    )
+    start = now.replace(month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
     if hasattr(df, "filter") and hasattr(df, "columns"):
         date_col = "date" if "date" in df.columns else df.columns[0]
         return df.filter(pl.col(date_col) >= start)
@@ -75,18 +73,38 @@ def final_time(stime: Float) -> str:
     return f"{time_diff * 1000:2.4f} ms ({time_diff:2.4f} s)"
 
 
-_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-_MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"]
+_DAY_NAMES = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+_MONTH_NAMES = [
+    "",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
 
 
-def get_time(
-    exchange: str = "NYSE", full: bool = True, to_string: bool = False
-) -> Optional[str]:
+def get_time(exchange: str = "NYSE", full: bool = True, to_string: bool = False) -> Optional[str]:
     """Returns Current Time, Day of the Year and Percentage, and the current
     time of the selected Exchange."""
     try:
         import datetime as _dt
+
         tz = EXCHANGE_TZ["NYSE"]  # Default is NYSE (Eastern Time Zone)
         if isinstance(exchange, str):
             exchange = exchange.upper()
@@ -148,11 +166,7 @@ def to_utc(df):
     set the Index to UTC.
     """
     if hasattr(df, "with_columns") and hasattr(df, "columns"):
-        date_cols = [
-            name
-            for name, dtype in zip(df.columns, df.dtypes)
-            if dtype in (pl.Date, pl.Datetime)
-        ]
+        date_cols = [name for name, dtype in zip(df.columns, df.dtypes) if dtype in (pl.Date, pl.Datetime)]
         if not date_cols:
             return df
         return df.with_columns(pl.col(date_cols[0]).dt.replace_time_zone("UTC"))

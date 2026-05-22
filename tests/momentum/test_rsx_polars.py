@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for Polars RSX (Relative Strength Xtra) implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -43,24 +44,17 @@ class TestPlRsx:
 
         # Check shift at a specific non-NaN position
         valid_idx = 30
-        assert np.isclose(
-            no_offset_vals[valid_idx],
-            with_offset_vals[valid_idx + offset],
-            atol=1e-10
-        )
+        assert np.isclose(no_offset_vals[valid_idx], with_offset_vals[valid_idx + offset], atol=1e-10)
 
     def test_with_null_values(self, sample_data):
         """pl_rsx should handle null values gracefully."""
         pl_df, _ = sample_data
-        
+
         # Insert nulls
         df_with_nulls = pl_df.with_columns(
-            pl.when(pl.col("close").is_between(50, 60))
-            .then(None)
-            .otherwise(pl.col("close"))
-            .alias("close")
+            pl.when(pl.col("close").is_between(50, 60)).then(None).otherwise(pl.col("close")).alias("close")
         )
-        
+
         result = df_with_nulls.select(pl_rsx("close"))
         assert result.height == pl_df.height
 
@@ -78,7 +72,7 @@ class TestPlRsx:
         pl_df, _ = sample_data
         result = pl_df.select(pl_rsx("close", length=14))
         values = result[result.columns[0]].to_numpy()
-        
+
         valid_vals = values[~np.isnan(values)]
         assert np.all(valid_vals >= 0), "RSX values should be >= 0"
         assert np.all(valid_vals <= 100), "RSX values should be <= 100"
@@ -86,7 +80,7 @@ class TestPlRsx:
     def test_different_length_parameters(self, sample_data):
         """RSX should work with different length parameters."""
         pl_df, _ = sample_data
-        
+
         for length in [7, 14, 21]:
             result = pl_df.select(pl_rsx("close", length=length))
             assert f"RSX_{length}" in result.columns

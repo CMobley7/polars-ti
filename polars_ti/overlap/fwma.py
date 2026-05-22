@@ -49,14 +49,10 @@ def pl_fwma(
     def fib_weighted_mean(s: pl.Series) -> float:
         vals = s.to_numpy()
         if len(vals) < _length:
-            return float('nan')
-        return (vals * _weights[-len(vals):]).sum() / _total
+            return float("nan")
+        return (vals * _weights[-len(vals) :]).sum() / _total
 
-    fwma_expr = close_expr.rolling_map(
-        function=fib_weighted_mean,
-        window_size=length,
-        min_samples=length
-    )
+    fwma_expr = close_expr.rolling_map(function=fib_weighted_mean, window_size=length, min_samples=length)
 
     # Apply offset
     if offset != 0:

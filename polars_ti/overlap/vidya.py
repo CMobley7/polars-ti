@@ -15,9 +15,7 @@ def nb_vidya(close, abs_cmo, alpha, length):
     vidya = zeros(m)
 
     for i in range(length, m):
-        vidya[i] = alpha * abs_cmo[i] * close[i] + vidya[i - 1] * (
-            1 - alpha * abs_cmo[i]
-        )
+        vidya[i] = alpha * abs_cmo[i] * close[i] + vidya[i - 1] * (1 - alpha * abs_cmo[i])
     return vidya
 
 
@@ -59,7 +57,7 @@ def pl_vidya(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -67,32 +65,34 @@ def pl_vidya(
     _length = length
     _drift = drift
     _use_talib = Imports["talib"] and v_talib(talib)
-    
+
     def compute_vidya(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
         n = len(arr)
-        
+
         # Calculate alpha
         alpha = 2.0 / (_length + 1)
-        
+
         # Calculate CMO
         if _use_talib:
             from talib import CMO
+
             cmo_vals = CMO(arr, _length) / 100.0  # Scale to 0-1
         else:
             from polars_ti.momentum.cmo import pl_cmo
+
             tmp = pl.DataFrame({"_close": arr})
             cmo_col = tmp.select(pl_cmo("_close", length=_length, drift=_drift)).to_series().to_numpy()
             cmo_vals = cmo_col / 100.0  # Scale to 0-1
-        
+
         abs_cmo = np.abs(cmo_vals).astype(np.float64)
-        
+
         # Use the shared Numba kernel
         result = nb_vidya(arr, abs_cmo, alpha, _length)
-        
+
         # Replace zeros with NaN
         result[result == 0] = np.nan
-        
+
         return pl.Series(result)
 
     result = close_expr.map_batches(compute_vidya, return_dtype=pl.Float64)
@@ -102,4 +102,3 @@ def pl_vidya(
         result = result.shift(offset)
 
     return result.alias(f"VIDYA_{length}")
-

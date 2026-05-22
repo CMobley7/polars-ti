@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_pvi."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,10 +14,12 @@ class TestPlPvi:
         n = 300
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({
-            'close': close,
-            'volume': volume,
-        })
+        return pl.DataFrame(
+            {
+                "close": close,
+                "volume": volume,
+            }
+        )
 
     def test_returns_list_of_expressions(self, sample_df):
         exprs = pl_pvi("close", "volume")
@@ -36,10 +39,7 @@ class TestPlPvi:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 299,
-            "volume": [None] + [1000.0] * 299
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 299, "volume": [None] + [1000.0] * 299})
         exprs = pl_pvi("close", "volume")
         result = df.select(exprs)
         assert result.height == 300

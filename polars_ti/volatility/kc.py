@@ -42,38 +42,40 @@ def pl_kc(
     """
     from polars_ti.ma import pl_ma
     from polars_ti.volatility.true_range import pl_true_range
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     # Range: True Range or High-Low (matches Pandas: true_range() if tr else high_low_range())
     if tr:
         range_expr = pl_true_range(high_expr, low_expr, close_expr)
     else:
         range_expr = high_expr - low_expr
-    
+
     # Basis = MA(close) and Band = MA(range) using pl_ma composition
     basis = pl_ma(name=mamode, source=close_expr, length=length, talib=False)
     band = pl_ma(name=mamode, source=range_expr, length=length, talib=False)
-    
+
     # KC bands
     lower = basis - pl.lit(scalar) * band
     upper = basis + pl.lit(scalar) * band
-    
+
     # Apply offset
     if offset != 0:
         lower = lower.shift(offset)
         basis = basis.shift(offset)
         upper = upper.shift(offset)
-    
+
     _props = f"_{mamode.lower()[0] if mamode else 'e'}_{length}_{int(scalar)}"
-    
-    return pl.struct([
-        lower.alias("kcl"),
-        basis.alias("kcb"),
-        upper.alias("kcu"),
-    ]).alias(f"KC{_props}")
+
+    return pl.struct(
+        [
+            lower.alias("kcl"),
+            basis.alias("kcb"),
+            upper.alias("kcu"),
+        ]
+    ).alias(f"KC{_props}")

@@ -39,40 +39,39 @@ def pl_tsi(
     """
     from polars_ti.overlap.ema import pl_ema
     from polars_ti.ma import pl_ma
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     if slow < fast:
         fast, slow = slow, fast
-    
+
     _props = f"_{fast}_{slow}_{signal}"
-    
+
     # TSI = scalar * double_smooth(diff) / double_smooth(abs(diff))
     diff = close_expr.diff(drift)
-    
+
     # Double smooth the diff
     diff_slow = pl_ema(diff, length=slow)
     diff_fast_slow = pl_ema(diff_slow, length=fast)
-    
+
     # Double smooth the abs(diff)
     abs_diff = diff.abs()
     abs_slow = pl_ema(abs_diff, length=slow)
     abs_fast_slow = pl_ema(abs_slow, length=fast)
-    
+
     # TSI = scalar * double_smooth(diff) / double_smooth(|diff|)
     tsi_expr = scalar * diff_fast_slow / abs_fast_slow
-    
+
     # Signal = MA(TSI, signal)
     tsi_signal_expr = pl_ma(name=mamode, source=tsi_expr, length=signal)
-    
+
     if offset != 0:
         tsi_expr = tsi_expr.shift(offset)
         tsi_signal_expr = tsi_signal_expr.shift(offset)
-    
+
     return [
         tsi_expr.alias(f"TSI{_props}"),
         tsi_signal_expr.alias(f"TSIs{_props}"),
     ]
-

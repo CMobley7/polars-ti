@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_stochf - Polars + Numba Fast Stochastic Oscillator with TA-Lib support."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -14,7 +15,7 @@ class TestPlStochf:
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         high = close + np.abs(np.random.randn(n) * 0.5)
         low = close - np.abs(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"high": high, "low": low, "close": close})
 
     def test_returns_expr(self):
         expr = pl_stochf("high", "low", "close")
@@ -65,20 +66,24 @@ class TestPlStochf:
         assert "STOCHFd_14_5" in stochf.struct.fields
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            'high': [101.0, None, 103.0] + [102.0] * 50,
-            'low': [99.0, 100.0, None] + [98.0] * 50,
-            'close': [100.0, 101.0, 102.0] + [100.0] * 50
-        })
+        df = pl.DataFrame(
+            {
+                "high": [101.0, None, 103.0] + [102.0] * 50,
+                "low": [99.0, 100.0, None] + [98.0] * 50,
+                "close": [100.0, 101.0, 102.0] + [100.0] * 50,
+            }
+        )
         result = df.select(pl_stochf("high", "low", "close", talib=False))
         assert result.height == 53
 
     def test_with_zeros(self):
-        df = pl.DataFrame({
-            'high': [0.0] * 10 + [102.0] * 50,
-            'low': [0.0] * 10 + [98.0] * 50,
-            'close': [0.0] * 10 + [100.0] * 50
-        })
+        df = pl.DataFrame(
+            {
+                "high": [0.0] * 10 + [102.0] * 50,
+                "low": [0.0] * 10 + [98.0] * 50,
+                "close": [0.0] * 10 + [100.0] * 50,
+            }
+        )
         result = df.select(pl_stochf("high", "low", "close", talib=False))
         assert result.height == 60
 
@@ -88,21 +93,21 @@ class TestPlStochf:
             from talib import STOCHF as TALIB_STOCHF
         except ImportError:
             pytest.skip("TA-Lib not installed")
-        
+
         np.random.seed(42)
         n = 500
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         high = close + np.abs(np.random.randn(n) * 0.5)
         low = close - np.abs(np.random.randn(n) * 0.5)
-        
-        pldf = pl.DataFrame({'high': high, 'low': low, 'close': close})
-        
+
+        pldf = pl.DataFrame({"high": high, "low": low, "close": close})
+
         talib_k, talib_d = TALIB_STOCHF(high, low, close, 14, 3, 0)
-        
+
         polars_result = pldf.select(pl_stochf("high", "low", "close", talib=True))
         stochf = polars_result["STOCHF"]
         polars_k = stochf.struct.field("STOCHFk_14_3").to_numpy()
-        
+
         valid_mask = ~np.isnan(talib_k) & ~np.isnan(polars_k)
         max_diff = np.max(np.abs(talib_k[valid_mask] - polars_k[valid_mask]))
         assert max_diff < 1e-6, f"Max diff {max_diff} exceeds tolerance"

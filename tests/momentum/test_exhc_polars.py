@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_exhc - Polars + Numba implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlExhc:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_list_of_expr(self):
         result = pl_exhc("close")

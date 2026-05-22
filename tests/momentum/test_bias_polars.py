@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_bias - Pure Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlBias:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_bias("close")
@@ -46,7 +47,7 @@ class TestPlBias:
         assert "BIAS_EMA_26" in result.columns
 
     def test_with_null_values(self):
-        df = pl.DataFrame({'close': [100.0, None, 102.0, 103.0] + [100.0] * 50})
+        df = pl.DataFrame({"close": [100.0, None, 102.0, 103.0] + [100.0] * 50})
         result = df.select(pl_bias("close", length=5))
         # Should handle nulls gracefully
         assert result.height == 54

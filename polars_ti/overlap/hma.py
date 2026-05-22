@@ -35,7 +35,7 @@ def pl_hma(
         return None
 
     half_length = int(length / 2)
-    sqrt_length = int(length ** 0.5)
+    sqrt_length = int(length**0.5)
     _length = length
 
     def compute_hma(s: pl.Series) -> pl.Series:
@@ -53,5 +53,3 @@ def pl_hma(
         result = result.shift(offset)
 
     return result.alias(f"HMA_{length}")
-
-

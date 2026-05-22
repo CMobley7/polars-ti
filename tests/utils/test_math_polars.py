@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/utils/_math.py Polars utilities."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -66,7 +67,7 @@ class TestPlUnsignedDifferences:
         df = pl.DataFrame({"close": [1.0, 2.0, 1.5, 3.0, 2.5]})
         pos, neg = pl_unsigned_differences("close")
         result = df.select(pos.alias("pos"), neg.alias("neg"))
-        
+
         # Diff: [null, +1, -0.5, +1.5, -0.5]
         # Positive: [0, 1, 0, 1, 0]
         # Negative: [0, 0, 1, 0, 1]

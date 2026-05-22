@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_pvo."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,9 +13,11 @@ class TestPlPvo:
         np.random.seed(42)
         n = 100
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({
-            'volume': volume,
-        })
+        return pl.DataFrame(
+            {
+                "volume": volume,
+            }
+        )
 
     def test_returns_list_of_expressions(self, sample_df):
         exprs = pl_pvo("volume")
@@ -35,9 +38,7 @@ class TestPlPvo:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "volume": [None] + [1000.0] * 49
-        })
+        df = pl.DataFrame({"volume": [None] + [1000.0] * 49})
         exprs = pl_pvo("volume")
         result = df.select(exprs)
         assert result.height == 50

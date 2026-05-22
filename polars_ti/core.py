@@ -19,6 +19,7 @@ Usage::
     # Access indicator with custom parameters
     result = df.ti.macd(fast=12, slow=26, signal=9)
 """
+
 from __future__ import annotations
 
 from multiprocessing import cpu_count
@@ -368,14 +369,19 @@ class TechnicalIndicators:
     def indicators(self, as_list: bool = False, exclude: list[str] | None = None) -> list[str]:
         """Return or print the list of available indicators."""
         skip = {
-            "categories", "indicators", "help", "reverse", "study", "strategy",
-            "to_utc", "version", "exchange", "cores",
+            "categories",
+            "indicators",
+            "help",
+            "reverse",
+            "study",
+            "strategy",
+            "to_utc",
+            "version",
+            "exchange",
+            "cores",
         }
         user_skip = set(exclude) if exclude else set()
-        inds = sorted(
-            name for name in dir(self)
-            if not name.startswith("_") and name not in skip | user_skip
-        )
+        inds = sorted(name for name in dir(self) if not name.startswith("_") and name not in skip | user_skip)
         if as_list:
             return inds
         print(f"Polars TI v{self.version} — Available indicators:\n  " + ", ".join(inds))
@@ -404,7 +410,7 @@ class TechnicalIndicators:
 
         Returns:
             The DataFrame with all study columns appended in-place via
-            ``app        """
+            ``app"""
         from polars_ti.utils._study import Study
         from polars_ti.maps import Category
 
@@ -538,8 +544,14 @@ class TechnicalIndicators:
     # ==================================================================
 
     def ao(self, high=None, low=None, **kw):
-        return self._post_process(pl_ao(self._high(kw) if not high else self._col(high),
-                                        self._low(kw) if not low else self._col(low), **kw), **kw)
+        return self._post_process(
+            pl_ao(
+                self._high(kw) if not high else self._col(high),
+                self._low(kw) if not low else self._col(low),
+                **kw,
+            ),
+            **kw,
+        )
 
     def apo(self, close=None, **kw):
         return self._post_process(pl_apo(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -548,17 +560,25 @@ class TechnicalIndicators:
         return self._post_process(pl_bias(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def bop(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open"); kw.setdefault("high", "high")
-        kw.setdefault("low", "low"); kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open")); h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low")); c = self._col(close or kw.pop("close"))
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
         return self._post_process(pl_bop(o, h, lo, c, **kw), **kw)
 
     def brar(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open"); kw.setdefault("high", "high")
-        kw.setdefault("low", "low"); kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open")); h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low")); c = self._col(close or kw.pop("close"))
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
         return self._post_process(pl_brar(o, h, lo, c, **kw), **kw)
 
     def cci(self, high=None, low=None, close=None, **kw):
@@ -821,10 +841,14 @@ class TechnicalIndicators:
         return self._post_process(pl_mmar(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ohlc4(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open"); kw.setdefault("high", "high")
-        kw.setdefault("low", "low"); kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open")); h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low")); c = self._col(close or kw.pop("close"))
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
         return self._post_process(pl_ohlc4(o, h, lo, c, **kw), **kw)
 
     def ott(self, close=None, **kw):
@@ -1125,10 +1149,14 @@ class TechnicalIndicators:
         return self._post_process(pl_donchian(h, lo, **kw), **kw)
 
     def fvg(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open"); kw.setdefault("high", "high")
-        kw.setdefault("low", "low"); kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open")); h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low")); c = self._col(close or kw.pop("close"))
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
         return self._post_process(pl_fvg(o, h, lo, c, **kw), **kw)
 
     def halftrend(self, high=None, low=None, close=None, **kw):
@@ -1158,17 +1186,25 @@ class TechnicalIndicators:
         return self._post_process(pl_natr(h, lo, c, **kw), **kw)
 
     def pdist(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open"); kw.setdefault("high", "high")
-        kw.setdefault("low", "low"); kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open")); h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low")); c = self._col(close or kw.pop("close"))
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
         return self._post_process(pl_pdist(o, h, lo, c, **kw), **kw)
 
     def rvi(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open"); kw.setdefault("high", "high")
-        kw.setdefault("low", "low"); kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open")); h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low")); c = self._col(close or kw.pop("close"))
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
         return self._post_process(pl_rvi(o, h, lo, c, **kw), **kw)
 
     def thermo(self, high=None, low=None, **kw):

@@ -29,20 +29,19 @@ def pl_pvol(
     """
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     pvol_expr = close_expr * volume_expr
-    
+
     if signed:
         close_diff = close_expr.diff()
         sign = pl.when(close_diff > 0).then(1).when(close_diff < 0).then(-1).otherwise(0)
         sign = sign.fill_null(1)
         pvol_expr = pvol_expr * sign
-    
+
     if offset != 0:
         pvol_expr = pvol_expr.shift(offset)
-    
-    return pvol_expr.alias("PVOL")
 
+    return pvol_expr.alias("PVOL")

@@ -37,4 +37,3 @@ def pl_median(
         result = result.shift(offset)
 
     return result.alias(f"MEDIAN_{length}")
-

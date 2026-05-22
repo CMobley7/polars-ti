@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_stochrsi - Polars + Numba Stochastic RSI with TA-Lib support."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlStochrsi:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_stochrsi("close")
@@ -74,9 +75,6 @@ class TestPlStochrsi:
         assert "STOCHRSId_14_14_3_5" in stochrsi.struct.fields
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            'close': [100.0, None, 102.0] + [100.0 + i * 0.1 for i in range(60)]
-        })
+        df = pl.DataFrame({"close": [100.0, None, 102.0] + [100.0 + i * 0.1 for i in range(60)]})
         result = df.select(pl_stochrsi("close", talib=False))
         assert result.height == 63
-

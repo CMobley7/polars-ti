@@ -31,25 +31,24 @@ def pl_nvi(
         pl.Expr: NVI expression
     """
     from polars_ti.momentum.roc import pl_roc
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     # Pure Polars implementation - no Numba needed!
     # ROC calculated using pl_roc for code reuse
     roc_expr = pl_roc(close_expr, length=length, scalar=100.0, talib=False, offset=0)
-    
+
     # NVI: When volume decreases, add ROC; otherwise add 0
     # Then cumsum + initial
     vol_decreased = volume_expr.diff() < 0
     nvi_change = pl.when(vol_decreased).then(roc_expr).otherwise(0.0).fill_null(0.0)
     nvi_expr = nvi_change.cum_sum() + initial
-    
+
     if offset != 0:
         nvi_expr = nvi_expr.shift(offset)
-    
-    return nvi_expr.alias(f"NVI_{length}")
 
+    return nvi_expr.alias(f"NVI_{length}")

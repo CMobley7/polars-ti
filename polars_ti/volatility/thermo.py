@@ -42,27 +42,27 @@ def pl_thermo(
         pl.Expr: Struct with thermo, thermo_ma, thermo_long, thermo_short columns
     """
     from polars_ti.ma import pl_ma
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
-    
+
     if high_expr is None or low_expr is None:
         return None
-    
+
     # Calculate thermoL and thermoH
     thermo_l = (low_expr.shift(drift) - low_expr).abs()
     thermo_h = (high_expr - high_expr.shift(drift)).abs()
-    
+
     # thermo = max(thermoL, thermoH) - using when/then/otherwise
     thermo = pl.when(thermo_h < thermo_l).then(thermo_l).otherwise(thermo_h)
-    
+
     # MA of thermo
     thermo_ma = pl_ma(name=mamode, source=thermo, length=length, talib=False)
-    
+
     # Long/Short signals
     thermo_long_cond = thermo < (thermo_ma * pl.lit(long))
     thermo_short_cond = thermo > (thermo_ma * pl.lit(short))
-    
+
     # Cast to int if requested
     if asint:
         thermo_long_val = thermo_long_cond.cast(pl.Int64)
@@ -70,20 +70,21 @@ def pl_thermo(
     else:
         thermo_long_val = thermo_long_cond
         thermo_short_val = thermo_short_cond
-    
+
     # Apply offset
     if offset != 0:
         thermo = thermo.shift(offset)
         thermo_ma = thermo_ma.shift(offset)
         thermo_long_val = thermo_long_val.shift(offset)
         thermo_short_val = thermo_short_val.shift(offset)
-    
-    _props = f"_{length}_{int(long)}_{short}"
-    
-    return pl.struct([
-        thermo.alias("thermo"),
-        thermo_ma.alias("thermo_ma"),
-        thermo_long_val.alias("thermo_long"),
-        thermo_short_val.alias("thermo_short"),
-    ]).alias(f"THERMO{_props}")
 
+    _props = f"_{length}_{int(long)}_{short}"
+
+    return pl.struct(
+        [
+            thermo.alias("thermo"),
+            thermo_ma.alias("thermo_ma"),
+            thermo_long_val.alias("thermo_long"),
+            thermo_short_val.alias("thermo_short"),
+        ]
+    ).alias(f"THERMO{_props}")

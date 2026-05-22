@@ -60,23 +60,20 @@ def pl_willr(
 
         def compute_willr(df: pl.DataFrame) -> pl.Series:
             from talib import WILLR
+
             h = df["high"].to_numpy().astype(np.float64)
             l = df["low"].to_numpy().astype(np.float64)
             c = df["close"].to_numpy().astype(np.float64)
             result = WILLR(h, l, c, _length)
             return pl.Series(f"WILLR_{_length}", result)
 
-        willr_expr = (
-            pl.struct([
+        willr_expr = pl.struct(
+            [
                 high_expr.alias("high"),
                 low_expr.alias("low"),
                 close_expr.alias("close"),
-            ])
-            .map_batches(
-                lambda s: compute_willr(s.struct.unnest()),
-                return_dtype=pl.Float64
-            )
-        )
+            ]
+        ).map_batches(lambda s: compute_willr(s.struct.unnest()), return_dtype=pl.Float64)
     else:
         # Native Polars implementation
         lowest_low = low_expr.rolling_min(window_size=length, min_samples=length)

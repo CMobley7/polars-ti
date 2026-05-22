@@ -35,22 +35,21 @@ def pl_short_run(
     """
     fast_expr = v_expr(fast)
     slow_expr = v_expr(slow)
-    
+
     if fast_expr is None or slow_expr is None:
         return None
-    
+
     # pt = potential top: fast decreasing AND slow increasing
     # bd = both decreasing: fast decreasing AND slow decreasing
     fast_dec = pl_decreasing(fast_expr, length=length, asint=False)
     slow_inc = pl_increasing(slow_expr, length=length, asint=False)
     slow_dec = pl_decreasing(slow_expr, length=length, asint=False)
-    
+
     pt = fast_dec & slow_inc
     bd = fast_dec & slow_dec
     result = (pt | bd).cast(pl.Int64)
-    
+
     if offset != 0:
         result = result.shift(offset)
-    
-    return result.alias(f"SR_{length}")
 
+    return result.alias(f"SR_{length}")

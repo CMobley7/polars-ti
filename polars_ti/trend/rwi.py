@@ -40,7 +40,7 @@ def pl_rwi(
     close_expr = v_expr(close)
 
     atr_expr = pl_atr(high_expr, low_expr, close_expr, length=length, talib=False)
-    denom = atr_expr * (length ** 0.5)
+    denom = atr_expr * (length**0.5)
 
     rwi_high = (high_expr - low_expr.shift(length)) / denom
     rwi_low = (high_expr.shift(length) - low_expr) / denom

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_rmi (Relative Momentum Index)."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlRmi:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expression(self, sample_df):
         """Test that pl_rmi returns a valid expression."""
@@ -31,12 +32,9 @@ class TestPlRmi:
         # First values should include offset NaNs (momentum(5) + offset(5) = 10)
         assert all(np.isnan(arr[:10]))
 
-
     def test_with_null_values(self):
         """Test handling of null values."""
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 49
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 49})
         result = df.select(pl_rmi("close", length=10, momentum=3))
         assert result.height == 50
 

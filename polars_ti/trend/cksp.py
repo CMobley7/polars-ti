@@ -50,7 +50,7 @@ def pl_cksp(
     long_stop_ = high_expr.rolling_max(window_size=p) - x * atr_expr
     long_stop = long_stop_.rolling_max(window_size=q)
 
-    short_stop_ = low_expr.rolling_min(window_size=p) + x * atr_expr  
+    short_stop_ = low_expr.rolling_min(window_size=p) + x * atr_expr
     short_stop = short_stop_.rolling_min(window_size=q)
 
     if offset != 0:

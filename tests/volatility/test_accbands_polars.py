@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_accbands."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -30,13 +31,21 @@ class TestPlAccbands:
         pl_df = pl.DataFrame(sample_data)
         try:
             from talib import ACCBANDS
+
             talib_upper, talib_mid, talib_lower = ACCBANDS(
-                sample_data["high"], sample_data["low"], sample_data["close"], timeperiod=20
+                sample_data["high"],
+                sample_data["low"],
+                sample_data["close"],
+                timeperiod=20,
             )
             pl_result = pl_df.select(pl_accbands("high", "low", "close", length=20, talib=True))
             pl_unnest = pl_result.unnest(pl_result.columns[0])
             warmup = 25
-            for name, talib_arr in [("ACCBL_20", talib_lower), ("ACCBM_20", talib_mid), ("ACCBU_20", talib_upper)]:
+            for name, talib_arr in [
+                ("ACCBL_20", talib_lower),
+                ("ACCBM_20", talib_mid),
+                ("ACCBU_20", talib_upper),
+            ]:
                 pl_vals = pl_unnest[name].to_numpy()[warmup:]
                 talib_vals = talib_arr[warmup:]
                 mask = np.isfinite(talib_vals) & np.isfinite(pl_vals)

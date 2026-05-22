@@ -40,40 +40,39 @@ def pl_kvo(
     """
     from polars_ti.overlap.hlc3 import pl_hlc3
     from polars_ti.ma import pl_ma
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
         return None
-    
+
     _props = f"_{fast}_{slow}_{signal}"
-    
+
     # Use pl_hlc3 for code reuse
     hlc3_expr = pl_hlc3(high_expr, low_expr, close_expr)
-    
+
     # signed_volume = volume * sign(hlc3.diff())
     # Note: diff() on first row is null, which propagates to signed_volume (matches Pandas NaN)
     hlc3_diff = hlc3_expr.diff()
     sign = pl.when(hlc3_diff > 0).then(1.0).when(hlc3_diff < 0).then(-1.0).otherwise(pl.lit(None))
     signed_volume = volume_expr * sign
-    
+
     # KVO = MA(signed_volume, fast) - MA(signed_volume, slow)
     kvo_fast = pl_ma(name=mamode, source=signed_volume, length=fast)
     kvo_slow = pl_ma(name=mamode, source=signed_volume, length=slow)
     kvo_expr = kvo_fast - kvo_slow
-    
+
     # Signal = MA(KVO, signal)
     kvo_signal_expr = pl_ma(name=mamode, source=kvo_expr, length=signal)
-    
+
     if offset != 0:
         kvo_expr = kvo_expr.shift(offset)
         kvo_signal_expr = kvo_signal_expr.shift(offset)
-    
+
     return [
         kvo_expr.alias(f"KVO{_props}"),
         kvo_signal_expr.alias(f"KVOs{_props}"),
     ]
-

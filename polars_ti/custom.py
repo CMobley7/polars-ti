@@ -164,9 +164,7 @@ def import_dir(path: str, verbose: bool = True):
         # only look in directories which are valid polars_ti categories
         if dirname not in [*polars_ti.Category]:
             if verbose and dirname not in ["__pycache__", "__init__.py"]:
-                print(
-                    f"[i] Skipping the sub-directory '{dirname}' since it's not a valid polars_ti category."
-                )
+                print(f"[i] Skipping the sub-directory '{dirname}' since it's not a valid polars_ti category.")
             continue
 
         # for each module found in that category (directory)...
@@ -185,9 +183,7 @@ def import_dir(path: str, verbose: bool = True):
                 _method_callable = module_functions.get(f"{module_name}_method", None)
 
                 if _callable == None:
-                    print(
-                        f"[X] Unable to find a function named '{module_name}' in the module '{module_name}.py'."
-                    )
+                    print(f"[X] Unable to find a function named '{module_name}' in the module '{module_name}.py'.")
                     continue
                 if _method_callable == None:
                     missing_method = f"{module_name}_method"
@@ -202,9 +198,7 @@ def import_dir(path: str, verbose: bool = True):
 
                 bind(module_name, _callable, _method_callable)
                 if verbose:
-                    print(
-                        f"[i] Successfully imported the custom indicator '{module}' into category '{dirname}'."
-                    )
+                    print(f"[i] Successfully imported the custom indicator '{module}' into category '{dirname}'.")
 
 
 def load_indicator_module(name: str) -> dict:

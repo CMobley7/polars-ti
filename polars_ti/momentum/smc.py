@@ -80,10 +80,7 @@ def pl_smc(
     body = body_high - body_low + eps
 
     # ABR (Average Bar Range) - rolling max of high minus rolling min of low
-    abr = (
-        high_col.rolling_max(window_size=abr_length)
-        - low_col.rolling_min(window_size=abr_length)
-    )
+    abr = high_col.rolling_max(window_size=abr_length) - low_col.rolling_min(window_size=abr_length)
 
     # Imbalance calculations (FVG - Fair Value Gap)
     # top_imbalance = low[i-2] - high[i] (bearish imbalance)

@@ -32,9 +32,7 @@ from polars_ti.maps import Imports
 from polars_ti.utils._validate import v_series
 
 
-def combination(
-    n: Int = 1, r: Int = 0, repetition: bool = False, multichoose: bool = False
-) -> Int:
+def combination(n: Int = 1, r: Int = 0, repetition: bool = False, multichoose: bool = False) -> Int:
     """https://stackoverflow.com/questions/4941753/is-there-a-math-ncr-function-in-python"""
     n, r = int(fabs(n)), int(fabs(r))
 
@@ -155,9 +153,7 @@ def log_geometric_mean(series) -> Float:
     return 0
 
 
-def pascals_triangle(
-    n: Int = None, inverse: bool = False, weighted: bool = False
-) -> Array:
+def pascals_triangle(n: Int = None, inverse: bool = False, weighted: bool = False) -> Array:
     """Pascal's Triangle
 
     Returns a numpy array of the nth row of Pascal's Triangle.
@@ -388,4 +384,3 @@ def pl_symmetric_triangle_weights(n: int) -> list[float]:
 def pl_pascals_triangle_weights(n: int, inverse: bool = False) -> list[float]:
     """Returns Pascal's triangle weights for Polars rolling expressions."""
     return pascals_triangle(n, inverse=inverse, weighted=True).tolist()
-

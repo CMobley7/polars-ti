@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hilo (Gann HiLo Activator)."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -15,11 +16,13 @@ class TestPlHilo:
         np.random.seed(42)
         n = 100
         base = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({
-            'high': base + np.abs(np.random.randn(n)),
-            'low': base - np.abs(np.random.randn(n)),
-            'close': base,
-        })
+        return pl.DataFrame(
+            {
+                "high": base + np.abs(np.random.randn(n)),
+                "low": base - np.abs(np.random.randn(n)),
+                "close": base,
+            }
+        )
 
     @pytest.fixture
     def sample_data(self):
@@ -30,10 +33,10 @@ class TestPlHilo:
         high = close + np.abs(np.random.randn(n) * 0.5)
         low = close - np.abs(np.random.randn(n) * 0.5)
         return {
-            'pd_high': high,
-            'pd_low': low,
-            'pd_close': close,
-            'pl_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
+            "pd_high": high,
+            "pd_low": low,
+            "pd_close": close,
+            "pl_df": pl.DataFrame({"high": high, "low": low, "close": close}),
         }
 
     def test_returns_dataframe_with_correct_columns(self, sample_df):
@@ -59,17 +62,17 @@ class TestPlHilo:
         """Test with different MA modes."""
         result_sma = pl_hilo(sample_df, mamode="sma")
         result_ema = pl_hilo(sample_df, mamode="ema")
-        
+
         hilo_sma = result_sma.get_column("HILO_13_21").to_numpy()
         hilo_ema = result_ema.get_column("HILO_13_21").to_numpy()
-        
+
         mask = ~(np.isnan(hilo_sma) | np.isnan(hilo_ema))
         assert np.any(hilo_sma[mask] != hilo_ema[mask])
 
     def test_offset_shifts_results(self, sample_df):
         """Test that offset parameter shifts results."""
         result_offset = pl_hilo(sample_df, offset=5)
-        
+
         arr = result_offset.get_column("HILO_13_21").to_numpy()
         assert np.isnan(arr[:5]).all()
 
@@ -77,27 +80,31 @@ class TestPlHilo:
         """Test that HILO values are numeric."""
         result = pl_hilo(sample_df)
         hilo = result.get_column("HILO_13_21").to_numpy()
-        
+
         non_null = ~np.isnan(hilo)
         assert non_null.sum() > 50
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
-        df = pl.DataFrame({
-            "high": [None] + [110.0] * 39,
-            "low": [None] + [90.0] * 39,
-            "close": [None] + [100.0] * 39,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [110.0] * 39,
+                "low": [None] + [90.0] * 39,
+                "close": [None] + [100.0] * 39,
+            }
+        )
         result = pl_hilo(df)
         assert result.height == 40
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            "high": [0.0] * 5 + [110.0] * 35,
-            "low": [0.0] * 5 + [90.0] * 35,
-            "close": [0.0] * 5 + [100.0] * 35,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [0.0] * 5 + [110.0] * 35,
+                "low": [0.0] * 5 + [90.0] * 35,
+                "close": [0.0] * 5 + [100.0] * 35,
+            }
+        )
         result = pl_hilo(df)
         assert result.height == 40
 
@@ -105,4 +112,3 @@ class TestPlHilo:
         """Works with LazyFrame (converts to eager internally)."""
         result = pl_hilo(sample_df)
         assert "HILO_13_21" in result.columns
-

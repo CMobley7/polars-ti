@@ -34,25 +34,26 @@ def pl_donchian(
     """
     high_expr = v_expr(high)
     low_expr = v_expr(low)
-    
+
     if high_expr is None or low_expr is None:
         return None
-    
+
     # Calculate
     lower = low_expr.rolling_min(window_size=lower_length, min_samples=lower_length)
     upper = high_expr.rolling_max(window_size=upper_length, min_samples=upper_length)
     mid = (lower + upper) * 0.5
-    
+
     if offset != 0:
         lower = lower.shift(offset)
         mid = mid.shift(offset)
         upper = upper.shift(offset)
-    
-    _props = f"_{lower_length}_{upper_length}"
-    
-    return pl.struct([
-        lower.alias(f"DCL{_props}"),
-        mid.alias(f"DCM{_props}"),
-        upper.alias(f"DCU{_props}")
-    ]).alias(f"DC{_props}")
 
+    _props = f"_{lower_length}_{upper_length}"
+
+    return pl.struct(
+        [
+            lower.alias(f"DCL{_props}"),
+            mid.alias(f"DCM{_props}"),
+            upper.alias(f"DCU{_props}"),
+        ]
+    ).alias(f"DC{_props}")

@@ -81,9 +81,36 @@ def pl_squeeze_pro(
     bb_upper_name = f"BBU_{bb_length}_{bb_std}"
 
     # Calculate three Keltner Channels
-    kc_wide = pl_kc(high_expr, low_expr, close_expr, length=kc_length, scalar=kc_scalar_wide, mamode=mamode, tr=use_tr, offset=0)
-    kc_normal = pl_kc(high_expr, low_expr, close_expr, length=kc_length, scalar=kc_scalar_normal, mamode=mamode, tr=use_tr, offset=0)
-    kc_narrow = pl_kc(high_expr, low_expr, close_expr, length=kc_length, scalar=kc_scalar_narrow, mamode=mamode, tr=use_tr, offset=0)
+    kc_wide = pl_kc(
+        high_expr,
+        low_expr,
+        close_expr,
+        length=kc_length,
+        scalar=kc_scalar_wide,
+        mamode=mamode,
+        tr=use_tr,
+        offset=0,
+    )
+    kc_normal = pl_kc(
+        high_expr,
+        low_expr,
+        close_expr,
+        length=kc_length,
+        scalar=kc_scalar_normal,
+        mamode=mamode,
+        tr=use_tr,
+        offset=0,
+    )
+    kc_narrow = pl_kc(
+        high_expr,
+        low_expr,
+        close_expr,
+        length=kc_length,
+        scalar=kc_scalar_narrow,
+        mamode=mamode,
+        tr=use_tr,
+        offset=0,
+    )
 
     # Calculate momentum component
     momo = pl_mom(close_expr, length=mom_length, talib=False, offset=0)
@@ -93,30 +120,30 @@ def pl_squeeze_pro(
         """Compute squeeze pro using struct fields."""
         bb_l = df_struct["bb_l"].to_numpy()
         bb_u = df_struct["bb_u"].to_numpy()
-        
+
         kc_wide_l = df_struct["kc_wide_l"].to_numpy()
         kc_wide_u = df_struct["kc_wide_u"].to_numpy()
         kc_normal_l = df_struct["kc_normal_l"].to_numpy()
         kc_normal_u = df_struct["kc_normal_u"].to_numpy()
         kc_narrow_l = df_struct["kc_narrow_l"].to_numpy()
         kc_narrow_u = df_struct["kc_narrow_u"].to_numpy()
-        
+
         sqz = df_struct["sqz_val"].to_numpy()
-        
+
         # Classify squeezes
         squeeze_on_wide = (bb_l > kc_wide_l) & (bb_u < kc_wide_u)
         squeeze_on_normal = (bb_l > kc_normal_l) & (bb_u < kc_normal_u)
         squeeze_on_narrow = (bb_l > kc_narrow_l) & (bb_u < kc_narrow_u)
         squeeze_off_wide = (bb_l < kc_wide_l) & (bb_u > kc_wide_u)
         no_squeeze = ~squeeze_on_wide & ~squeeze_off_wide
-        
+
         if asint:
             squeeze_on_wide = squeeze_on_wide.astype(np.int64)
             squeeze_on_normal = squeeze_on_normal.astype(np.int64)
             squeeze_on_narrow = squeeze_on_narrow.astype(np.int64)
             squeeze_off_wide = squeeze_off_wide.astype(np.int64)
             no_squeeze = no_squeeze.astype(np.int64)
-        
+
         if offset != 0:
             sqz = np.roll(sqz, offset)
             squeeze_on_wide = np.roll(squeeze_on_wide, offset)
@@ -132,39 +159,44 @@ def pl_squeeze_pro(
                     squeeze_on_narrow[:offset] = 0
                     squeeze_off_wide[:offset] = 0
                     no_squeeze[:offset] = 0
-        
-        return pl.DataFrame({
-            f"SQZPRO{_props}": sqz,
-            "SQZPRO_ON_WIDE": squeeze_on_wide,
-            "SQZPRO_ON_NORMAL": squeeze_on_normal,
-            "SQZPRO_ON_NARROW": squeeze_on_narrow,
-            "SQZPRO_OFF": squeeze_off_wide,
-            "SQZPRO_NO": no_squeeze,
-        }).to_struct(f"SQZPRO{_props}")
+
+        return pl.DataFrame(
+            {
+                f"SQZPRO{_props}": sqz,
+                "SQZPRO_ON_WIDE": squeeze_on_wide,
+                "SQZPRO_ON_NORMAL": squeeze_on_normal,
+                "SQZPRO_ON_NARROW": squeeze_on_narrow,
+                "SQZPRO_OFF": squeeze_off_wide,
+                "SQZPRO_NO": no_squeeze,
+            }
+        ).to_struct(f"SQZPRO{_props}")
 
     on_dtype = pl.Int64 if asint else pl.Boolean
-    return_dtype = pl.Struct([
-        pl.Field(f"SQZPRO{_props}", pl.Float64),
-        pl.Field("SQZPRO_ON_WIDE", on_dtype),
-        pl.Field("SQZPRO_ON_NORMAL", on_dtype),
-        pl.Field("SQZPRO_ON_NARROW", on_dtype),
-        pl.Field("SQZPRO_OFF", on_dtype),
-        pl.Field("SQZPRO_NO", on_dtype),
-    ])
+    return_dtype = pl.Struct(
+        [
+            pl.Field(f"SQZPRO{_props}", pl.Float64),
+            pl.Field("SQZPRO_ON_WIDE", on_dtype),
+            pl.Field("SQZPRO_ON_NORMAL", on_dtype),
+            pl.Field("SQZPRO_ON_NARROW", on_dtype),
+            pl.Field("SQZPRO_OFF", on_dtype),
+            pl.Field("SQZPRO_NO", on_dtype),
+        ]
+    )
 
-    combined = pl.struct([
-        bb_struct.struct.field(bb_lower_name).alias("bb_l"),
-        bb_struct.struct.field(bb_upper_name).alias("bb_u"),
-        kc_wide.struct.field("kcl").alias("kc_wide_l"),
-        kc_wide.struct.field("kcu").alias("kc_wide_u"),
-        kc_normal.struct.field("kcl").alias("kc_normal_l"),
-        kc_normal.struct.field("kcu").alias("kc_normal_u"),
-        kc_narrow.struct.field("kcl").alias("kc_narrow_l"),
-        kc_narrow.struct.field("kcu").alias("kc_narrow_u"),
-        sqz_val.alias("sqz_val"),
-    ])
+    combined = pl.struct(
+        [
+            bb_struct.struct.field(bb_lower_name).alias("bb_l"),
+            bb_struct.struct.field(bb_upper_name).alias("bb_u"),
+            kc_wide.struct.field("kcl").alias("kc_wide_l"),
+            kc_wide.struct.field("kcu").alias("kc_wide_u"),
+            kc_normal.struct.field("kcl").alias("kc_normal_l"),
+            kc_normal.struct.field("kcu").alias("kc_normal_u"),
+            kc_narrow.struct.field("kcl").alias("kc_narrow_l"),
+            kc_narrow.struct.field("kcu").alias("kc_narrow_u"),
+            sqz_val.alias("sqz_val"),
+        ]
+    )
 
-    return combined.map_batches(
-        lambda s: compute_squeeze_pro(s.struct.unnest()),
-        return_dtype=return_dtype
-    ).alias(f"SQZPRO{_props}")
+    return combined.map_batches(lambda s: compute_squeeze_pro(s.struct.unnest()), return_dtype=return_dtype).alias(
+        f"SQZPRO{_props}"
+    )

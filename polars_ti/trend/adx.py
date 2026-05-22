@@ -137,9 +137,7 @@ def pl_adx(
         l_ = data["_l"].to_numpy().astype(np.float64)
         c = data["_c"].to_numpy().astype(np.float64)
 
-        adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(
-            h, l_, c, length, lensig, adxr_length, scalar
-        )
+        adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, lensig, adxr_length, scalar)
 
         if offset != 0:
             for arr in [adx_arr, adxr_arr, dmp_arr, dmn_arr]:
@@ -148,15 +146,17 @@ def pl_adx(
                     arr[:offset] = np.nan
 
         n = len(h)
-        return pl.Series(values=[
-            {
-                f"ADX_{lensig}": adx_arr[i],
-                f"ADXR_{lensig}_{adxr_length}": adxr_arr[i],
-                f"DMP_{length}": dmp_arr[i],
-                f"DMN_{length}": dmn_arr[i],
-            }
-            for i in range(n)
-        ])
+        return pl.Series(
+            values=[
+                {
+                    f"ADX_{lensig}": adx_arr[i],
+                    f"ADXR_{lensig}_{adxr_length}": adxr_arr[i],
+                    f"DMP_{length}": dmp_arr[i],
+                    f"DMN_{length}": dmn_arr[i],
+                }
+                for i in range(n)
+            ]
+        )
 
     fields = [
         pl.Field(f"ADX_{lensig}", pl.Float64),
@@ -164,9 +164,12 @@ def pl_adx(
         pl.Field(f"DMP_{length}", pl.Float64),
         pl.Field(f"DMN_{length}", pl.Float64),
     ]
-    return pl.struct(
-        high_expr.alias("_h"),
-        low_expr.alias("_l"),
-        close_expr.alias("_c"),
-    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"ADX_{lensig}")
-
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+            close_expr.alias("_c"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"ADX_{lensig}")
+    )

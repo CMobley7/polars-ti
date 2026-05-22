@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_rsi."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlRsi:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_rsi("close"))
@@ -41,18 +42,16 @@ class TestPlRsi:
         """Both talib=True and talib=False produce valid results."""
         result_talib = sample_df.select(pl_rsi("close", talib=True))
         result_polars = sample_df.select(pl_rsi("close", talib=False))
-        
+
         arr_talib = result_talib[result_talib.columns[0]].to_numpy()
         arr_polars = result_polars[result_polars.columns[0]].to_numpy()
-        
+
         # Both should produce valid RSI values
         assert (~np.isnan(arr_talib)).sum() > 50
         assert (~np.isnan(arr_polars)).sum() > 50
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 49
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 49})
         result = df.select(pl_rsi("close", length=10))
         assert result.height == 50
 

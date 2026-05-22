@@ -128,4 +128,3 @@ def pl_trama(
         result = result.shift(offset)
 
     return result.alias(f"TRAMA_{length}")
-

@@ -64,14 +64,10 @@ def nb_qqe_loop(
             short[i] = upperband[i]
 
         # Trend & QQE Calculation
-        if (c_rsi > c_short and p_rsi < p_short) or (
-            c_rsi <= c_short and p_rsi >= p_short
-        ):
+        if (c_rsi > c_short and p_rsi < p_short) or (c_rsi <= c_short and p_rsi >= p_short):
             trend[i] = 1
             qqe[i] = qqe_long[i] = long[i]
-        elif (c_rsi > c_long and p_rsi < p_long) or (
-            c_rsi <= c_long and p_rsi >= p_long
-        ):
+        elif (c_rsi > c_long and p_rsi < p_long) or (c_rsi <= c_long and p_rsi >= p_long):
             trend[i] = -1
             qqe[i] = qqe_short[i] = short[i]
         else:
@@ -164,24 +160,25 @@ def pl_qqe(
         lowerband = rsi_ma_col - dar
 
         # Step 6: Run Numba loop
-        qqe_vals, qqe_long_vals, qqe_short_vals = nb_qqe_loop(
-            rsi_ma_col, upperband, lowerband
+        qqe_vals, qqe_long_vals, qqe_short_vals = nb_qqe_loop(rsi_ma_col, upperband, lowerband)
+
+        return pl.DataFrame(
+            {
+                f"QQE{_props_str}": qqe_vals,
+                f"QQEl{_props_str}": qqe_long_vals,
+                f"QQEs{_props_str}": qqe_short_vals,
+            }
         )
-
-        return pl.DataFrame({
-            f"QQE{_props_str}": qqe_vals,
-            f"QQEl{_props_str}": qqe_long_vals,
-            f"QQEs{_props_str}": qqe_short_vals,
-        })
-
 
     result = close_expr.map_batches(
         lambda s: compute_qqe(s).to_struct("QQE"),
-        return_dtype=pl.Struct([
-            pl.Field(f"QQE{_props}", pl.Float64),
-            pl.Field(f"QQEl{_props}", pl.Float64),
-            pl.Field(f"QQEs{_props}", pl.Float64),
-        ]),
+        return_dtype=pl.Struct(
+            [
+                pl.Field(f"QQE{_props}", pl.Float64),
+                pl.Field(f"QQEl{_props}", pl.Float64),
+                pl.Field(f"QQEs{_props}", pl.Float64),
+            ]
+        ),
     )
 
     if offset != 0:

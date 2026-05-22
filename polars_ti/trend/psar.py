@@ -107,15 +107,17 @@ def pl_psar(
 
         _props = f"_{_af0}_{max_af}"
         n = len(h)
-        return pl.Series(values=[
-            {
-                f"PSARl{_props}": long_a[i],
-                f"PSARs{_props}": short_a[i],
-                f"PSARaf{_props}": af_a[i],
-                f"PSARr{_props}": int(rev_a[i]),
-            }
-            for i in range(n)
-        ])
+        return pl.Series(
+            values=[
+                {
+                    f"PSARl{_props}": long_a[i],
+                    f"PSARs{_props}": short_a[i],
+                    f"PSARaf{_props}": af_a[i],
+                    f"PSARr{_props}": int(rev_a[i]),
+                }
+                for i in range(n)
+            ]
+        )
 
     _props = f"_{_af0}_{max_af}"
     fields = [
@@ -124,8 +126,11 @@ def pl_psar(
         pl.Field(f"PSARaf{_props}", pl.Float64),
         pl.Field(f"PSARr{_props}", pl.Int64),
     ]
-    return pl.struct(
-        high_expr.alias("_h"),
-        low_expr.alias("_l"),
-    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"PSAR{_props}")
-
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"PSAR{_props}")
+    )

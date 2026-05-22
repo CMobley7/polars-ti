@@ -80,8 +80,14 @@ def pl_squeeze(
 
     # Calculate Keltner Channels - get struct fields
     kc_struct = pl_kc(
-        high_expr, low_expr, close_expr,
-        length=kc_length, scalar=kc_scalar, mamode=mamode, tr=use_tr, offset=0
+        high_expr,
+        low_expr,
+        close_expr,
+        length=kc_length,
+        scalar=kc_scalar,
+        mamode=mamode,
+        tr=use_tr,
+        offset=0,
     )
 
     # We need to access struct fields, which requires using map_batches
@@ -91,24 +97,24 @@ def pl_squeeze(
         # Extract BB fields
         bb_l = df_struct["bb_l"].to_numpy()
         bb_u = df_struct["bb_u"].to_numpy()
-        
+
         # Extract KC fields
         kc_l = df_struct["kc_l"].to_numpy()
         kc_u = df_struct["kc_u"].to_numpy()
-        
+
         # Extract momentum
         sqz_val = df_struct["sqz_val"].to_numpy()
-        
+
         # Squeeze conditions
         squeeze_on = (bb_l > kc_l) & (bb_u < kc_u)
         squeeze_off = (bb_l < kc_l) & (bb_u > kc_u)
         no_squeeze = ~squeeze_on & ~squeeze_off
-        
+
         if asint:
             squeeze_on = squeeze_on.astype(np.int64)
             squeeze_off = squeeze_off.astype(np.int64)
             no_squeeze = no_squeeze.astype(np.int64)
-        
+
         if offset != 0:
             sqz_val = np.roll(sqz_val, offset)
             squeeze_on = np.roll(squeeze_on, offset)
@@ -120,13 +126,15 @@ def pl_squeeze(
                     squeeze_on[:offset] = 0
                     squeeze_off[:offset] = 0
                     no_squeeze[:offset] = 0
-        
-        return pl.DataFrame({
-            f"SQZ{_props}": sqz_val,
-            "SQZ_ON": squeeze_on,
-            "SQZ_OFF": squeeze_off,
-            "SQZ_NO": no_squeeze,
-        }).to_struct(f"SQZ{_props}")
+
+        return pl.DataFrame(
+            {
+                f"SQZ{_props}": sqz_val,
+                "SQZ_ON": squeeze_on,
+                "SQZ_OFF": squeeze_off,
+                "SQZ_NO": no_squeeze,
+            }
+        ).to_struct(f"SQZ{_props}")
 
     # Calculate momentum component
     if lazybear:
@@ -145,27 +153,30 @@ def pl_squeeze(
     # Build struct with all needed values and compute
     # This is complex - we need to handle struct extraction properly
     # We'll use a simpler approach: compute all parts separately
-    
+
     # Return type depends on asint
     on_dtype = pl.Int64 if asint else pl.Boolean
-    
-    return_dtype = pl.Struct([
-        pl.Field(f"SQZ{_props}", pl.Float64),
-        pl.Field("SQZ_ON", on_dtype),
-        pl.Field("SQZ_OFF", on_dtype),
-        pl.Field("SQZ_NO", on_dtype),
-    ])
+
+    return_dtype = pl.Struct(
+        [
+            pl.Field(f"SQZ{_props}", pl.Float64),
+            pl.Field("SQZ_ON", on_dtype),
+            pl.Field("SQZ_OFF", on_dtype),
+            pl.Field("SQZ_NO", on_dtype),
+        ]
+    )
 
     # Create combined struct for map_batches
-    combined = pl.struct([
-        bb_struct.struct.field(bb_lower_name).alias("bb_l"),
-        bb_struct.struct.field(bb_upper_name).alias("bb_u"),
-        kc_struct.struct.field("kcl").alias("kc_l"),
-        kc_struct.struct.field("kcu").alias("kc_u"),
-        sqz_val.alias("sqz_val"),
-    ])
+    combined = pl.struct(
+        [
+            bb_struct.struct.field(bb_lower_name).alias("bb_l"),
+            bb_struct.struct.field(bb_upper_name).alias("bb_u"),
+            kc_struct.struct.field("kcl").alias("kc_l"),
+            kc_struct.struct.field("kcu").alias("kc_u"),
+            sqz_val.alias("sqz_val"),
+        ]
+    )
 
-    return combined.map_batches(
-        lambda s: compute_squeeze(s.struct.unnest()),
-        return_dtype=return_dtype
-    ).alias(f"SQZ{_props}")
+    return combined.map_batches(lambda s: compute_squeeze(s.struct.unnest()), return_dtype=return_dtype).alias(
+        f"SQZ{_props}"
+    )

@@ -37,7 +37,7 @@ def pl_tema(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -48,19 +48,20 @@ def pl_tema(
 
     def compute_tema(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        
+
         if _use_talib:
             from talib import TEMA as TALIB_TEMA
+
             result = TALIB_TEMA(arr, timeperiod=_length)
         else:
             # Call _ema_numba directly - NO DataFrame creation!
             ema1 = _ema_numba(arr, _length, presma=_presma, adjust=False)
             ema2 = _ema_numba(ema1, _length, presma=False, adjust=False)
             ema3 = _ema_numba(ema2, _length, presma=False, adjust=False)
-            
+
             # TEMA = 3 * (EMA1 - EMA2) + EMA3
             result = 3 * (ema1 - ema2) + ema3
-        
+
         return pl.Series(result)
 
     tema_expr = close_expr.map_batches(compute_tema, return_dtype=pl.Float64)
@@ -69,5 +70,3 @@ def pl_tema(
         tema_expr = tema_expr.shift(offset)
 
     return tema_expr.alias(f"TEMA_{length}")
-
-

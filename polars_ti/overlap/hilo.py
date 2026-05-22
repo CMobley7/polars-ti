@@ -13,18 +13,18 @@ from polars_ti.ma import pl_ma
 @njit(cache=True)
 def nb_hilo(close: np.ndarray, high_ma: np.ndarray, low_ma: np.ndarray) -> tuple:
     """Numba-optimized HILO calculation.
-    
+
     Returns: (hilo, long, short) arrays
     """
     m = len(close)
     hilo = np.empty(m, dtype=np.float64)
     long = np.empty(m, dtype=np.float64)
     short = np.empty(m, dtype=np.float64)
-    
+
     hilo[0] = np.nan
     long[0] = np.nan
     short[0] = np.nan
-    
+
     for i in range(1, m):
         if close[i] > high_ma[i - 1]:
             hilo[i] = low_ma[i]
@@ -38,7 +38,7 @@ def nb_hilo(close: np.ndarray, high_ma: np.ndarray, low_ma: np.ndarray) -> tuple
             hilo[i] = hilo[i - 1]
             long[i] = hilo[i - 1]
             short[i] = hilo[i - 1]
-    
+
     return hilo, long, short
 
 
@@ -76,15 +76,15 @@ def pl_hilo(
     high_ma = df.select(pl_ma(mamode, high, length=high_length, talib=talib).alias("high_ma")).get_column("high_ma")
     low_ma = df.select(pl_ma(mamode, low, length=low_length, talib=talib).alias("low_ma")).get_column("low_ma")
     close_arr = df.get_column(close)
-    
+
     # Convert to numpy for Numba kernel
     high_ma_np = high_ma.to_numpy().astype(np.float64)
     low_ma_np = low_ma.to_numpy().astype(np.float64)
     close_np = close_arr.to_numpy().astype(np.float64)
-    
+
     # Call Numba kernel
     hilo, long, short = nb_hilo(close_np, high_ma_np, low_ma_np)
-    
+
     # Apply offset
     if offset != 0:
         hilo = np.roll(hilo, offset)
@@ -98,13 +98,13 @@ def pl_hilo(
             hilo[offset:] = np.nan
             long[offset:] = np.nan
             short[offset:] = np.nan
-    
+
     # Create result columns
     _props = f"_{high_length}_{low_length}"
-    return df.with_columns([
-        pl.Series(f"HILO{_props}", hilo),
-        pl.Series(f"HILOl{_props}", long),
-        pl.Series(f"HILOs{_props}", short),
-    ])
-
-
+    return df.with_columns(
+        [
+            pl.Series(f"HILO{_props}", hilo),
+            pl.Series(f"HILOl{_props}", long),
+            pl.Series(f"HILOs{_props}", short),
+        ]
+    )

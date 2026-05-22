@@ -53,7 +53,11 @@ def pl_chop(
     if ln:
         chop_expr = scalar * (atr_sum.log() - diff.log()) / pl.lit(length).cast(pl.Float64).log()
     else:
-        chop_expr = scalar * (atr_sum.log() / pl.lit(10.0).log() - diff.log() / pl.lit(10.0).log()) / (pl.lit(length).cast(pl.Float64).log() / pl.lit(10.0).log())
+        chop_expr = (
+            scalar
+            * (atr_sum.log() / pl.lit(10.0).log() - diff.log() / pl.lit(10.0).log())
+            / (pl.lit(length).cast(pl.Float64).log() / pl.lit(10.0).log())
+        )
 
     if offset != 0:
         chop_expr = chop_expr.shift(offset)

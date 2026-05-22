@@ -13,25 +13,25 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def nb_kurtosis(close: np.ndarray, length: int) -> np.ndarray:
     """Numba-optimized Fisher's excess kurtosis calculation.
-    
+
     Fisher's definition (matching Pandas):
     kurtosis = (m4 / m2^2) - 3 (excess kurtosis)
-    
+
     With bias correction for sample kurtosis.
     """
     n = len(close)
     result = np.full(n, np.nan)
-    
+
     for i in range(length - 1, n):
         window = close[i - length + 1 : i + 1]
         window_n = length
-        
+
         # Compute mean
         mean = 0.0
         for j in range(window_n):
             mean += window[j]
         mean /= window_n
-        
+
         # Compute centered moments (m2 = variance without ddof, m4 = fourth moment)
         m2 = 0.0
         m4 = 0.0
@@ -40,10 +40,10 @@ def nb_kurtosis(close: np.ndarray, length: int) -> np.ndarray:
             diff2 = diff * diff
             m2 += diff2
             m4 += diff2 * diff2
-        
+
         m2 /= window_n
         m4 /= window_n
-        
+
         # Fisher's excess kurtosis with bias correction (matching Pandas)
         # Pandas uses the formula: g2 = m4/m2^2 - 3
         # Then applies bias correction: G2 = ((n+1)*g2 + 6) * (n-1) / ((n-2)*(n-3))
@@ -53,7 +53,7 @@ def nb_kurtosis(close: np.ndarray, length: int) -> np.ndarray:
             adj = (window_n - 1.0) / ((window_n - 2.0) * (window_n - 3.0))
             G2 = ((window_n + 1.0) * g2 + 6.0) * adj
             result[i] = G2
-    
+
     return result
 
 
@@ -93,5 +93,3 @@ def pl_kurtosis(
         result = result.shift(offset)
 
     return result.alias(f"KURT_{length}")
-
-

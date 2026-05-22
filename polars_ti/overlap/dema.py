@@ -34,7 +34,7 @@ def pl_dema(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -44,16 +44,17 @@ def pl_dema(
 
     def compute_dema(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        
+
         if _use_talib:
             from talib import DEMA as TALIB_DEMA
+
             result = TALIB_DEMA(arr, timeperiod=_length)
         else:
             # Direct Numba calls - no DataFrame creation!
             ema1 = _ema_numba(arr, _length, presma=True, adjust=False)
             ema2 = _ema_numba(ema1, _length, presma=True, adjust=False)
             result = 2 * ema1 - ema2
-        
+
         return pl.Series(result)
 
     dema_expr = close_expr.map_batches(compute_dema, return_dtype=pl.Float64)
@@ -63,5 +64,3 @@ def pl_dema(
         dema_expr = dema_expr.shift(offset)
 
     return dema_expr.alias(f"DEMA_{length}")
-
-

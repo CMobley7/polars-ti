@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/overlap/hma.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -16,8 +17,8 @@ class TestPlHma:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': close,
-            'pl_df': pl.DataFrame({'close': close}),
+            "pd_series": close,
+            "pl_df": pl.DataFrame({"close": close}),
         }
 
     def test_returns_expression(self):
@@ -27,8 +28,8 @@ class TestPlHma:
 
     def test_output_has_correct_alias(self, sample_data):
         """Output column has correct alias."""
-        result = sample_data['pl_df'].select(pl_hma('close', length=10))
-        assert result.columns[0] == 'HMA_10'
+        result = sample_data["pl_df"].select(pl_hma("close", length=10))
+        assert result.columns[0] == "HMA_10"
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
@@ -44,6 +45,6 @@ class TestPlHma:
 
     def test_lazy_execution(self, sample_data):
         """Works with LazyFrame."""
-        lazy_df = sample_data['pl_df'].lazy()
+        lazy_df = sample_data["pl_df"].lazy()
         result = lazy_df.select(pl_hma("close", length=10)).collect()
         assert "HMA_10" in result.columns

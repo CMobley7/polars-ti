@@ -73,17 +73,17 @@ def pl_reflex(
         callable: Function to apply to DataFrame
     """
     _offset = offset  # Capture for closure
-    
+
     def compute_reflex(df: pl.DataFrame) -> pl.DataFrame:
         np_close = df[close].to_numpy()
         result = np_reflex(np_close, length, smooth, alpha, pi, sqrt2)
         result[:length] = nan
         result_df = pl.DataFrame({f"REFLEX_{length}_{smooth}_{alpha}": result})
-        
+
         # Apply offset if needed
         if _offset != 0:
             result_df = result_df.select([pl.all().shift(_offset)])
-        
+
         return result_df
 
     return compute_reflex
@@ -109,4 +109,3 @@ def pl_reflex_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     compute_fn = pl_reflex(close, length, smooth, alpha, pi_val, sqrt2)
     reflex_df = compute_fn(df)
     return df.hstack(reflex_df)
-

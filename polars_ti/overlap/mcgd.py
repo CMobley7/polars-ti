@@ -16,20 +16,20 @@ def nb_mcgd(close: np.ndarray, length: int, c: float) -> np.ndarray:
     n = len(close)
     result = np.empty(n, dtype=np.float64)
     result[0] = close[0]
-    
+
     for i in range(1, n):
         # MCGD formula: MD = MD[i-1] + (price - MD[i-1]) / (k * n * (price / MD[i-1])^4)
         prev = result[i - 1]
         if prev != 0 and not np.isnan(prev):
             ratio = close[i] / prev
-            d = c * length * (ratio ** 4)
+            d = c * length * (ratio**4)
             if d > 1e-10:
                 result[i] = prev + (close[i] - prev) / d
             else:
                 result[i] = close[i]
         else:
             result[i] = close[i]
-    
+
     return result
 
 
@@ -53,7 +53,7 @@ def pl_mcgd(
         pl.Expr: MCGD expression
     """
     close_expr = v_expr(close)
-    
+
     def compute_mcgd(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
         result = nb_mcgd(arr, length, c)
@@ -62,7 +62,5 @@ def pl_mcgd(
             if offset > 0:
                 result[:offset] = np.nan
         return pl.Series(result)
-    
+
     return close_expr.map_batches(compute_mcgd, return_dtype=pl.Float64).alias(f"MCGD_{length}")
-
-

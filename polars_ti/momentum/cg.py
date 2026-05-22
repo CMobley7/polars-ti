@@ -13,26 +13,26 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def nb_cg(close: np.ndarray, length: int) -> np.ndarray:
     """Numba: Center of Gravity calculation.
-    
+
     CG = -sum(close[i] * weight[i]) / sum(close[i])
     where weight[i] = 1..length (1 for oldest, length for newest in window)
     """
     n = len(close)
     result = np.empty(n, dtype=np.float64)
-    result[:length-1] = np.nan
-    
+    result[: length - 1] = np.nan
+
     weights = np.arange(1, length + 1, dtype=np.float64)
-    
+
     for i in range(length - 1, n):
-        window = close[i - length + 1:i + 1]
+        window = close[i - length + 1 : i + 1]
         weighted_sum = np.sum(window * weights)
         total_sum = np.sum(window)
-        
+
         if abs(total_sum) > 1e-10:
             result[i] = -weighted_sum / total_sum
         else:
             result[i] = np.nan
-    
+
     return result
 
 
@@ -59,18 +59,16 @@ def pl_cg(
     close_expr = v_expr(close)
     _length = length
     _offset = offset
-    
+
     def compute_cg(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
         result = nb_cg(arr, _length)
-        
+
         if _offset != 0:
             result = np.roll(result, _offset)
             if _offset > 0:
                 result[:_offset] = np.nan
-        
+
         return pl.Series(result)
 
     return close_expr.map_batches(compute_cg, return_dtype=pl.Float64).alias(f"CG_{length}")
-
-

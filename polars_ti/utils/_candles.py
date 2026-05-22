@@ -54,5 +54,3 @@ def pl_high_low_range(high: IntoExpr, low: IntoExpr) -> PlExpr:
 def pl_real_body(open_: IntoExpr, close: IntoExpr) -> PlExpr:
     """Polars: Real Body (close - open) with epsilon for zero values."""
     return pl_non_zero_range(close, open_).alias("real_body")
-
-

@@ -27,23 +27,15 @@ def nb_mama(x, fastlimit, slowlimit, prenan):
 
         # WMA(x,4) & Detrended WMA(x,4)
         wma4[i] = 0.4 * x[i] + 0.3 * x[i - 1] + 0.2 * x[i - 2] + 0.1 * x[i - 3]
-        dt[i] = adj_prev_period * (
-            a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6]
-        )
+        dt[i] = adj_prev_period * (a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6])
 
         # Quadrature(Detrender) and In Phase Component
-        q1[i] = adj_prev_period * (
-            a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6]
-        )
+        q1[i] = adj_prev_period * (a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6])
         i1[i] = dt[i - 3]
 
         # Phase Q1 and I1 by 90 degrees
-        ji[i] = adj_prev_period * (
-            a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6]
-        )
-        jq[i] = adj_prev_period * (
-            a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6]
-        )
+        ji[i] = adj_prev_period * (a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6])
+        jq[i] = adj_prev_period * (a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6])
 
         # Phasor Addition for 3 Bar Averaging
         i2[i] = i1[i] - jq[i]
@@ -110,7 +102,6 @@ from polars_ti.utils import v_talib
 from polars_ti.utils._validate import v_expr
 
 
-
 def pl_mama(
     df: pl.DataFrame,
     close: str = "close",
@@ -136,22 +127,24 @@ def pl_mama(
     """
     np_close = df.get_column(close).to_numpy().astype(np.float64)
     _props = f"_{fastlimit}_{slowlimit}"
-    
+
     if Imports["talib"] and talib:
         from talib import MAMA as talib_mama
+
         mama_arr, fama_arr = talib_mama(np_close, fastlimit, slowlimit)
     else:
         mama_arr, fama_arr = nb_mama(np_close, fastlimit, slowlimit, prenan)
-    
+
     if offset != 0:
         mama_arr = np.roll(mama_arr, offset)
         fama_arr = np.roll(fama_arr, offset)
         if offset > 0:
             mama_arr[:offset] = np.nan
             fama_arr[:offset] = np.nan
-    
-    return pl.DataFrame({
-        f"MAMA{_props}": mama_arr,
-        f"FAMA{_props}": fama_arr,
-    })
 
+    return pl.DataFrame(
+        {
+            f"MAMA{_props}": mama_arr,
+            f"FAMA{_props}": fama_arr,
+        }
+    )

@@ -40,22 +40,22 @@ def pl_slope(
     # slope = (close - close.shift(length)) / length
     # This is equivalent to nb_idiff(close, length) / length
     slope_expr = (close_expr - close_expr.shift(length)) / length
-    
+
     if as_angle:
         # Convert to angle using arctan
         slope_expr = slope_expr.arctan()
         if to_degrees:
             # Convert radians to degrees
             slope_expr = slope_expr * (180.0 / np.pi)
-    
+
     if offset != 0:
         slope_expr = slope_expr.shift(offset)
-    
+
     # Name based on mode
     if as_angle:
         suffix = "d" if to_degrees else "r"
         alias = f"ANGLE{suffix}_{length}"
     else:
         alias = f"SLOPE_{length}"
-    
+
     return slope_expr.alias(alias)

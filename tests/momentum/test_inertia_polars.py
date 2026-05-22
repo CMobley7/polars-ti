@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_inertia - Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlInertia:
         np.random.seed(42)
         n = 200
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_inertia("close")
@@ -39,4 +40,3 @@ class TestPlInertia:
     def test_custom_lengths(self, sample_df):
         result = sample_df.select(pl_inertia("close", length=10, rvi_length=7))
         assert "INERTIA_10_7" in result.columns
-

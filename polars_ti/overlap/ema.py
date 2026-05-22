@@ -17,9 +17,9 @@ def _ema_numba(close, length, presma=True, adjust=False):
     n = len(close)
     result = empty(n)
     result[:] = nan
-    
+
     alpha = 2.0 / (length + 1)
-    
+
     if presma:
         # Calculate SMA for initial value
         sma_sum = 0.0
@@ -28,11 +28,11 @@ def _ema_numba(close, length, presma=True, adjust=False):
             if not isnan(close[i]):
                 sma_sum += close[i]
                 valid_count += 1
-        
+
         if valid_count == length:
             sma_val = sma_sum / length
             result[length - 1] = sma_val
-            
+
             # Continue with EMA from there
             for i in range(length, n):
                 if not isnan(close[i]):
@@ -46,7 +46,7 @@ def _ema_numba(close, length, presma=True, adjust=False):
             if not isnan(close[i]):
                 first_valid = i
                 break
-        
+
         if first_valid >= 0:
             result[first_valid] = close[first_valid]
             for i in range(first_valid + 1, n):
@@ -54,7 +54,7 @@ def _ema_numba(close, length, presma=True, adjust=False):
                     result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
                 else:
                     result[i] = result[i - 1]
-    
+
     return result
 
 
@@ -89,11 +89,11 @@ def pl_ema(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     _length = length
     _presma = presma
     _adjust = adjust
@@ -102,13 +102,13 @@ def pl_ema(
     def compute_ema(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(float64)
 
-        
         if _use_talib:
             from talib import EMA as TALIB_EMA
+
             result = TALIB_EMA(arr, timeperiod=_length)
         else:
             result = _ema_numba(arr, _length, _presma, _adjust)
-        
+
         return pl.Series(result)
 
     ema_expr = close_expr.map_batches(compute_ema, return_dtype=pl.Float64)
@@ -118,4 +118,3 @@ def pl_ema(
         ema_expr = ema_expr.shift(offset)
 
     return ema_expr.alias(f"EMA_{length}")
-

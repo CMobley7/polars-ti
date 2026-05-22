@@ -28,8 +28,8 @@ def pl_cti(
         pl.Expr: CTI expression
     """
     from polars_ti.overlap.linreg import pl_linreg
-    
+
     # CTI = linreg correlation coefficient (r=True)
     cti_expr = pl_linreg(close, length=length, r=True, offset=offset)
-    
+
     return cti_expr.alias(f"CTI_{length}")

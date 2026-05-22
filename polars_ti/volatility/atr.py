@@ -23,7 +23,7 @@ def pl_atr(
     """Polars: Average True Range (ATR)
 
     ATR = MA(TrueRange)
-    
+
     Uses TA-Lib when available and talib=True, otherwise composes
     pl_true_range + pl_ma - exactly like the Pandas version.
 
@@ -45,50 +45,55 @@ def pl_atr(
     """
     from polars_ti.volatility.true_range import pl_true_range
     from polars_ti.ma import pl_ma
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     _use_talib = Imports["talib"] and v_talib(talib)
     _mamode = mamode.lower() if isinstance(mamode, str) else "rma"
-    
+
     if _use_talib:
         # TA-Lib path
         _length = length
         _offset = offset
-        
+
         def compute_atr_talib(struct: pl.Series) -> pl.Series:
             from talib import ATR as TALIB_ATR
+
             df = struct.struct.unnest()
             result = TALIB_ATR(
                 df["_high"].to_numpy().astype(np.float64),
                 df["_low"].to_numpy().astype(np.float64),
                 df["_close"].to_numpy().astype(np.float64),
-                timeperiod=_length
+                timeperiod=_length,
             )
             if _offset != 0:
                 result = np.roll(result, _offset)
                 if _offset > 0:
                     result[:_offset] = np.nan
             return pl.Series(result)
-        
-        return pl.struct([
-            high_expr.alias("_high"),
-            low_expr.alias("_low"),
-            close_expr.alias("_close")
-        ]).map_batches(compute_atr_talib, return_dtype=pl.Float64).alias(f"ATR{_mamode[0]}_{length}")
+
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("_high"),
+                    low_expr.alias("_low"),
+                    close_expr.alias("_close"),
+                ]
+            )
+            .map_batches(compute_atr_talib, return_dtype=pl.Float64)
+            .alias(f"ATR{_mamode[0]}_{length}")
+        )
     else:
         # Simple composition: TR → MA (just like Pandas!)
         tr_expr = pl_true_range(high_expr, low_expr, close_expr)
         atr_expr = pl_ma(name=_mamode, source=tr_expr, length=length, talib=False, presma=True)
-        
+
         if offset != 0:
             atr_expr = atr_expr.shift(offset)
-        
+
         return atr_expr.alias(f"ATR{_mamode[0]}_{length}")
-
-

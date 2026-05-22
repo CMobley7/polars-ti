@@ -40,37 +40,37 @@ def pl_vwap(
         list[pl.Expr]: [VWAP] or [VWAP, VWAP_L_1, VWAP_U_1, ...] if bands provided
     """
     from polars_ti.overlap.hlc3 import pl_hlc3
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if any(x is None for x in [high_expr, low_expr, close_expr, volume_expr]):
         return None
-    
+
     # Typical price = HLC3
     tp = pl_hlc3(high_expr, low_expr, close_expr)
     tp_vol = tp * volume_expr
-    
+
     _anchor = anchor.upper() if anchor else "D"
     _props = f"VWAP_{_anchor}"
-    
+
     if datetime_col is not None:
         # Anchored VWAP with period resets
         dt_expr = v_expr(datetime_col)
         if dt_expr is None:
             return None
-        
+
         # Create period group column
         period = dt_expr.dt.truncate(anchor)
-        
+
         # Cumulative sums within each period
         tp_vol_cum = tp_vol.cum_sum().over(period)
         vol_cum = volume_expr.cum_sum().over(period)
-        
+
         vwap_expr = tp_vol_cum / vol_cum
-        
+
         if bands:
             # Variance calculation for stddev bands
             vwap_var = volume_expr * (tp - vwap_expr).pow(2)
@@ -79,26 +79,26 @@ def pl_vwap(
     else:
         # Cumulative VWAP without resets
         vwap_expr = tp_vol.cum_sum() / volume_expr.cum_sum()
-        
+
         if bands:
             # Variance calculation for stddev bands (cumulative)
             vwap_var = volume_expr * (tp - vwap_expr).pow(2)
             vwap_var_cum = vwap_var.cum_sum()
             vol_cum = volume_expr.cum_sum()
             std_weighted = (vwap_var_cum / vol_cum).sqrt()
-    
+
     if offset != 0:
         vwap_expr = vwap_expr.shift(offset)
         if bands:
             std_weighted = std_weighted.shift(offset)
-    
+
     result = [vwap_expr.alias(_props)]
-    
+
     if bands:
         for band in bands:
             lower = vwap_expr - band * std_weighted
             upper = vwap_expr + band * std_weighted
             result.append(lower.alias(f"{_props}_L_{band}"))
             result.append(upper.alias(f"{_props}_U_{band}"))
-    
+
     return result

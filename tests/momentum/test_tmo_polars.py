@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_tmo - Polars + Numba True Momentum Oscillator."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,7 +14,7 @@ class TestPlTmo:
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         open_ = close - np.random.randn(n) * 0.3
-        return pl.DataFrame({'open': open_, 'close': close})
+        return pl.DataFrame({"open": open_, "close": close})
 
     def test_returns_expr(self):
         expr = pl_tmo("open", "close")
@@ -74,22 +75,23 @@ class TestPlTmo:
     def test_exclusive_vs_inclusive(self, sample_df):
         result_excl = sample_df.select(pl_tmo("open", "close", exclusive=True))
         result_incl = sample_df.select(pl_tmo("open", "close", exclusive=False))
-        
+
         main_excl = result_excl["TMO"].struct.field("TMO_14_5_3")
         main_incl = result_incl["TMO"].struct.field("TMO_14_5_3")
-        
+
         # Results should be different
         valid_excl = main_excl.drop_nulls().to_numpy()
         valid_incl = main_incl.drop_nulls().to_numpy()
-        
+
         if len(valid_excl) > 0 and len(valid_incl) > 0:
-            assert not np.allclose(valid_excl[:len(valid_incl)], valid_incl[:len(valid_excl)])
+            assert not np.allclose(valid_excl[: len(valid_incl)], valid_incl[: len(valid_excl)])
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            'open': [100.0, None, 102.0] + [100.0 + i * 0.1 for i in range(60)],
-            'close': [101.0, 102.0, None] + [101.0 + i * 0.1 for i in range(60)]
-        })
+        df = pl.DataFrame(
+            {
+                "open": [100.0, None, 102.0] + [100.0 + i * 0.1 for i in range(60)],
+                "close": [101.0, 102.0, None] + [101.0 + i * 0.1 for i in range(60)],
+            }
+        )
         result = df.select(pl_tmo("open", "close"))
         assert result.height == 63
-

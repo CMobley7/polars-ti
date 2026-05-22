@@ -39,5 +39,3 @@ def pl_dsp(close: IntoExpr, length: int = 14, offset: int = 0) -> PlExpr:
         dsp_expr = dsp_expr.shift(offset)
 
     return dsp_expr.alias(f"DSP_{length}")
-
-

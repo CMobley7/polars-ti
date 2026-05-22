@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_drawdown."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,15 +11,15 @@ class TestPlDrawdown:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({'close': 100 + np.cumsum(np.random.randn(100) * 0.5)})
+        return pl.DataFrame({"close": 100 + np.cumsum(np.random.randn(100) * 0.5)})
 
     @pytest.fixture
     def sample_data(self):
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': close,
-            'pl_df': pl.DataFrame({'close': close}),
+            "pd_close": close,
+            "pl_df": pl.DataFrame({"close": close}),
         }
 
     def test_returns_struct(self, sample_df):

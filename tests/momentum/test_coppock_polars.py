@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_coppock - Pure Polars implementation using pl_roc + pl_wma."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlCoppock:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_coppock("close")
@@ -41,7 +42,7 @@ class TestPlCoppock:
         assert "COPC_7_10_5" in result.columns
 
     def test_with_null_values(self):
-        df = pl.DataFrame({'close': [100.0, None, 102.0] + [100.0] * 50})
+        df = pl.DataFrame({"close": [100.0, None, 102.0] + [100.0] * 50})
         result = df.select(pl_coppock("close"))
         assert result.height == 53
 
@@ -51,4 +52,3 @@ class TestPlCoppock:
         # Should produce valid non-zero values
         valid = result["COPC_11_14_10"].filter(~result["COPC_11_14_10"].is_nan())
         assert valid.std() > 0  # Should have variation
-

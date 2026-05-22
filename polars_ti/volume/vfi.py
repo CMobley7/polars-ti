@@ -35,40 +35,39 @@ def pl_vfi(
         pl.Expr: VFI expression
     """
     from polars_ti.ma import pl_ma
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     # Volume average and clipped volume
     vave = volume_expr.rolling_mean(window_size=length, min_samples=length).shift(1)
     vmax = vave * vcoef
-    
+
     # min(volume, vmax)
     vc = pl.min_horizontal(volume_expr, vmax)
-    
+
     # Money flow with volatility threshold
     inter = close_expr.diff(1)
     cutoff = coef * close_expr
     mf = pl.when(inter.abs() > cutoff).then(inter).otherwise(0.0)
-    
+
     # Volume-weighted money flow
     vcp = vc * mf
-    
+
     # VFI = sum(vcp, length) / rolling_mean(vave, length)
     vave_mean = vave.rolling_mean(window_size=length, min_samples=length)
     # Protect against division by zero using shared utility
     vave_mean_safe = pl_non_zero_range(vave_mean, pl.lit(0.0))
-    
+
     vfi_expr = vcp.rolling_sum(window_size=length, min_samples=length) / vave_mean_safe
-    
+
     # Smooth with EMA(3)
     vfi_expr = pl_ma(name=mamode, source=vfi_expr, length=3)
-    
+
     if offset != 0:
         vfi_expr = vfi_expr.shift(offset)
-    
-    return vfi_expr.alias(f"VFI_{length}")
 
+    return vfi_expr.alias(f"VFI_{length}")

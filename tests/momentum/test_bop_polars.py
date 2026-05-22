@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_bop - Pure Polars + TA-Lib implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -15,7 +16,7 @@ class TestPlBop:
         high = close + np.abs(np.random.randn(n) * 0.5)
         low = close - np.abs(np.random.randn(n) * 0.5)
         open_ = close + np.random.randn(n) * 0.2
-        return pl.DataFrame({'open': open_, 'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
     def test_returns_expr(self):
         expr = pl_bop("open", "high", "low", "close")
@@ -53,11 +54,13 @@ class TestPlBop:
         assert "BOP" in result.columns
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            'open': [100.0, None, 102.0, 103.0],
-            'high': [101.0, 102.0, None, 104.0],
-            'low': [99.0, 100.0, 101.0, None],
-            'close': [100.5, 101.0, 102.5, 103.5]
-        })
+        df = pl.DataFrame(
+            {
+                "open": [100.0, None, 102.0, 103.0],
+                "high": [101.0, 102.0, None, 104.0],
+                "low": [99.0, 100.0, 101.0, None],
+                "close": [100.5, 101.0, 102.5, 103.5],
+            }
+        )
         result = df.select(pl_bop("open", "high", "low", "close", talib=False))
         assert result.height == 4

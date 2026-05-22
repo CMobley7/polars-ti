@@ -22,7 +22,7 @@ def pl_rvgi(
 
     The Relative Vigor Index attempts to measure the strength of a trend
     relative to its closing price to its trading range. It is based on the
-    belief that prices tend to close higher than they open in uptrends or 
+    belief that prices tend to close higher than they open in uptrends or
     close lower than they open in downtrends.
 
     Sources:
@@ -51,27 +51,29 @@ def pl_rvgi(
     # Calculate ranges
     close_open_range = close_expr - open_expr
     high_low_range = high_expr - low_expr
-    
+
     # Apply SWMA to ranges, then rolling sum
     swma_close_open = pl_swma(close_open_range, length=swma_length)
     swma_high_low = pl_swma(high_low_range, length=swma_length)
-    
+
     numerator = swma_close_open.rolling_sum(window_size=length)
     denominator = swma_high_low.rolling_sum(window_size=length)
-    
+
     # Avoid division by zero
     rvgi_expr = numerator / pl.when(denominator == 0).then(None).otherwise(denominator)
-    
+
     # Signal is SWMA of RVGI
     signal_expr = pl_swma(rvgi_expr, length=swma_length)
-    
+
     # Apply offset
     if offset != 0:
         rvgi_expr = rvgi_expr.shift(offset)
         signal_expr = signal_expr.shift(offset)
-    
+
     # Return as struct
-    return pl.struct([
-        rvgi_expr.alias(f"RVGI_{length}_{swma_length}"),
-        signal_expr.alias(f"RVGIs_{length}_{swma_length}"),
-    ]).alias("RVGI")
+    return pl.struct(
+        [
+            rvgi_expr.alias(f"RVGI_{length}_{swma_length}"),
+            signal_expr.alias(f"RVGIs_{length}_{swma_length}"),
+        ]
+    ).alias("RVGI")

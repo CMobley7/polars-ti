@@ -151,18 +151,14 @@ def test_df_dates(df):
 
 def test_fibonacci():
     np.testing.assert_array_equal(ti.utils.fibonacci(0, False), np.array([1, 1]))
-    np.testing.assert_array_equal(
-        ti.utils.fibonacci(5, False), np.array([1, 1, 2, 3, 5])
-    )
+    np.testing.assert_array_equal(ti.utils.fibonacci(5, False), np.array([1, 1, 2, 3, 5]))
 
     assert isinstance(ti.utils.fibonacci(2, False), np.ndarray)
 
 
 def test_fibonacci_weighted():
     np.testing.assert_array_equal(ti.utils.fibonacci(0, True), np.array([0.5, 0.5]))
-    np.testing.assert_allclose(
-        ti.utils.fibonacci(5, True), np.array([1 / 12, 1 / 12, 1 / 6, 1 / 4, 5 / 12])
-    )
+    np.testing.assert_allclose(ti.utils.fibonacci(5, True), np.array([1 / 12, 1 / 12, 1 / 6, 1 / 4, 5 / 12]))
 
     assert isinstance(ti.utils.fibonacci(2, True), np.ndarray)
 
@@ -226,9 +222,7 @@ def test_pascals_triangle():
     array = np.array([1])
     np.testing.assert_array_equal(ti.utils.pascals_triangle(), array)
     np.testing.assert_array_equal(ti.utils.pascals_triangle(weighted=True), array)
-    np.testing.assert_array_equal(
-        ti.utils.pascals_triangle(weighted=True, inverse=True), np.array([0])
-    )
+    np.testing.assert_array_equal(ti.utils.pascals_triangle(weighted=True, inverse=True), np.array([0]))
 
 
 @mark.parametrize("value", [-5, -1, 0, 1, 5])
@@ -237,12 +231,8 @@ def test_pascals_triangle_n(value):
     array_w = array / np.sum(array)
     array_iw = 1 - array_w
     np.testing.assert_array_equal(ti.utils.pascals_triangle(n=value), array)
-    np.testing.assert_array_equal(
-        ti.utils.pascals_triangle(n=value, weighted=True), array_w
-    )
-    np.testing.assert_array_equal(
-        ti.utils.pascals_triangle(n=value, weighted=True, inverse=True), array_iw
-    )
+    np.testing.assert_array_equal(ti.utils.pascals_triangle(n=value, weighted=True), array_w)
+    np.testing.assert_array_equal(ti.utils.pascals_triangle(n=value, weighted=True, inverse=True), array_iw)
 
 
 @mark.parametrize("value", [param(None, marks=mark.xfail), "NYSE", "NZSX", "SSE"])
@@ -296,9 +286,7 @@ def test_inv_norm_value(value, result):
 
 def test_symmetric_triangle():
     np.testing.assert_array_equal(ti.utils.symmetric_triangle(), np.array([1, 1]))
-    np.testing.assert_array_equal(
-        ti.utils.symmetric_triangle(weighted=True), np.array([0.5, 0.5])
-    )
+    np.testing.assert_array_equal(ti.utils.symmetric_triangle(weighted=True), np.array([0.5, 0.5]))
 
 
 @mark.parametrize("value", [2, 3, 10])
@@ -306,9 +294,7 @@ def test_symmetric_triangle_n(value):
     array = ti.utils.symmetric_triangle(n=value)
     array_w = array / np.sum(array)
     np.testing.assert_array_equal(ti.utils.symmetric_triangle(n=value), array)
-    np.testing.assert_array_equal(
-        ti.utils.symmetric_triangle(n=value, weighted=True), array_w
-    )
+    np.testing.assert_array_equal(ti.utils.symmetric_triangle(n=value, weighted=True), array_w)
 
 
 @mark.parametrize(
@@ -412,9 +398,7 @@ def test_v_lowerbound_value_strict_false(value, result):
     assert ti.utils.v_lowerbound(value, strict=False) == result
 
 
-@mark.parametrize(
-    "value", [0, None, "", [], {}, np.int8(5), np.int16(5), np.int32(5), np.int64(5)]
-)
+@mark.parametrize("value", [0, None, "", [], {}, np.int8(5), np.int16(5), np.int32(5), np.int64(5)])
 def test_v_offset_types(value):
     assert isinstance(ti.utils.v_offset(value), int)
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/overlap/dema.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -16,20 +17,20 @@ class TestPlDema:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': close,
-            'pl_df': pl.DataFrame({'close': close}),
+            "pd_series": close,
+            "pl_df": pl.DataFrame({"close": close}),
         }
 
     def test_output_has_correct_alias(self, sample_data):
         """Test that output column has correct alias."""
-        result = sample_data['pl_df'].select(pl_dema('close', length=10))
-        assert result.columns[0] == 'DEMA_10'
+        result = sample_data["pl_df"].select(pl_dema("close", length=10))
+        assert result.columns[0] == "DEMA_10"
 
     def test_offset_shifts_result(self, sample_data):
         """Test that offset parameter shifts the result."""
-        no_offset = sample_data['pl_df'].select(pl_dema('close', length=10)).to_series()
-        with_offset = sample_data['pl_df'].select(pl_dema('close', length=10, offset=5)).to_series()
-        
+        no_offset = sample_data["pl_df"].select(pl_dema("close", length=10)).to_series()
+        with_offset = sample_data["pl_df"].select(pl_dema("close", length=10, offset=5)).to_series()
+
         # Values at index i+5 in offset result should equal index i in non-offset
         for i in range(20, 50):
             if not np.isnan(no_offset[i]):
@@ -37,25 +38,25 @@ class TestPlDema:
 
     def test_warmup_period_has_nan(self, sample_data):
         """Test that warmup period contains NaN values."""
-        result = sample_data['pl_df'].select(pl_dema('close', length=10)).to_series()
+        result = sample_data["pl_df"].select(pl_dema("close", length=10)).to_series()
         # First 2*length - 2 values should be NaN (EMA warmup for both stages)
         assert result[:17].is_nan().all()
 
     def test_talib_parameter_accepted(self, sample_data):
         """Test that talib parameter is accepted (for API compatibility)."""
-        result = sample_data['pl_df'].select(pl_dema('close', length=10, talib=False))
+        result = sample_data["pl_df"].select(pl_dema("close", length=10, talib=False))
         assert result is not None
 
     def test_different_lengths(self, sample_data):
         """Test that different lengths produce different results."""
-        result_10 = sample_data['pl_df'].select(pl_dema('close', length=10)).to_series()
-        result_20 = sample_data['pl_df'].select(pl_dema('close', length=20)).to_series()
-        
+        result_10 = sample_data["pl_df"].select(pl_dema("close", length=10)).to_series()
+        result_20 = sample_data["pl_df"].select(pl_dema("close", length=20)).to_series()
+
         # After both warmups, values should be different
         warmup = 40
         valid_10 = ~result_10[warmup:].is_nan()
         valid_20 = ~result_20[warmup:].is_nan()
-        
+
         if valid_10.sum() > 0 and valid_20.sum() > 0:
             # Values should be different (not exactly equal)
             diff = result_10[warmup:].to_numpy() - result_20[warmup:].to_numpy()
@@ -76,6 +77,6 @@ class TestPlDema:
 
     def test_lazy_execution(self, sample_data):
         """Works with LazyFrame."""
-        lazy_df = sample_data['pl_df'].lazy()
+        lazy_df = sample_data["pl_df"].lazy()
         result = lazy_df.select(pl_dema("close", length=10)).collect()
         assert "DEMA_10" in result.columns

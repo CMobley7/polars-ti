@@ -57,41 +57,36 @@ def pl_pvi(
         list[pl.Expr]: List of expressions [PVI, PVI_signal]
     """
     from polars_ti.ma import pl_ma
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     _length = length
     _initial = initial
     _mode = mamode.lower()[0] if len(mamode) else ""
     _props = f"{_mode}_{length}"
-    
+
     def compute_pvi(df: pl.DataFrame) -> pl.Series:
         c = df["close"].to_numpy().astype(np.float64)
         v = df["volume"].to_numpy().astype(np.float64)
         result = nb_pvi(c, v, _initial)
         return pl.Series("PVI", result)
-    
-    pvi_expr = pl.struct([
-        close_expr.alias("close"),
-        volume_expr.alias("volume")
-    ]).map_batches(
-        lambda s: compute_pvi(s.struct.unnest()),
-        return_dtype=pl.Float64
+
+    pvi_expr = pl.struct([close_expr.alias("close"), volume_expr.alias("volume")]).map_batches(
+        lambda s: compute_pvi(s.struct.unnest()), return_dtype=pl.Float64
     )
-    
+
     # Signal = MA(PVI, length)
     pvi_signal_expr = pl_ma(name=mamode, source=pvi_expr, length=length)
-    
+
     if offset != 0:
         pvi_expr = pvi_expr.shift(offset)
         pvi_signal_expr = pvi_signal_expr.shift(offset)
-    
+
     return [
         pvi_expr.alias("PVI"),
         pvi_signal_expr.alias(f"PVI{_props}"),
     ]
-

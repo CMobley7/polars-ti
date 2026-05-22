@@ -24,6 +24,5 @@ def pl_ohlc4(open_: IntoExpr, high: IntoExpr, low: IntoExpr, close: IntoExpr) ->
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
-    return ((open_expr + high_expr + low_expr + close_expr) / 4).alias("OHLC4")
 
+    return ((open_expr + high_expr + low_expr + close_expr) / 4).alias("OHLC4")

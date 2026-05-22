@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_ppo (Percentage Price Oscillator)."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlPpo:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expression(self, sample_df):
         """Test that pl_ppo returns a valid expression."""
@@ -31,31 +32,27 @@ class TestPlPpo:
         """Test that both talib=True and talib=False work."""
         result_talib = sample_df.select(pl_ppo("close", talib=True))
         result_native = sample_df.select(pl_ppo("close", talib=False))
-        
+
         # Both should produce valid results
         unnested_talib = result_talib.unnest(result_talib.columns[0])
         unnested_native = result_native.unnest(result_native.columns[0])
-        
+
         ppo_talib = unnested_talib["PPO_12_26_9"].to_numpy()
         ppo_native = unnested_native["PPO_12_26_9"].to_numpy()
-        
+
         # Both should have valid values
         assert (~np.isnan(ppo_talib)).sum() > 50
         assert (~np.isnan(ppo_native)).sum() > 50
 
     def test_with_null_values(self):
         """Test handling of null values."""
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 49
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 49})
         result = df.select(pl_ppo("close"))
         assert result.height == 50
 
     def test_with_zero_values(self):
         """Test handling of zero prices."""
-        df = pl.DataFrame({
-            "close": [0.0] * 20 + [100.0] * 30
-        })
+        df = pl.DataFrame({"close": [0.0] * 20 + [100.0] * 30})
         result = df.select(pl_ppo("close", fast=5, slow=10, signal=3))
         # Should not raise and should handle zeros
         assert result.height == 50

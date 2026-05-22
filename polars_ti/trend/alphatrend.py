@@ -149,20 +149,19 @@ def pl_alphatrend(
 
         _props = f"_{length}_{multiplier}_{threshold}"
         n = len(h)
-        return pl.Series(values=[
-            {f"ALPHAT{_props}": at[i], f"ALPHATl{_props}_{lag}": atl[i]}
-            for i in range(n)
-        ])
+        return pl.Series(values=[{f"ALPHAT{_props}": at[i], f"ALPHATl{_props}_{lag}": atl[i]} for i in range(n)])
 
     _aprops = f"_{length}_{multiplier}_{threshold}"
     fields = [
         pl.Field(f"ALPHAT{_aprops}", pl.Float64),
         pl.Field(f"ALPHATl{_aprops}_{lag}", pl.Float64),
     ]
-    return pl.struct(
-        high_expr.alias("_h"),
-        low_expr.alias("_l"),
-        close_expr.alias("_c"),
-    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"ALPHAT{_aprops}")
-
-
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+            close_expr.alias("_c"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"ALPHAT{_aprops}")
+    )

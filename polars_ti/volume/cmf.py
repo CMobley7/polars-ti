@@ -37,24 +37,22 @@ def pl_cmf(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
         return None
-    
+
     # CMF = rolling_sum(CLV * volume) / rolling_sum(volume)
     # Note: Unlike AD which uses cumsum, CMF uses rolling_sum - cannot reuse pl_ad
     # CLV (Close Location Value) = (2*close - high - low) / (high - low)
     hl_range_safe = pl_non_zero_range(high_expr, low_expr)
     clv = (2 * close_expr - high_expr - low_expr) / hl_range_safe
     ad_component = clv * volume_expr
-    
-    cmf_expr = (
-        ad_component.rolling_sum(window_size=length, min_samples=length)
-        / volume_expr.rolling_sum(window_size=length, min_samples=length)
+
+    cmf_expr = ad_component.rolling_sum(window_size=length, min_samples=length) / volume_expr.rolling_sum(
+        window_size=length, min_samples=length
     )
-    
+
     if offset != 0:
         cmf_expr = cmf_expr.shift(offset)
-    
-    return cmf_expr.alias(f"CMF_{length}")
 
+    return cmf_expr.alias(f"CMF_{length}")

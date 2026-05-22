@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_crsi - Polars + Numba implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlCrsi:
         np.random.seed(42)
         n = 200  # Need enough for length_rank=100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_crsi("close")

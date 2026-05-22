@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_supertrend - Numba @njit implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -14,7 +15,7 @@ class TestPlSupertrend:
         high = 100 + np.cumsum(np.random.randn(n) * 0.5) + np.abs(np.random.randn(n) * 0.3)
         low = high - np.abs(np.random.randn(n) * 0.5)
         close = (high + low) / 2 + np.random.randn(n) * 0.1
-        return pl.DataFrame({'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"high": high, "low": low, "close": close})
 
     @pytest.fixture
     def sample_data(self):
@@ -24,8 +25,8 @@ class TestPlSupertrend:
         high = close + np.abs(np.random.randn(n))
         low = close - np.abs(np.random.randn(n))
         return {
-            'pd_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
-            'pl_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
+            "pd_df": pl.DataFrame({"high": high, "low": low, "close": close}),
+            "pl_df": pl.DataFrame({"high": high, "low": low, "close": close}),
         }
 
     def test_returns_expr(self):
@@ -58,21 +59,25 @@ class TestPlSupertrend:
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
-        df = pl.DataFrame({
-            "high": [None] + [102.0] * 49,
-            "low": [None] + [98.0] * 49,
-            "close": [None] + [100.0] * 49,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [102.0] * 49,
+                "low": [None] + [98.0] * 49,
+                "close": [None] + [100.0] * 49,
+            }
+        )
         result = df.select(pl_supertrend("high", "low", "close"))
         assert result.height == 50
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            "high": [0.0] * 5 + [102.0] * 45,
-            "low": [0.0] * 5 + [98.0] * 45,
-            "close": [0.0] * 5 + [100.0] * 45,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [0.0] * 5 + [102.0] * 45,
+                "low": [0.0] * 5 + [98.0] * 45,
+                "close": [0.0] * 5 + [100.0] * 45,
+            }
+        )
         result = df.select(pl_supertrend("high", "low", "close"))
         assert result.height == 50
 
@@ -81,4 +86,3 @@ class TestPlSupertrend:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(pl_supertrend("high", "low", "close")).collect()
         assert result.height == 100
-

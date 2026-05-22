@@ -40,23 +40,22 @@ def pl_true_range(
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     # Previous close
     prev_close = close_expr.shift(drift)
-    
+
     # Three component ranges
     hl_range = high_expr - low_expr
     hc_range = (high_expr - prev_close).abs()
     lc_range = (prev_close - low_expr).abs()
-    
+
     # True Range = max of all three
     result = pl.max_horizontal(hl_range, hc_range, lc_range)
-    
+
     if offset != 0:
         result = result.shift(offset)
-    
-    return result.alias(f"TRUERANGE_{drift}")
 
+    return result.alias(f"TRUERANGE_{drift}")

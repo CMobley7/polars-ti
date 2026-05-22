@@ -13,7 +13,7 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def nb_linreg(arr: np.ndarray) -> tuple:
     """Numba-optimized simple linear regression.
-    
+
     Returns (slope, intercept) for y = slope * x + intercept
     where x = 0, 1, 2, ..., n-1
     """
@@ -22,17 +22,17 @@ def nb_linreg(arr: np.ndarray) -> tuple:
     sum_y = 0.0
     sum_xy = 0.0
     sum_x2 = 0.0
-    
+
     for i in range(n):
         sum_x += i
         sum_y += arr[i]
         sum_xy += i * arr[i]
         sum_x2 += i * i
-    
+
     denom = n * sum_x2 - sum_x * sum_x
     if denom == 0:
         return 0.0, sum_y / n
-    
+
     slope = (n * sum_xy - sum_x * sum_y) / denom
     intercept = (sum_y - slope * sum_x) / n
     return slope, intercept
@@ -44,18 +44,18 @@ def nb_std(arr: np.ndarray, ddof: int) -> float:
     n = len(arr)
     if n <= ddof:
         return 0.0
-    
+
     mean = 0.0
     for i in range(n):
         mean += arr[i]
     mean /= n
-    
+
     var = 0.0
     for i in range(n):
         diff = arr[i] - mean
         var += diff * diff
-    var /= (n - ddof)
-    
+    var /= n - ddof
+
     return np.sqrt(var)
 
 
@@ -93,26 +93,26 @@ def pl_tos_stdevall(
         """Compute TOS_STDEVALL using Numba kernels."""
         arr = s.to_numpy().astype(np.float64)
         n = len(arr)
-        
+
         # Use length or full series
         if _length is not None and _length < n:
             arr = arr[-_length:]
             n = _length
-        
+
         # Linear regression using Numba
         slope, intercept = nb_linreg(arr)
         lr = np.empty(n, dtype=np.float64)
         for i in range(n):
             lr[i] = slope * i + intercept
-        
+
         stdev = nb_std(arr, _ddof)
-        
+
         # Build result columns
         result_dict = {"LR": lr}
         for i in _stds:
             result_dict[f"L_{i}"] = lr - i * stdev
             result_dict[f"U_{i}"] = lr + i * stdev
-        
+
         # Return as DataFrame columns via struct
         return pl.DataFrame(result_dict).to_struct("TOS_STDEVALL")
 
@@ -128,5 +128,3 @@ def pl_tos_stdevall(
         result = result.shift(offset)
 
     return result.alias("TOS_STDEVALL")
-
-

@@ -58,7 +58,7 @@ def pl_cdl_doji(
 
     # Doji: body < 0.01 * factor * average HL range
     threshold = 0.01 * factor * hl_range_avg
-    
+
     if asint:
         doji = pl.when(body < threshold).then(scalar).otherwise(0.0).cast(pl.Int64)
     else:
@@ -69,4 +69,3 @@ def pl_cdl_doji(
         doji = doji.shift(offset)
 
     return doji.alias(f"CDL_DOJI_{length}_{0.01 * factor}")
-

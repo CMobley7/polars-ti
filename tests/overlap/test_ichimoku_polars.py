@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_ichimoku."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -11,11 +12,13 @@ class TestPlIchimoku:
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
         n = 100
-        return pl.DataFrame({
-            'high': 102 + np.cumsum(np.random.randn(n) * 0.3),
-            'low': 98 + np.cumsum(np.random.randn(n) * 0.3),
-            'close': 100 + np.cumsum(np.random.randn(n) * 0.4),
-        })
+        return pl.DataFrame(
+            {
+                "high": 102 + np.cumsum(np.random.randn(n) * 0.3),
+                "low": 98 + np.cumsum(np.random.randn(n) * 0.3),
+                "close": 100 + np.cumsum(np.random.randn(n) * 0.4),
+            }
+        )
 
     @pytest.fixture
     def sample_data(self):
@@ -25,10 +28,10 @@ class TestPlIchimoku:
         low = 98 + np.cumsum(np.random.randn(n) * 0.3)
         close = 100 + np.cumsum(np.random.randn(n) * 0.4)
         return {
-            'pd_high': high,
-            'pd_low': low,
-            'pd_close': close,
-            'pl_df': pl.DataFrame({'high': high, 'low': low, 'close': close}),
+            "pd_high": high,
+            "pd_low": low,
+            "pd_close": close,
+            "pl_df": pl.DataFrame({"high": high, "low": low, "close": close}),
         }
 
     def test_returns_two_dataframes(self, sample_df):
@@ -63,21 +66,24 @@ class TestPlIchimoku:
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
-        df = pl.DataFrame({
-            "high": [None] + [102.0] * 79,
-            "low": [None] + [98.0] * 79,
-            "close": [None] + [100.0] * 79,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [102.0] * 79,
+                "low": [None] + [98.0] * 79,
+                "close": [None] + [100.0] * 79,
+            }
+        )
         main_df, span_df = pl_ichimoku(df)
         assert main_df.height == 80
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            "high": [0.0] * 5 + [102.0] * 75,
-            "low": [0.0] * 5 + [98.0] * 75,
-            "close": [0.0] * 5 + [100.0] * 75,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [0.0] * 5 + [102.0] * 75,
+                "low": [0.0] * 5 + [98.0] * 75,
+                "close": [0.0] * 5 + [100.0] * 75,
+            }
+        )
         main_df, span_df = pl_ichimoku(df)
         assert main_df.height == 80
-

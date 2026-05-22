@@ -47,27 +47,28 @@ def pl_accbands(
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     _use_talib = Imports["talib"] and v_talib(talib)
     _length = length
     _c = c
     _mamode = mamode.lower() if isinstance(mamode, str) else "sma"
     _offset = offset
-    
+
     if _use_talib:
         # TA-Lib path: use map_batches for direct TA-Lib ACCBANDS call
         def compute_accbands_talib(struct: pl.Series) -> pl.Series:
             from talib import ACCBANDS
+
             df = struct.struct.unnest()
             high_arr = df["_high"].to_numpy().astype(np.float64)
             low_arr = df["_low"].to_numpy().astype(np.float64)
             close_arr = df["_close"].to_numpy().astype(np.float64)
-            
+
             upper, mid, lower = ACCBANDS(high_arr, low_arr, close_arr, timeperiod=_length)
-            
+
             if _offset != 0:
                 lower = np.roll(lower, _offset)
                 mid = np.roll(mid, _offset)
@@ -76,53 +77,63 @@ def pl_accbands(
                     lower[:_offset] = np.nan
                     mid[:_offset] = np.nan
                     upper[:_offset] = np.nan
-            
-            return pl.DataFrame({
-                f"ACCBL_{_length}": lower,
-                f"ACCBM_{_length}": mid,
-                f"ACCBU_{_length}": upper
-            }).to_struct(f"ACCBANDS_{_length}")
-        
-        return pl.struct([
-            high_expr.alias("_high"),
-            low_expr.alias("_low"),
-            close_expr.alias("_close")
-        ]).map_batches(
-            compute_accbands_talib,
-            return_dtype=pl.Struct([
-                pl.Field(f"ACCBL_{length}", pl.Float64),
-                pl.Field(f"ACCBM_{length}", pl.Float64),
-                pl.Field(f"ACCBU_{length}", pl.Float64),
-            ])
-        ).alias(f"ACCBANDS_{length}")
+
+            return pl.DataFrame(
+                {
+                    f"ACCBL_{_length}": lower,
+                    f"ACCBM_{_length}": mid,
+                    f"ACCBU_{_length}": upper,
+                }
+            ).to_struct(f"ACCBANDS_{_length}")
+
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("_high"),
+                    low_expr.alias("_low"),
+                    close_expr.alias("_close"),
+                ]
+            )
+            .map_batches(
+                compute_accbands_talib,
+                return_dtype=pl.Struct(
+                    [
+                        pl.Field(f"ACCBL_{length}", pl.Float64),
+                        pl.Field(f"ACCBM_{length}", pl.Float64),
+                        pl.Field(f"ACCBU_{length}", pl.Float64),
+                    ]
+                ),
+            )
+            .alias(f"ACCBANDS_{length}")
+        )
     else:
         # Polars composition path using pl_ma
         from polars_ti.ma import pl_ma
-        
+
         # High-Low range with non-zero protection
         hl_range = pl_non_zero_range(high_expr, low_expr)
-        
+
         # hl_ratio = c * hl_range / (high + low)
         hl_ratio = (pl.lit(c) * hl_range) / (high_expr + low_expr)
-        
+
         # Lower = low * (1 - hl_ratio), Upper = high * (1 + hl_ratio)
         lower_raw = low_expr * (pl.lit(1.0) - hl_ratio)
         upper_raw = high_expr * (pl.lit(1.0) + hl_ratio)
-        
+
         # Apply MA to each using pl_ma dispatcher
         lower = pl_ma(name=mamode, source=lower_raw, length=length, talib=False)
         mid = pl_ma(name=mamode, source=close_expr, length=length, talib=False)
         upper = pl_ma(name=mamode, source=upper_raw, length=length, talib=False)
-        
+
         if offset != 0:
             lower = lower.shift(offset)
             mid = mid.shift(offset)
             upper = upper.shift(offset)
-        
-        return pl.struct([
-            lower.alias(f"ACCBL_{length}"),
-            mid.alias(f"ACCBM_{length}"),
-            upper.alias(f"ACCBU_{length}")
-        ]).alias(f"ACCBANDS_{length}")
 
-
+        return pl.struct(
+            [
+                lower.alias(f"ACCBL_{length}"),
+                mid.alias(f"ACCBM_{length}"),
+                upper.alias(f"ACCBU_{length}"),
+            ]
+        ).alias(f"ACCBANDS_{length}")

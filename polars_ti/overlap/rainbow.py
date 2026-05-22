@@ -33,22 +33,20 @@ def pl_rainbow(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     # Build chained SMA expressions - just like Pandas version!
     ribbon_exprs = []
     prev_expr = close_expr
-    
+
     for i in range(1, num_ribbons + 1):
         # Each SMA is calculated on the previous SMA
         sma_expr = pl_sma(prev_expr, length=length, talib=False)
-        
+
         # Apply offset if needed
         if offset != 0:
             sma_expr = sma_expr.shift(offset)
-        
+
         ribbon_exprs.append(sma_expr.alias(f"RAINBOW_{i}"))
         prev_expr = sma_expr
-    
+
     return pl.struct(ribbon_exprs).alias(f"RAINBOW_{length}_{num_ribbons}")
-
-

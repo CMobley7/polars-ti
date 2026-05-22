@@ -27,25 +27,28 @@ def pl_pvr(
     """
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     close_diff = close_expr.diff(drift)
     volume_diff = volume_expr.diff(drift)
-    
+
     # PVR categories:
     # 1: close up, volume up
     # 2: close up, volume down
     # 3: close down, volume up
     # 4: close down, volume down
     pvr_expr = (
-        pl.when((close_diff >= 0) & (volume_diff >= 0)).then(1)
-        .when((close_diff >= 0) & (volume_diff < 0)).then(2)
-        .when((close_diff < 0) & (volume_diff >= 0)).then(3)
-        .when((close_diff < 0) & (volume_diff < 0)).then(4)
+        pl.when((close_diff >= 0) & (volume_diff >= 0))
+        .then(1)
+        .when((close_diff >= 0) & (volume_diff < 0))
+        .then(2)
+        .when((close_diff < 0) & (volume_diff >= 0))
+        .then(3)
+        .when((close_diff < 0) & (volume_diff < 0))
+        .then(4)
         .otherwise(None)
     )
-    
-    return pvr_expr.alias("PVR")
 
+    return pvr_expr.alias("PVR")

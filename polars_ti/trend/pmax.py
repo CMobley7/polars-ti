@@ -154,15 +154,17 @@ def pl_pmax(
 
         _props = f"_{length}_{multiplier}"
         n = len(h)
-        return pl.Series(values=[
-            {
-                f"PMAX{_props}": trend[i],
-                f"PMAXd{_props}": dir_[i],
-                f"PMAXl{_props}": long_arr[i],
-                f"PMAXs{_props}": short_arr[i],
-            }
-            for i in range(n)
-        ])
+        return pl.Series(
+            values=[
+                {
+                    f"PMAX{_props}": trend[i],
+                    f"PMAXd{_props}": dir_[i],
+                    f"PMAXl{_props}": long_arr[i],
+                    f"PMAXs{_props}": short_arr[i],
+                }
+                for i in range(n)
+            ]
+        )
 
     _pprops = f"_{length}_{multiplier}"
     fields = [
@@ -171,8 +173,12 @@ def pl_pmax(
         pl.Field(f"PMAXl{_pprops}", pl.Float64),
         pl.Field(f"PMAXs{_pprops}", pl.Float64),
     ]
-    return pl.struct(
-        high_expr.alias("_h"),
-        low_expr.alias("_l"),
-        close_expr.alias("_c"),
-    ).map_batches(_compute, return_dtype=pl.Struct(fields)).alias(f"PMAX_{length}_{multiplier}")
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+            close_expr.alias("_c"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"PMAX_{length}_{multiplier}")
+    )

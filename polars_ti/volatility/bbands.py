@@ -38,30 +38,31 @@ def pl_bbands(
         pl.Expr: Struct with BBL, BBM, BBU, BBB, BBP columns
     """
     close_expr = v_expr(close)
-    
+
     if close_expr is None:
         return None
-    
+
     _use_talib = Imports["talib"] and v_talib(talib)
     _length = length
     _std = std
     _ddof = ddof
     _offset = offset
-    
+
     if _use_talib:
         # TA-Lib path
         def compute_bbands_talib(s: pl.Series) -> pl.Series:
             from talib import BBANDS
+
             arr = s.to_numpy().astype(np.float64)
             upper, mid, lower = BBANDS(arr, _length, _std, _std, 0)  # 0 = SMA
-            
+
             # Bandwidth and percent
             ulr = upper - lower
             bandwidth = np.full_like(ulr, np.nan, dtype=np.float64)
             percent = np.full_like(ulr, np.nan, dtype=np.float64)
             np.divide(100 * ulr, mid, out=bandwidth, where=mid != 0)
             np.divide(arr - lower, ulr, out=percent, where=ulr != 0)
-            
+
             if _offset != 0:
                 lower = np.roll(lower, _offset)
                 mid = np.roll(mid, _offset)
@@ -74,56 +75,61 @@ def pl_bbands(
                     upper[:_offset] = np.nan
                     bandwidth[:_offset] = np.nan
                     percent[:_offset] = np.nan
-            
+
             _props = f"_{_length}_{_std}"
-            return pl.DataFrame({
-                f"BBL{_props}": lower,
-                f"BBM{_props}": mid,
-                f"BBU{_props}": upper,
-                f"BBB{_props}": bandwidth,
-                f"BBP{_props}": percent
-            }).to_struct(f"BBANDS{_props}")
-        
+            return pl.DataFrame(
+                {
+                    f"BBL{_props}": lower,
+                    f"BBM{_props}": mid,
+                    f"BBU{_props}": upper,
+                    f"BBB{_props}": bandwidth,
+                    f"BBP{_props}": percent,
+                }
+            ).to_struct(f"BBANDS{_props}")
+
         _props = f"_{length}_{std}"
         return close_expr.map_batches(
-            compute_bbands_talib, 
-            return_dtype=pl.Struct([
-                pl.Field(f"BBL{_props}", pl.Float64),
-                pl.Field(f"BBM{_props}", pl.Float64),
-                pl.Field(f"BBU{_props}", pl.Float64),
-                pl.Field(f"BBB{_props}", pl.Float64),
-                pl.Field(f"BBP{_props}", pl.Float64),
-            ])
+            compute_bbands_talib,
+            return_dtype=pl.Struct(
+                [
+                    pl.Field(f"BBL{_props}", pl.Float64),
+                    pl.Field(f"BBM{_props}", pl.Float64),
+                    pl.Field(f"BBU{_props}", pl.Float64),
+                    pl.Field(f"BBB{_props}", pl.Float64),
+                    pl.Field(f"BBP{_props}", pl.Float64),
+                ]
+            ),
         ).alias(f"BBANDS{_props}")
     else:
         # Pure Polars path with pl_sma composition
         from polars_ti.overlap.sma import pl_sma
-        
+
         mid = pl_sma(close_expr, length=length)
         std_dev = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
-        
+
         deviations = pl.lit(std) * std_dev
         lower = mid - deviations
         upper = mid + deviations
-        
+
         ulr = upper - lower
         bandwidth = (pl.lit(100.0) * ulr) / mid
         percent = (close_expr - lower) / ulr
-        
+
         if offset != 0:
             lower = lower.shift(offset)
             mid = mid.shift(offset)
             upper = upper.shift(offset)
             bandwidth = bandwidth.shift(offset)
             percent = percent.shift(offset)
-        
-        _props = f"_{length}_{std}"
-        
-        return pl.struct([
-            lower.alias(f"BBL{_props}"),
-            mid.alias(f"BBM{_props}"),
-            upper.alias(f"BBU{_props}"),
-            bandwidth.alias(f"BBB{_props}"),
-            percent.alias(f"BBP{_props}")
-        ]).alias(f"BBANDS{_props}")
 
+        _props = f"_{length}_{std}"
+
+        return pl.struct(
+            [
+                lower.alias(f"BBL{_props}"),
+                mid.alias(f"BBM{_props}"),
+                upper.alias(f"BBU{_props}"),
+                bandwidth.alias(f"BBB{_props}"),
+                percent.alias(f"BBP{_props}"),
+            ]
+        ).alias(f"BBANDS{_props}")

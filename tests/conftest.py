@@ -143,6 +143,4 @@ def custom_study_e():
         {"kind": "ema", "close": "CUMLOGRET_1", "length": 5},  # 1
     ]
 
-    return ti.Study(
-        name="AMAT Log Returns", ti=_ti, cores=0, description="AMAT Log Returns"
-    )
+    return ti.Study(name="AMAT Log Returns", ti=_ti, cores=0, description="AMAT Log Returns")

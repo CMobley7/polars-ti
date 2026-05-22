@@ -13,15 +13,15 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def nb_quantile(close: np.ndarray, length: int, q: float) -> np.ndarray:
     """Numba-optimized rolling quantile with linear interpolation.
-    
+
     Matches Pandas rolling.quantile() with default linear interpolation.
     """
     n = len(close)
     result = np.full(n, np.nan)
-    
+
     for i in range(length - 1, n):
         window = close[i - length + 1 : i + 1].copy()
-        
+
         # Sort the window
         for j in range(length):
             for k in range(j + 1, length):
@@ -29,19 +29,19 @@ def nb_quantile(close: np.ndarray, length: int, q: float) -> np.ndarray:
                     tmp = window[j]
                     window[j] = window[k]
                     window[k] = tmp
-        
+
         # Linear interpolation (matching Pandas default)
         # idx = q * (n - 1), then interpolate
         idx = q * (length - 1)
         lower_idx = int(idx)
         upper_idx = lower_idx + 1
-        
+
         if upper_idx >= length:
             result[i] = window[length - 1]
         else:
             frac = idx - lower_idx
             result[i] = window[lower_idx] * (1 - frac) + window[upper_idx] * frac
-    
+
     return result
 
 
@@ -84,5 +84,3 @@ def pl_quantile(
         result = result.shift(offset)
 
     return result.alias(f"QTL_{length}_{_q}")
-
-

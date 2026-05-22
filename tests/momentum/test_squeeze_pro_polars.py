@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_squeeze_pro (Squeeze PRO) Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -33,7 +34,7 @@ class TestPlSqueezeProBasic:
         """Test pl_squeeze_pro with default parameters."""
         pl_df = ohlc_data["pl_df"]
         result = pl_df.select(pl_squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-        
+
         assert len(result.columns) == 6
         assert "SQZPRO_20_2.0_20_2.0_1.5_1.0" in result.columns
         assert "SQZPRO_ON_WIDE" in result.columns
@@ -47,11 +48,15 @@ class TestPlSqueezeProBasic:
         pl_df = ohlc_data["pl_df"]
         result = pl_df.select(
             pl_squeeze_pro(
-                bb_length=15, bb_std=1.5, kc_length=15,
-                kc_scalar_wide=2.5, kc_scalar_normal=1.8, kc_scalar_narrow=1.2
+                bb_length=15,
+                bb_std=1.5,
+                kc_length=15,
+                kc_scalar_wide=2.5,
+                kc_scalar_normal=1.8,
+                kc_scalar_narrow=1.2,
             )
         ).unnest("SQZPRO_15_1.5_15_2.5_1.8_1.2")
-        
+
         assert "SQZPRO_15_1.5_15_2.5_1.8_1.2" in result.columns
         assert len(result) == len(pl_df)
 
@@ -59,22 +64,18 @@ class TestPlSqueezeProBasic:
 class TestPlSqueezeProNumericalParity:
     """Numerical parity tests comparing Polars to Pandas implementation."""
 
+
 class TestPlSqueezeProEdgeCases:
     """Edge case tests for pl_squeeze_pro."""
 
     def test_lazy_evaluation(self, ohlc_data):
         """Test that pl_squeeze_pro works in lazy context."""
         pl_df = ohlc_data["pl_df"]
-        
-        lazy_result = (
-            pl_df.lazy()
-            .select(pl_squeeze_pro())
-            .unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-            .collect()
-        )
-        
+
+        lazy_result = pl_df.lazy().select(pl_squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0").collect()
+
         eager_result = pl_df.select(pl_squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-        
+
         for col in ["SQZPRO_ON_WIDE", "SQZPRO_OFF", "SQZPRO_NO"]:
             assert lazy_result[col].to_list() == eager_result[col].to_list()
 
@@ -91,21 +92,17 @@ class TestPlSqueezeProFeatureParity:
     def test_mamode_ema(self, ohlc_data):
         """Test with EMA mode."""
         pl_df = ohlc_data["pl_df"]
-        
-        result = pl_df.select(
-            pl_squeeze_pro(mamode="ema")
-        ).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-        
+
+        result = pl_df.select(pl_squeeze_pro(mamode="ema")).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
+
         assert len(result) == len(pl_df)
 
     def test_asint_false(self, ohlc_data):
         """Test asint=False returns boolean types."""
         pl_df = ohlc_data["pl_df"]
-        
-        result = pl_df.select(
-            pl_squeeze_pro(asint=False)
-        ).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-        
+
+        result = pl_df.select(pl_squeeze_pro(asint=False)).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
+
         assert result["SQZPRO_ON_WIDE"].dtype == pl.Boolean
         assert result["SQZPRO_OFF"].dtype == pl.Boolean
         assert result["SQZPRO_NO"].dtype == pl.Boolean
@@ -117,16 +114,17 @@ class TestPlSqueezeProIntegration:
     def test_chaining_with_other_operations(self, ohlc_data):
         """Test pl_squeeze_pro can be chained with other Polars operations."""
         pl_df = ohlc_data["pl_df"]
-        
+
         result = (
-            pl_df
-            .select(pl_squeeze_pro())
+            pl_df.select(pl_squeeze_pro())
             .unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
-            .select([
-                pl.col("SQZPRO_ON_WIDE").sum().alias("total_wide"),
-                pl.col("SQZPRO_ON_NARROW").sum().alias("total_narrow"),
-            ])
+            .select(
+                [
+                    pl.col("SQZPRO_ON_WIDE").sum().alias("total_wide"),
+                    pl.col("SQZPRO_ON_NARROW").sum().alias("total_narrow"),
+                ]
+            )
         )
-        
+
         assert result.shape[0] == 1
         assert "total_wide" in result.columns

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_avwap."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -15,12 +16,14 @@ class TestPlAvwap:
         high = close + np.abs(np.random.randn(n) * 0.3)
         low = close - np.abs(np.random.randn(n) * 0.3)
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': volume,
-        })
+        return pl.DataFrame(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
 
     def test_returns_list_of_expressions(self, sample_df):
         exprs = pl_avwap("high", "low", "close", "volume")
@@ -42,12 +45,14 @@ class TestPlAvwap:
     def test_with_null_values(self):
         n = 50
         np.random.seed(42)
-        df = pl.DataFrame({
-            "high": [None] + [101.0 + np.random.rand() for _ in range(n-1)],
-            "low": [None] + [99.0 + np.random.rand() for _ in range(n-1)],
-            "close": [None] + [100.0 + np.random.rand() for _ in range(n-1)],
-            "volume": [None] + [1000.0 + np.random.rand()*100 for _ in range(n-1)]
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [101.0 + np.random.rand() for _ in range(n - 1)],
+                "low": [None] + [99.0 + np.random.rand() for _ in range(n - 1)],
+                "close": [None] + [100.0 + np.random.rand() for _ in range(n - 1)],
+                "volume": [None] + [1000.0 + np.random.rand() * 100 for _ in range(n - 1)],
+            }
+        )
         exprs = pl_avwap("high", "low", "close", "volume", left_strength=2, right_strength=2)
         result = df.select(exprs)
         assert result.height == 50

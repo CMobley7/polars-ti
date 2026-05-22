@@ -9,6 +9,7 @@ Strategy:
 3. Update __all__ accordingly
 4. Keep special imports (CDL_PATTERN_NAMES, etc.)
 """
+
 import re
 from pathlib import Path
 
@@ -42,7 +43,7 @@ def update_init(init_path: Path, dry_run: bool = False) -> int:
 
             # Parse individual imports
             imports = [s.strip() for s in imports_str.split(",")]
-            
+
             # Get available pl_ functions from the module
             module_file = Path(full_module.replace(".", "/") + ".py")
             pl_funcs = get_available_pl_functions(module_file)
@@ -61,7 +62,7 @@ def update_init(init_path: Path, dry_run: bool = False) -> int:
 
                 # Plain import name
                 func_name = imp.strip()
-                
+
                 # Check if there's a pl_ version
                 pl_name = f"pl_{func_name}"
                 if pl_name in pl_funcs:
@@ -132,12 +133,21 @@ def update_init(init_path: Path, dry_run: bool = False) -> int:
 
 def main():
     import sys
+
     dry_run = "--dry-run" in sys.argv
     root = Path("polars_ti")
 
     categories = [
-        "candles", "cycles", "momentum", "overlap", "performance",
-        "statistics", "transform", "trend", "volatility", "volume",
+        "candles",
+        "cycles",
+        "momentum",
+        "overlap",
+        "performance",
+        "statistics",
+        "transform",
+        "trend",
+        "volatility",
+        "volume",
     ]
 
     total_changes = 0

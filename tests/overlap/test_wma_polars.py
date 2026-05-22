@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/overlap/wma.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -16,34 +17,34 @@ class TestPlWma:
         np.random.seed(42)
         close = 100 + np.random.randn(200).cumsum()
         return {
-            'pd_series': close,
-            'pl_df': pl.DataFrame({'close': close}),
+            "pd_series": close,
+            "pl_df": pl.DataFrame({"close": close}),
         }
 
     def test_output_has_correct_alias(self, sample_data):
         """Test that output column has correct alias."""
-        result = sample_data['pl_df'].select(pl_wma('close', length=10))
-        assert result.columns[0] == 'WMA_10'
+        result = sample_data["pl_df"].select(pl_wma("close", length=10))
+        assert result.columns[0] == "WMA_10"
 
     def test_offset_shifts_result(self, sample_data):
         """Test that offset parameter shifts the result."""
-        no_offset = sample_data['pl_df'].select(pl_wma('close', length=10)).to_series()
-        with_offset = sample_data['pl_df'].select(pl_wma('close', length=10, offset=5)).to_series()
-        
+        no_offset = sample_data["pl_df"].select(pl_wma("close", length=10)).to_series()
+        with_offset = sample_data["pl_df"].select(pl_wma("close", length=10, offset=5)).to_series()
+
         for i in range(10, 50):
             if not np.isnan(no_offset[i]):
                 assert no_offset[i] == with_offset[i + 5], f"Offset mismatch at {i}"
 
     def test_warmup_period_has_nan(self, sample_data):
         """Test that warmup period contains NaN values."""
-        result = sample_data['pl_df'].select(pl_wma('close', length=10)).to_series()
+        result = sample_data["pl_df"].select(pl_wma("close", length=10)).to_series()
         assert result[:9].is_nan().all()
 
     def test_asc_parameter(self, sample_data):
         """Test that asc parameter changes result."""
-        asc_true = sample_data['pl_df'].select(pl_wma('close', length=10, asc=True)).to_series()
-        asc_false = sample_data['pl_df'].select(pl_wma('close', length=10, asc=False)).to_series()
-        
+        asc_true = sample_data["pl_df"].select(pl_wma("close", length=10, asc=True)).to_series()
+        asc_false = sample_data["pl_df"].select(pl_wma("close", length=10, asc=False)).to_series()
+
         # Results should be different when asc is different
         valid = ~asc_true[10:].is_nan() & ~asc_false[10:].is_nan()
         diff = asc_true[10:].to_numpy() - asc_false[10:].to_numpy()
@@ -63,6 +64,6 @@ class TestPlWma:
 
     def test_lazy_execution(self, sample_data):
         """Works with LazyFrame."""
-        lazy_df = sample_data['pl_df'].lazy()
+        lazy_df = sample_data["pl_df"].lazy()
         result = lazy_df.select(pl_wma("close", length=10)).collect()
         assert "WMA_10" in result.columns

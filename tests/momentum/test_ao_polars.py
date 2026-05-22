@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_ao - Native Polars pl.Expr API."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -11,10 +12,12 @@ class TestPlAo:
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
         n = 100
-        return pl.DataFrame({
-            'high': 102 + np.cumsum(np.random.randn(n) * 0.3),
-            'low': 98 + np.cumsum(np.random.randn(n) * 0.3),
-        })
+        return pl.DataFrame(
+            {
+                "high": 102 + np.cumsum(np.random.randn(n) * 0.3),
+                "low": 98 + np.cumsum(np.random.randn(n) * 0.3),
+            }
+        )
 
     def test_returns_expr(self):
         expr = pl_ao("high", "low")
@@ -37,20 +40,19 @@ class TestPlAo:
     def test_with_null_values(self, sample_df):
         """Handles null values gracefully."""
         df_with_nulls = sample_df.with_columns(
-            pl.when(pl.col("high").is_first_distinct())
-            .then(None)
-            .otherwise(pl.col("high"))
-            .alias("high")
+            pl.when(pl.col("high").is_first_distinct()).then(None).otherwise(pl.col("high")).alias("high")
         )
         result = df_with_nulls.select(pl_ao("high", "low"))
         assert result.height == sample_df.height
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            'high': [0.0] * 10 + [100.0] * 90,
-            'low': [0.0] * 10 + [99.0] * 90,
-        })
+        df = pl.DataFrame(
+            {
+                "high": [0.0] * 10 + [100.0] * 90,
+                "low": [0.0] * 10 + [99.0] * 90,
+            }
+        )
         result = df.select(pl_ao("high", "low", fast=5, slow=10))
         assert result.height == 100
 

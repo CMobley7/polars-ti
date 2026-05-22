@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/cycles/reflex.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest

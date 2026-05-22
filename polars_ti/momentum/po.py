@@ -42,13 +42,13 @@ def pl_po(
 
     # Calculate linear regression using pl_linreg
     lr = pl_linreg(close, length=length, talib=True)
-    
+
     # PO = 100 * (close - LR) / LR with division protection
     # When LR is 0, result should be NaN
     po = pl.when(lr != 0).then(100.0 * (close_expr - lr) / lr).otherwise(None)
-    
+
     # Apply offset
     if offset != 0:
         po = po.shift(offset)
-    
+
     return po.alias(f"PO_{length}")

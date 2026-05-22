@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_vfi."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,7 +14,7 @@ class TestPlVfi:
         n = 200
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({'close': close, 'volume': volume})
+        return pl.DataFrame({"close": close, "volume": volume})
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_vfi("close", "volume"))
@@ -29,10 +30,7 @@ class TestPlVfi:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 199,
-            "volume": [None] + [1000.0] * 199
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 199, "volume": [None] + [1000.0] * 199})
         result = df.select(pl_vfi("close", "volume"))
         assert result.height == 200
 

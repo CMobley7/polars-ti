@@ -7,6 +7,7 @@ Strategy:
 3. Comment out or skip parity tests that use the pandas function
 4. Preserve all pl_-only tests unchanged
 """
+
 import re
 import sys
 from pathlib import Path
@@ -59,7 +60,7 @@ def update_test_file(filepath: Path, dry_run: bool = False) -> int:
         flags=re.MULTILINE,
     )
 
-    # Fix tests that call old pandas function (e.g. mom(pd_close, ...)) 
+    # Fix tests that call old pandas function (e.g. mom(pd_close, ...))
     # by skipping those test methods or converting them to pl_ calls
     # Strategy: add pytest.importorskip-style skip for tests using old funcs
     # Simple approach: find test methods that reference non-pl_ indicator calls

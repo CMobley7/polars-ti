@@ -35,7 +35,7 @@ def pl_trima(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -43,18 +43,19 @@ def pl_trima(
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1
     _length = length
     _half_length = round(0.5 * (length + 1))
-    
+
     def compute_trima(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        
+
         if _use_talib:
             from talib import TRIMA as TALIB_TRIMA
+
             result = TALIB_TRIMA(arr, timeperiod=_length)
         else:
             # Call nb_sma directly - NO Pandas!
             sma1 = nb_sma(arr, _half_length)
             result = nb_sma(sma1, _half_length)
-        
+
         return pl.Series(result)
 
     result = close_expr.map_batches(compute_trima, return_dtype=pl.Float64)
@@ -63,4 +64,3 @@ def pl_trima(
         result = result.shift(offset)
 
     return result.alias(f"TRIMA_{length}")
-

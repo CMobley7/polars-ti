@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_psl (Psychological Line)."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -13,7 +14,7 @@ class TestPlPsl:
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         open_ = close + np.random.randn(n) * 0.2
-        return pl.DataFrame({'close': close, 'open': open_})
+        return pl.DataFrame({"close": close, "open": open_})
 
     def test_returns_expression(self, sample_df):
         """Test that pl_psl returns a valid expression."""
@@ -32,12 +33,9 @@ class TestPlPsl:
         # First 16 values should be null (11 from warmup + 5 offset)
         assert all(np.isnan(arr[:16]))  # length-1 + offset = 11 + 5 = 16
 
-
     def test_with_null_values(self):
         """Test handling of null values."""
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 49
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 49})
         result = df.select(pl_psl("close", length=10))
         assert result.height == 50
 

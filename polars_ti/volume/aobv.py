@@ -42,33 +42,33 @@ def pl_aobv(
     from polars_ti.ma import pl_ma
     from polars_ti.trend.long_run import pl_long_run
     from polars_ti.trend.short_run import pl_short_run
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     if slow < fast:
         fast, slow = slow, fast
-    
+
     _mode = mamode.lower()[0] if len(mamode) else ""
-    
+
     # Build OBV base
     obv_expr = pl_obv(close_expr, volume_expr, talib=False, offset=0)
-    
-    # Build MA expressions on OBV  
+
+    # Build MA expressions on OBV
     obv_fast_ma = pl_ma(name=mamode, source=obv_expr, length=fast)
     obv_slow_ma = pl_ma(name=mamode, source=obv_expr, length=slow)
-    
+
     # Long/Short run on the MAs
     obv_long = pl_long_run(obv_fast_ma, obv_slow_ma, length=run_length)
     obv_short = pl_short_run(obv_fast_ma, obv_slow_ma, length=run_length)
-    
+
     # Rolling min/max
     obv_min = obv_expr.rolling_min(window_size=min_lookback, min_samples=min_lookback)
     obv_max = obv_expr.rolling_max(window_size=max_lookback, min_samples=max_lookback)
-    
+
     # Apply offset
     if offset != 0:
         obv_expr = obv_expr.shift(offset)
@@ -78,7 +78,7 @@ def pl_aobv(
         obv_slow_ma = obv_slow_ma.shift(offset)
         obv_long = obv_long.shift(offset)
         obv_short = obv_short.shift(offset)
-    
+
     # Rename with proper aliases
     return [
         obv_expr.alias("OBV"),
@@ -89,4 +89,3 @@ def pl_aobv(
         obv_long.alias(f"AOBV_LR_{run_length}"),
         obv_short.alias(f"AOBV_SR_{run_length}"),
     ]
-

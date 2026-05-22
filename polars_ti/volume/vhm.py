@@ -30,22 +30,21 @@ def pl_vhm(
         pl.Expr: VHM expression
     """
     from polars_ti.ma import pl_ma
-    
+
     volume_expr = v_expr(volume)
     if volume_expr is None:
         return None
-    
+
     _slength = slength if slength is not None else length
-    
+
     # VHM = (volume - MA(volume)) / rolling_std(volume)
     mu = pl_ma(name=mamode, source=volume_expr, length=length)
     std = volume_expr.rolling_std(window_size=_slength, min_samples=_slength)
-    
+
     vhm_expr = (volume_expr - mu) / std
-    
+
     if offset != 0:
         vhm_expr = vhm_expr.shift(offset)
-    
+
     _name = f"VHM_{length}" if length == _slength else f"VHM_{length}_{_slength}"
     return vhm_expr.alias(_name)
-

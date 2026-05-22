@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_cmo - Pure Polars + TA-Lib implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlCmo:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expr(self):
         expr = pl_cmo("close")
@@ -58,4 +59,3 @@ class TestPlCmo:
         valid = result["CMO_14"].filter(~result["CMO_14"].is_nan())
         assert valid.min() >= -100
         assert valid.max() <= 100
-

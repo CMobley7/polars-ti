@@ -20,9 +20,9 @@ def _signed_rolling_deltas_numba(
     """Numba kernel for signed rolling deltas."""
     n = len(close_arr)
     result = np.full(n, np.nan, dtype=np.float64)
-    
+
     lookback = length if exclusive else length - 1
-    
+
     for i in range(lookback, n):
         sum_signed = 0.0
         for j in range(lookback):
@@ -34,7 +34,7 @@ def _signed_rolling_deltas_numba(
                 elif diff < 0:
                     sum_signed -= 1.0
         result[i] = sum_signed
-    
+
     return result
 
 
@@ -43,35 +43,35 @@ def _ema_numba(values: np.ndarray, length: int) -> np.ndarray:
     """Numba EMA with presma initialization."""
     n = len(values)
     result = np.full(n, np.nan, dtype=np.float64)
-    
+
     if n < length:
         return result
-    
+
     # Find first valid index
     first_valid = -1
     for i in range(n):
         if not np.isnan(values[i]):
             first_valid = i
             break
-    
+
     if first_valid == -1 or n - first_valid < length:
         return result
-    
+
     # Calculate initial SMA for EMA seed
     sma_sum = 0.0
     for i in range(first_valid, first_valid + length):
         sma_sum += values[i]
     sma_val = sma_sum / length
-    
+
     result[first_valid + length - 1] = sma_val
-    
+
     alpha = 2.0 / (length + 1)
     for i in range(first_valid + length, n):
         if not np.isnan(values[i]):
             result[i] = alpha * values[i] + (1 - alpha) * result[i - 1]
         else:
             result[i] = result[i - 1]
-    
+
     return result
 
 
@@ -87,19 +87,19 @@ def _tmo_core(
 ) -> tuple:
     """Numba kernel for TMO calculation."""
     n = len(close_arr)
-    
+
     # 1. Calculate signed rolling deltas
     signed_diff = _signed_rolling_deltas_numba(open_arr, close_arr, tmo_length, exclusive)
-    
+
     # 2. Initial MA smoothing
     initial_ma = _ema_numba(signed_diff, calc_length)
-    
+
     # 3. Main signal = EMA(initial_ma, smooth_length)
     main = _ema_numba(initial_ma, smooth_length)
-    
+
     # 4. Smooth signal = EMA(main, smooth_length)
     smooth = _ema_numba(main, smooth_length)
-    
+
     # 5. Momentum (if requested)
     if compute_momentum:
         mom_main = np.full(n, np.nan, dtype=np.float64)
@@ -112,7 +112,7 @@ def _tmo_core(
     else:
         mom_main = np.zeros(n, dtype=np.float64)
         mom_smooth = np.zeros(n, dtype=np.float64)
-    
+
     return main, smooth, mom_main, mom_smooth
 
 
@@ -160,10 +160,10 @@ def pl_tmo(
     """
     open_expr = v_expr(open_)
     close_expr = v_expr(close)
-    
+
     if open_expr is None or close_expr is None:
         return None
-    
+
     _tmo_length = tmo_length
     _calc_length = calc_length
     _smooth_length = smooth_length
@@ -171,17 +171,21 @@ def pl_tmo(
     _compute_momentum = momentum
     _normalize = normalize
     _props = f"_{tmo_length}_{calc_length}_{smooth_length}"
-    
+
     def compute_tmo(s: pl.Series) -> pl.Series:
         open_arr = s.struct.field("open").to_numpy().astype(np.float64)
         close_arr = s.struct.field("close").to_numpy().astype(np.float64)
-        
+
         main, smooth, mom_main, mom_smooth = _tmo_core(
-            open_arr, close_arr,
-            _tmo_length, _calc_length, _smooth_length,
-            _exclusive, _compute_momentum
+            open_arr,
+            close_arr,
+            _tmo_length,
+            _calc_length,
+            _smooth_length,
+            _exclusive,
+            _compute_momentum,
         )
-        
+
         # Normalize if requested
         if _normalize:
             max_val = _tmo_length
@@ -190,28 +194,32 @@ def pl_tmo(
             if _compute_momentum:
                 mom_main = 100.0 * mom_main / max_val
                 mom_smooth = 100.0 * mom_smooth / max_val
-        
-        return pl.DataFrame({
-            f"TMO{_props}": main,
-            f"TMOs{_props}": smooth,
-            f"TMOM{_props}": mom_main,
-            f"TMOMs{_props}": mom_smooth,
-        }).to_struct("TMO")
-    
+
+        return pl.DataFrame(
+            {
+                f"TMO{_props}": main,
+                f"TMOs{_props}": smooth,
+                f"TMOM{_props}": mom_main,
+                f"TMOMs{_props}": mom_smooth,
+            }
+        ).to_struct("TMO")
+
     result_expr = pl.struct(
         open=open_expr,
         close=close_expr,
     ).map_batches(
         compute_tmo,
-        return_dtype=pl.Struct([
-            pl.Field(f"TMO{_props}", pl.Float64),
-            pl.Field(f"TMOs{_props}", pl.Float64),
-            pl.Field(f"TMOM{_props}", pl.Float64),
-            pl.Field(f"TMOMs{_props}", pl.Float64),
-        ]),
+        return_dtype=pl.Struct(
+            [
+                pl.Field(f"TMO{_props}", pl.Float64),
+                pl.Field(f"TMOs{_props}", pl.Float64),
+                pl.Field(f"TMOM{_props}", pl.Float64),
+                pl.Field(f"TMOMs{_props}", pl.Float64),
+            ]
+        ),
     )
-    
+
     if offset != 0:
         result_expr = result_expr.shift(offset)
-    
+
     return result_expr.alias("TMO")

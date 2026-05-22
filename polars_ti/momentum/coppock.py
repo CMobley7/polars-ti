@@ -35,18 +35,18 @@ def pl_coppock(
     """
     from polars_ti.momentum.roc import pl_roc
     from polars_ti.overlap.wma import pl_wma
-    
+
     close_expr = v_expr(close)
-    
+
     # Total ROC = ROC(fast) + ROC(slow)
     roc_fast = pl_roc(close_expr, length=fast, scalar=100.0, talib=False, offset=0)
     roc_slow = pl_roc(close_expr, length=slow, scalar=100.0, talib=False, offset=0)
     total_roc = roc_fast + roc_slow
-    
+
     # Coppock = WMA(total_roc, length)
     coppock_expr = pl_wma(total_roc, length=length, offset=0)
-    
+
     if offset != 0:
         coppock_expr = coppock_expr.shift(offset)
-    
+
     return coppock_expr.alias(f"COPC_{fast}_{slow}_{length}")

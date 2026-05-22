@@ -85,8 +85,10 @@ def pl_trixh(
     _length = length
 
     if _use_talib:
+
         def compute_trix(s: pl.Series) -> pl.Series:
             from talib import TRIX as TALIB_TRIX
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_TRIX(arr, timeperiod=_length)
             return pl.Series(f"TRIX{_props}", result)

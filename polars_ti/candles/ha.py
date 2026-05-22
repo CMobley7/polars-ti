@@ -61,14 +61,12 @@ def pl_ha(
         list[pl.Expr]: List of expressions for HA_open, HA_high, HA_low, HA_close
     """
     # HA_close is straightforward: average of OHLC
-    ha_close_expr = (
-        (pl.col(open_) + pl.col(high) + pl.col(low) + pl.col(close)) / 4
-    ).alias("HA_close")
+    ha_close_expr = ((pl.col(open_) + pl.col(high) + pl.col(low) + pl.col(close)) / 4).alias("HA_close")
 
     # For HA_open, we need to use map_batches because it's recursive
     # HA_open[i] depends on HA_open[i-1] and HA_close[i-1]
     _offset = offset  # Capture for closure
-    
+
     def compute_ha(df: pl.DataFrame) -> pl.DataFrame:
         np_open = df[open_].to_numpy()
         np_high = df[high].to_numpy()
@@ -86,17 +84,19 @@ def pl_ha(
         ha_high = maximum(maximum(ha_open, ha_close), np_high)
         ha_low = minimum(minimum(ha_open, ha_close), np_low)
 
-        result = pl.DataFrame({
-            "HA_open": ha_open,
-            "HA_high": ha_high,
-            "HA_low": ha_low,
-            "HA_close": ha_close,
-        })
-        
+        result = pl.DataFrame(
+            {
+                "HA_open": ha_open,
+                "HA_high": ha_high,
+                "HA_low": ha_low,
+                "HA_close": ha_close,
+            }
+        )
+
         # Apply offset if needed
         if _offset != 0:
             result = result.select([pl.all().shift(_offset)])
-        
+
         return result
 
     return compute_ha
@@ -120,4 +120,3 @@ def pl_ha_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     compute_ha = pl_ha(open_, high, low, close)
     ha_df = compute_ha(df)
     return df.hstack(ha_df)
-

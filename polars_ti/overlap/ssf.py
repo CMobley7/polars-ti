@@ -12,9 +12,7 @@ def nb_ssf(x, n, pi, sqrt2):
 
     # result[:2] = x[:2]
     for i in range(2, m):
-        result[i] = (
-            0.5 * c * (x[i] + x[i - 1]) + b * result[i - 1] - a * a * result[i - 2]
-        )
+        result[i] = 0.5 * c * (x[i] + x[i - 1]) + b * result[i - 1] - a * a * result[i - 2]
 
     return result
 
@@ -27,11 +25,7 @@ def nb_ssf_everget(x, n, pi, sqrt2):
 
     # result[:2] = x[:2]
     for i in range(2, m):
-        result[i] = (
-            0.5 * (a * a - b + 1) * (x[i] + x[i - 1])
-            + b * result[i - 1]
-            - a * a * result[i - 2]
-        )
+        result[i] = 0.5 * (a * a - b + 1) * (x[i] + x[i - 1]) + b * result[i - 1] - a * a * result[i - 2]
 
     return result
 
@@ -96,4 +90,3 @@ def pl_ssf(
         result = result.shift(offset)
 
     return result.alias(f"SSF{'e' if everget else ''}_{length}")
-

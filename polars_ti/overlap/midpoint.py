@@ -30,7 +30,7 @@ def pl_midpoint(
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
     import numpy as np
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -39,11 +39,14 @@ def pl_midpoint(
     _length = length
 
     if _use_talib:
+
         def compute_midpoint(s: pl.Series) -> pl.Series:
             from talib import MIDPOINT as TALIB_MIDPOINT
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_MIDPOINT(arr, timeperiod=_length)
             return pl.Series(result)
+
         midpoint_expr = close_expr.map_batches(compute_midpoint, return_dtype=pl.Float64)
     else:
         # Native Polars expression: (rolling_min + rolling_max) / 2

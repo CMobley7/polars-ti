@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/candles/cdl_pattern.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -55,23 +56,27 @@ class TestPlCdlPattern:
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
-        df = pl.DataFrame({
-            "open": [None] + [100.0] * 19,
-            "high": [110.0] * 20,
-            "low": [90.0] * 20,
-            "close": [100.01] * 20,
-        })
+        df = pl.DataFrame(
+            {
+                "open": [None] + [100.0] * 19,
+                "high": [110.0] * 20,
+                "low": [90.0] * 20,
+                "close": [100.01] * 20,
+            }
+        )
         result = pl_cdl_pattern(df, name="doji")
         assert result.height == 20
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            "open": [0.0] * 5 + [100.0] * 15,
-            "high": [0.0] * 5 + [110.0] * 15,
-            "low": [0.0] * 5 + [90.0] * 15,
-            "close": [0.0] * 5 + [100.01] * 15,
-        })
+        df = pl.DataFrame(
+            {
+                "open": [0.0] * 5 + [100.0] * 15,
+                "high": [0.0] * 5 + [110.0] * 15,
+                "low": [0.0] * 5 + [90.0] * 15,
+                "close": [0.0] * 5 + [100.01] * 15,
+            }
+        )
         result = pl_cdl_pattern(df, name="doji")
         assert result.height == 20
 

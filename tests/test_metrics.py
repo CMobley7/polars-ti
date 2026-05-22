@@ -86,8 +86,6 @@ def test_volatility(df):
     assert isinstance(result, float)
 
 
-@mark.parametrize(
-    "tf", ["years", "months", "weeks", "days", "hours", "minutes", "seconds"]
-)
+@mark.parametrize("tf", ["years", "months", "weeks", "days", "hours", "minutes", "seconds"])
 def test_volatility_timeframe(df, tf):
     assert isinstance(ti.utils.volatility(df.close, tf), float)

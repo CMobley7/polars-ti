@@ -39,21 +39,20 @@ def pl_pdist(
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if open_expr is None or high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     # PDIST = 2 * (high - low) + |open - close.shift| - |close - open|
     # Using non_zero protection like Pandas
     hl_range = pl_non_zero_range(high_expr, low_expr)
     oc_shift_range = (open_expr - close_expr.shift(drift)).abs()
     co_range = (close_expr - open_expr).abs()
-    
+
     result = pl.lit(2.0) * hl_range + oc_shift_range - co_range
-    
+
     # Apply offset
     if offset != 0:
         result = result.shift(offset)
-    
-    return result.alias("PDIST")
 
+    return result.alias("PDIST")

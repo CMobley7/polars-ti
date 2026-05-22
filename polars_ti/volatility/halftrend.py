@@ -85,10 +85,13 @@ def nb_halftrend(
         atr_low_series[i] = atr_low
 
     return (
-        atr_high_series, atr_low_series, atr_close_series,
-        direction_series, arr_up, arr_down,
+        atr_high_series,
+        atr_low_series,
+        atr_close_series,
+        direction_series,
+        arr_up,
+        arr_down,
     )
-
 
 
 # =============================================================================
@@ -138,26 +141,26 @@ def pl_halftrend(
     """
     from polars_ti.volatility.atr import pl_atr
     from polars_ti.overlap.sma import pl_sma
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     _atr_len = atr_length
     _chan_dev = channel_deviation
     _smooth = float(smoothing)
     _offset = offset
-    
+
     # Use composition for pre-calculations (just like Pandas!)
     atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
     high_ma_expr = pl_sma(high_expr, length=amplitude)
     low_ma_expr = pl_sma(low_expr, length=amplitude)
     highest_expr = high_expr.rolling_max(window_size=amplitude, min_samples=1)
     lowest_expr = low_expr.rolling_min(window_size=amplitude, min_samples=1)
-    
+
     def compute_halftrend(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()
         np_high = df["_high"].to_numpy().astype(np.float64)
@@ -168,15 +171,23 @@ def pl_halftrend(
         np_low_ma = df["_low_ma"].to_numpy().astype(np.float64)
         np_highest = df["_highest"].to_numpy().astype(np.float64)
         np_lowest = df["_lowest"].to_numpy().astype(np.float64)
-        
+
         # Reuse nb_halftrend kernel from Pandas section!
         results = nb_halftrend(
-            np_high, np_low, np_close,
-            np_atr, np_high_ma, np_low_ma, np_highest, np_lowest,
-            _atr_len, _chan_dev, _smooth
+            np_high,
+            np_low,
+            np_close,
+            np_atr,
+            np_high_ma,
+            np_low_ma,
+            np_highest,
+            np_lowest,
+            _atr_len,
+            _chan_dev,
+            _smooth,
         )
         atr_high, atr_low, ht_close, direction, arr_up, arr_down = results
-        
+
         if _offset != 0:
             atr_high = np.roll(atr_high, _offset)
             atr_low = np.roll(atr_low, _offset)
@@ -191,34 +202,45 @@ def pl_halftrend(
                 direction[:_offset] = np.nan
                 arr_up[:_offset] = np.nan
                 arr_down[:_offset] = np.nan
-        
-        return pl.DataFrame({
-            "atr_high": atr_high,
-            "atr_low": atr_low,
-            "ht_close": ht_close,
-            "direction": direction,
-            "arr_up": arr_up,
-            "arr_down": arr_down
-        }).to_struct("halftrend")
-    
+
+        return pl.DataFrame(
+            {
+                "atr_high": atr_high,
+                "atr_low": atr_low,
+                "ht_close": ht_close,
+                "direction": direction,
+                "arr_up": arr_up,
+                "arr_down": arr_down,
+            }
+        ).to_struct("halftrend")
+
     _props = f"_{atr_length}_{amplitude}_{channel_deviation}"
-    
-    return pl.struct([
-        high_expr.alias("_high"),
-        low_expr.alias("_low"),
-        close_expr.alias("_close"),
-        atr_expr.alias("_atr"),
-        high_ma_expr.alias("_high_ma"),
-        low_ma_expr.alias("_low_ma"),
-        highest_expr.alias("_highest"),
-        lowest_expr.alias("_lowest"),
-    ]).map_batches(
-        compute_halftrend, return_dtype=pl.Struct({
-            "atr_high": pl.Float64,
-            "atr_low": pl.Float64,
-            "ht_close": pl.Float64,
-            "direction": pl.Float64,
-            "arr_up": pl.Float64,
-            "arr_down": pl.Float64
-        })
-    ).alias(f"HT{_props}")
+
+    return (
+        pl.struct(
+            [
+                high_expr.alias("_high"),
+                low_expr.alias("_low"),
+                close_expr.alias("_close"),
+                atr_expr.alias("_atr"),
+                high_ma_expr.alias("_high_ma"),
+                low_ma_expr.alias("_low_ma"),
+                highest_expr.alias("_highest"),
+                lowest_expr.alias("_lowest"),
+            ]
+        )
+        .map_batches(
+            compute_halftrend,
+            return_dtype=pl.Struct(
+                {
+                    "atr_high": pl.Float64,
+                    "atr_low": pl.Float64,
+                    "ht_close": pl.Float64,
+                    "direction": pl.Float64,
+                    "arr_up": pl.Float64,
+                    "arr_down": pl.Float64,
+                }
+            ),
+        )
+        .alias(f"HT{_props}")
+    )

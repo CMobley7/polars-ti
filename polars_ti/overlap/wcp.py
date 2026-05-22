@@ -32,10 +32,12 @@ def pl_wcp(
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if Imports["talib"] and talib:
+
         def compute_wcp(struct: pl.Series) -> pl.Series:
             from talib import WCLPRICE
+
             h = struct.struct.field("h").to_numpy()
             l = struct.struct.field("l").to_numpy()
             c = struct.struct.field("c").to_numpy()
@@ -45,15 +47,20 @@ def pl_wcp(
                 if offset > 0:
                     result[:offset] = np.nan
             return pl.Series(result)
-        
-        return pl.struct([
-            high_expr.alias("h"),
-            low_expr.alias("l"),
-            close_expr.alias("c"),
-        ]).map_batches(compute_wcp).alias("WCP")
+
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("h"),
+                    low_expr.alias("l"),
+                    close_expr.alias("c"),
+                ]
+            )
+            .map_batches(compute_wcp)
+            .alias("WCP")
+        )
     else:
         result = (high_expr + low_expr + 2 * close_expr) / 4
         if offset != 0:
             result = result.shift(offset)
         return result.alias("WCP")
-

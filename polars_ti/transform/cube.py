@@ -48,4 +48,3 @@ def pl_cube(
         result = result.shift(signal_offset)
 
     return result.alias(f"CUBE_{pwr}_{signal_offset}")
-

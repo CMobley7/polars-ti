@@ -37,13 +37,13 @@ def pl_increasing(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     # Apply percent threshold if specified
     if percent is not None and percent > 0:
         close_adj = (1 + 0.01 * percent) * close_expr
     else:
         close_adj = close_expr
-    
+
     if strict:
         # Strict mode: check each step is increasing
         # Start with first comparison
@@ -54,15 +54,14 @@ def pl_increasing(
     else:
         # Non-strict: just check if diff over length is positive
         result = close_adj.diff(length) > 0
-    
+
     if asint:
         result = result.cast(pl.Int64)
-    
+
     if offset != 0:
         result = result.shift(offset)
-    
+
     # Build name like Pandas
     _percent = f"_{0.01 * percent}" if percent else ""
     _props = f"{'S' if strict else ''}INC{'p' if percent else ''}"
     return result.alias(f"{_props}_{length}{_percent}")
-

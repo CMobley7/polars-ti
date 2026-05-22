@@ -36,41 +36,40 @@ def pl_cmo(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     _use_talib = Imports["talib"] and v_talib(talib)
-    
+
     if _use_talib:
         _length = length
-        
+
         def compute_cmo_talib(s: pl.Series) -> pl.Series:
             from talib import CMO as TALIB_CMO
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_CMO(arr, timeperiod=_length)
             return pl.Series(result)
-        
+
         cmo_expr = close_expr.map_batches(compute_cmo_talib, return_dtype=pl.Float64)
     else:
         # Calculate momentum (diff)
         mom = close_expr.diff(1)
-        
+
         # Positive gains (clipped lower=0)
         pos = mom.clip(lower_bound=0)
-        
+
         # Negative losses (clipped upper=0, then abs)
         neg = mom.clip(upper_bound=0).abs()
-        
+
         # Rolling sums
         pos_sum = pos.rolling_sum(window_size=length)
         neg_sum = neg.rolling_sum(window_size=length)
-        
+
         # CMO = scalar * (pos_sum - neg_sum) / (pos_sum + neg_sum)
         total = pos_sum + neg_sum
-        cmo_expr = pl.when(total != 0).then(
-            scalar * (pos_sum - neg_sum) / total
-        ).otherwise(pl.lit(None))
-    
+        cmo_expr = pl.when(total != 0).then(scalar * (pos_sum - neg_sum) / total).otherwise(pl.lit(None))
+
     if offset != 0:
         cmo_expr = cmo_expr.shift(offset)
-    
+
     return cmo_expr.alias(f"CMO_{length}")

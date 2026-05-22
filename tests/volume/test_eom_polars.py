@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_eom."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -15,12 +16,14 @@ class TestPlEom:
         high = close + np.abs(np.random.randn(n) * 0.3)
         low = close - np.abs(np.random.randn(n) * 0.3)
         volume = np.abs(np.random.randn(n) * 1000000) + 100000
-        return pl.DataFrame({
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': volume,
-        })
+        return pl.DataFrame(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_eom("high", "low", "close", "volume"))
@@ -36,12 +39,14 @@ class TestPlEom:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "high": [None] + [101.0] * 49,
-            "low": [None] + [99.0] * 49,
-            "close": [None] + [100.0] * 49,
-            "volume": [None] + [1000000.0] * 49
-        })
+        df = pl.DataFrame(
+            {
+                "high": [None] + [101.0] * 49,
+                "low": [None] + [99.0] * 49,
+                "close": [None] + [100.0] * 49,
+                "volume": [None] + [1000000.0] * 49,
+            }
+        )
         result = df.select(pl_eom("high", "low", "close", "volume", length=10))
         assert result.height == 50
 

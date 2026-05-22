@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/candles/ha.py Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -37,10 +38,7 @@ class TestPlHa:
     def test_ha_close_is_ohlc_average(self, sample_df):
         """Test that HA_close is average of OHLC."""
         result = pl_ha_apply(sample_df)
-        expected_ha_close = (
-            sample_df["open"] + sample_df["high"] +
-            sample_df["low"] + sample_df["close"]
-        ) / 4
+        expected_ha_close = (sample_df["open"] + sample_df["high"] + sample_df["low"] + sample_df["close"]) / 4
         diff = (result["HA_close"] - expected_ha_close).abs().max()
         assert diff < 1e-10
 
@@ -62,12 +60,14 @@ class TestPlHa:
 
     def test_with_null_values(self):
         """Handles null values gracefully (may produce NaN in results)."""
-        df = pl.DataFrame({
-            "open": [None] + [100.0] * 19,
-            "high": [110.0] * 20,
-            "low": [90.0] * 20,
-            "close": [105.0] * 20,
-        })
+        df = pl.DataFrame(
+            {
+                "open": [None] + [100.0] * 19,
+                "high": [110.0] * 20,
+                "low": [90.0] * 20,
+                "close": [105.0] * 20,
+            }
+        )
         # Should not crash; result may have NaNs
         result = pl_ha_apply(df)
         assert result.height == 20
@@ -75,12 +75,14 @@ class TestPlHa:
 
     def test_with_zeros(self):
         """Handles zero values."""
-        df = pl.DataFrame({
-            "open": [0.0] * 5 + [100.0] * 15,
-            "high": [0.0] * 5 + [110.0] * 15,
-            "low": [0.0] * 5 + [90.0] * 15,
-            "close": [0.0] * 5 + [105.0] * 15,
-        })
+        df = pl.DataFrame(
+            {
+                "open": [0.0] * 5 + [100.0] * 15,
+                "high": [0.0] * 5 + [110.0] * 15,
+                "low": [0.0] * 5 + [90.0] * 15,
+                "close": [0.0] * 5 + [105.0] * 15,
+            }
+        )
         result = pl_ha_apply(df)
         assert result.height == 20
 

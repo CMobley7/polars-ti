@@ -55,4 +55,3 @@ def pl_remap(
         result = result.shift(offset)
 
     return result.alias(f"REMAP_{from_min}_{from_max}_{to_min}_{to_max}")
-

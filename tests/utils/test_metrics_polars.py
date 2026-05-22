@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for polars_ti/utils/_metrics.py Polars utilities."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -24,8 +25,8 @@ class TestPlLogReturn:
         # log(110/100) ≈ 0.0953, log(121/110) ≈ 0.0953
         values = result.to_numpy()
         assert np.isnan(values[0])  # First is NaN
-        assert abs(values[1] - np.log(110/100)) < 1e-10
-        assert abs(values[2] - np.log(121/110)) < 1e-10
+        assert abs(values[1] - np.log(110 / 100)) < 1e-10
+        assert abs(values[2] - np.log(121 / 110)) < 1e-10
 
 
 class TestPlPercentReturn:

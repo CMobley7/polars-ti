@@ -136,18 +136,14 @@ def test_aroon(df):
         pdt.assert_frame_equal(result, expecteddf)
     except AssertionError:
         try:
-            aroond_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 0], expected.iloc[:, 0]
-            )
+            aroond_corr = ti.utils.df_error_analysis(result.iloc[:, 0], expected.iloc[:, 0])
             print(f"{aroond_corr=}")
             assert aroond_corr > CORRELATION_THRESHOLD
         except Exception as ex:
             error_analysis(result.iloc[:, 0], CORRELATION, ex)
 
         try:
-            aroonu_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 1], expected.iloc[:, 1]
-            )
+            aroonu_corr = ti.utils.df_error_analysis(result.iloc[:, 1], expected.iloc[:, 1])
             print(f"{aroonu_corr=}")
             assert aroonu_corr > CORRELATION_THRESHOLD
         except Exception as ex:

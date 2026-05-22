@@ -34,19 +34,18 @@ def pl_efi(
         pl.Expr: EFI expression
     """
     from polars_ti.ma import pl_ma
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     # EFI = MA(close.diff(drift) * volume, length)
     pv_diff = close_expr.diff(drift) * volume_expr
     efi_expr = pl_ma(name=mamode, source=pv_diff, length=length)
-    
+
     if offset != 0:
         efi_expr = efi_expr.shift(offset)
-    
-    return efi_expr.alias(f"EFI_{length}")
 
+    return efi_expr.alias(f"EFI_{length}")

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_qqe (Quantitative Qualitative Estimation)."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlQqe:
         np.random.seed(42)
         n = 200
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expression(self, sample_df):
         """Test that pl_qqe returns a valid expression."""
@@ -30,9 +31,7 @@ class TestPlQqe:
 
     def test_with_null_values(self):
         """Test handling of null values."""
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 99
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 99})
         result = df.select(pl_qqe("close", length=14, smooth=5))
         assert result.height == 100
 

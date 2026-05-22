@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_massi."""
+
 import numpy as np
 import polars as pl
 import pytest

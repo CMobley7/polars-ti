@@ -134,9 +134,7 @@ def test_supertrend_direction_consistency():
     # Direction should only be 1 or -1 (or NaN for warmup period)
     directions = result["SUPERTd_7_3.0"].dropna()
     unique_dirs = set(directions.unique())
-    assert unique_dirs.issubset(
-        {-1, 1, np.nan}
-    ), f"Unexpected directions: {unique_dirs}"
+    assert unique_dirs.issubset({-1, 1, np.nan}), f"Unexpected directions: {unique_dirs}"
 
 
 def test_supertrend_matches_reference(df):

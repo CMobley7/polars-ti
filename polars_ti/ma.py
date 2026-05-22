@@ -90,7 +90,18 @@ def pl_ma(
     call_kwargs = {"length": length}
 
     # Add talib param for MAs that support it
-    if name in ("sma", "ema", "wma", "dema", "tema", "t3", "trima", "linreg", "midpoint", "vidya"):
+    if name in (
+        "sma",
+        "ema",
+        "wma",
+        "dema",
+        "tema",
+        "t3",
+        "trima",
+        "linreg",
+        "midpoint",
+        "vidya",
+    ):
         call_kwargs["talib"] = talib
 
     # Add presma param only for MAs that support it (ema, rma, t3, tema)

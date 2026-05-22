@@ -19,11 +19,7 @@ def camelCase2Title(x: str):
 
 def category_files(category: str) -> list:
     """Helper function to return all filenames in the category directory."""
-    files = [
-        x.stem
-        for x in list(Path(f"polars_ti/{category}/").glob("*.py"))
-        if x.stem != "__init__"
-    ]
+    files = [x.stem for x in list(Path(f"polars_ti/{category}/").glob("*.py")) if x.stem != "__init__"]
     return files
 
 
@@ -68,14 +64,7 @@ def signed_series(series, initial: int, lag: int | None = None):
     lag = v_pos_default(lag, 1)
     if isinstance(series, pl.Series):
         diff = series.diff(lag)
-        values = (
-            pl.when(diff > 0)
-            .then(1)
-            .when(diff < 0)
-            .then(-1)
-            .otherwise(0)
-            .alias(series.name)
-        )
+        values = pl.when(diff > 0).then(1).when(diff < 0).then(-1).otherwise(0).alias(series.name)
         sign = pl.DataFrame({series.name: series}).select(values).to_series()
         return pl.Series(series.name, [initial] + sign.slice(1).to_list())
 
@@ -120,9 +109,7 @@ def tal_ma(name: str) -> int:
     return 0  # Default: SMA -> 0
 
 
-def unsigned_differences(
-    series, lag: int | None = None, **kwargs
-) -> tuple:
+def unsigned_differences(series, lag: int | None = None, **kwargs) -> tuple:
     """Unsigned Differences
     Returns two arrays, an unsigned positive and unsigned negative based
     on the differences of the original series.
@@ -281,9 +268,7 @@ def speed_test(
         tdf = tdf.head(top)
 
     if not silent:
-        print(
-            f"\n{_div}\n{_title}\n{_observations}\n{_div}\n{tdf}\n\n{_div}\n{_perfstats}\n\n{_div}\n"
-        )
+        print(f"\n{_div}\n{_title}\n{_observations}\n{_div}\n{tdf}\n\n{_div}\n{_perfstats}\n\n{_div}\n")
 
     if stats:
         return tdf, total_timedf

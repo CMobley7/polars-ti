@@ -70,4 +70,3 @@ def pl_cdl_inside(
         result = result.shift(offset)
 
     return result.alias("CDL_INSIDE")
-

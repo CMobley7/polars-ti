@@ -30,7 +30,7 @@ def pl_hlc3(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
@@ -38,29 +38,31 @@ def pl_hlc3(
         return None
 
     _use_talib = Imports["talib"] and v_talib(talib)
-    
+
     if _use_talib:
+
         def compute_hlc3(struct: pl.Series) -> pl.Series:
             from talib import TYPPRICE
+
             df = struct.struct.unnest()
             h = df["_high"].to_numpy().astype(np.float64)
             l = df["_low"].to_numpy().astype(np.float64)
             c = df["_close"].to_numpy().astype(np.float64)
             result = TYPPRICE(h, l, c)
             return pl.Series(result)
-        
-        result = pl.struct([
-            high_expr.alias("_high"),
-            low_expr.alias("_low"),
-            close_expr.alias("_close"),
-        ]).map_batches(compute_hlc3, return_dtype=pl.Float64)
+
+        result = pl.struct(
+            [
+                high_expr.alias("_high"),
+                low_expr.alias("_low"),
+                close_expr.alias("_close"),
+            ]
+        ).map_batches(compute_hlc3, return_dtype=pl.Float64)
     else:
         result = (high_expr + low_expr + close_expr) / pl.lit(3.0)
-    
+
     # Apply offset
     if offset != 0:
         result = result.shift(offset)
-    
+
     return result.alias("HLC3")
-
-

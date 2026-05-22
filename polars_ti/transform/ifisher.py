@@ -52,4 +52,3 @@ def pl_ifisher(
         result = result.shift(signal_offset)
 
     return result.alias(f"INVFISHER_{amp}")
-

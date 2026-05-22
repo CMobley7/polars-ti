@@ -2,39 +2,45 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  test:
-    name: Python ${{ matrix.python-version }}
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
+          python-version: "3.12"
 
-      - name: Install package and test dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pip-audit ruff
-          python -m pip install -e ".[test]"
+      - name: Install dependencies
+        run: uv sync --extra test --dev
 
-      - name: High-confidence Ruff checks
-        run: ruff check polars_ti tests scripts --select E9,F63,F7,F82,RUF100,RUF103,RUF104
+      - name: Ruff lint
+        run: uv run ruff check polars_ti tests scripts
+
+      - name: Ruff format
+        run: uv run ruff format --check polars_ti tests scripts
+
+      - name: Mypy strict
+        run: uv run mypy --strict polars_ti scripts
 
       - name: Syntax check
-        run: python -m compileall -q polars_ti tests scripts
+        run: uv run python -m compileall -q polars_ti tests scripts
 
       - name: Enforce runtime pandas purge
         run: |
@@ -42,8 +48,54 @@ jobs:
           ! grep -R -n -E "import pandas|from pandas|\bpd\." tests --include="*_polars.py"
           ! grep -R -n -E "import pandas|from pandas|\bpd\." tests/conftest.py
 
-      - name: Run tests
-        run: python -m pytest --tb=short -q
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
 
-      - name: Dependency audit
-        run: pip-audit --desc off --progress-spinner off
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --extra test --dev
+
+      - name: Run tests
+        run: uv run pytest tests/ -q --tb=short --cov=polars_ti --cov-report=term-missing --cov-fail-under=90
+
+  security:
+    name: Runtime Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: pip-audit
+        run: |
+          uv export --format requirements-txt --no-hashes --output-file requirements-audit.txt
+          uv run pip-audit -r requirements-audit.txt --desc off --progress-spinner off

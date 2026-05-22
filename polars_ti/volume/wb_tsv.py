@@ -35,40 +35,39 @@ def pl_wb_tsv(
         list[pl.Expr]: [TSV, TSV_signal, TSV_ratio]
     """
     from polars_ti.ma import pl_ma
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     _props = f"_{length}_{signal}"
-    
+
     # Signed volume based on close direction
     close_diff = close_expr.diff(1)
     sign = pl.when(close_diff > 0).then(1).when(close_diff < 0).then(-1).otherwise(0)
     signed_volume = volume_expr * sign.abs()  # Use absolute value for signed
-    
+
     # CVD = signed_volume * diff(close, drift)
     cvd = signed_volume * close_expr.diff(drift)
-    
+
     # TSV = rolling_sum(cvd, length)
     tsv_expr = cvd.rolling_sum(window_size=length, min_samples=length)
-    
+
     # Signal = MA(TSV, signal)
     signal_expr = pl_ma(name=mamode, source=tsv_expr, length=signal)
-    
+
     # Ratio = TSV / Signal (with div/0 protection)
     ratio_expr = tsv_expr / signal_expr
-    
+
     if offset != 0:
         tsv_expr = tsv_expr.shift(offset)
         signal_expr = signal_expr.shift(offset)
         ratio_expr = ratio_expr.shift(offset)
-    
+
     return [
         tsv_expr.alias(f"TSV{_props}"),
         signal_expr.alias(f"TSVs{_props}"),
         ratio_expr.alias(f"TSVr{_props}"),
     ]
-

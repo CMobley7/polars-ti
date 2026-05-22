@@ -38,4 +38,3 @@ def pl_stdev(
         result = result.shift(offset)
 
     return result.alias(f"STDEV_{length}")
-

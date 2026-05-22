@@ -39,34 +39,33 @@ def pl_eom(
     """
     from polars_ti.overlap.hl2 import pl_hl2
     from polars_ti.overlap.sma import pl_sma
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
         return None
-    
+
     # EOM = SMA(distance / box_ratio, length)
     # distance = hl2 - hl2.shift(drift)
     # box_ratio = (volume / divisor) / (high - low)
-    
+
     # Use pl_hl2 for code reuse
     hl2_expr = pl_hl2(high_expr, low_expr)
     hl2_shifted = pl_hl2(high_expr.shift(drift), low_expr.shift(drift))
     distance = hl2_expr - hl2_shifted
-    
+
     hl_range_safe = pl_non_zero_range(high_expr, low_expr)
     box_ratio = (volume_expr / divisor) / hl_range_safe
-    
+
     eom_raw = distance / box_ratio
-    
+
     # Use pl_sma for code reuse
     eom_expr = pl_sma(eom_raw, length=length, talib=False, offset=0)
-    
+
     if offset != 0:
         eom_expr = eom_expr.shift(offset)
-    
-    return eom_expr.alias(f"EOM_{length}_{int(divisor)}")
 
+    return eom_expr.alias(f"EOM_{length}_{int(divisor)}")

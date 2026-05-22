@@ -13,28 +13,28 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def _rsx_numba(close: np.ndarray, length: int) -> np.ndarray:
     """Numba-optimized RSX (Relative Strength Xtra).
-    
+
     Based on Jurik's algorithm as published at prorealcode.com.
     This mirrors the Pandas implementation exactly.
     """
     m = len(close)
     result = np.empty(m, dtype=np.float64)
     result[:] = np.nan
-    
+
     if m < length:
         return result
-    
+
     # Initialize state variables
     vC, v1C = 0.0, 0.0
     v4, v8, v10, v14, v18, v20 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-    
+
     f0, f8, f10, f18, f20, f28, f30, f38 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     f40, f48, f50, f58, f60, f68, f70, f78 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     f80, f88, f90 = 0.0, 0.0, 0.0
-    
+
     # Initial value at length-1
     result[length - 1] = 50.0
-    
+
     for i in range(length, m):
         if f90 == 0:
             f90 = 1.0
@@ -87,7 +87,7 @@ def _rsx_numba(close: np.ndarray, length: int) -> np.ndarray:
         else:
             v4 = 50.0
         result[i] = v4
-    
+
     return result
 
 

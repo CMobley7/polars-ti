@@ -36,34 +36,33 @@ def pl_apo(
     from polars_ti.maps import Imports
     from polars_ti.ma import pl_ma
     from polars_ti.utils import v_talib, tal_ma
-    
+
     if slow < fast:
         fast, slow = slow, fast
 
     close_expr = v_expr(close)
     _use_talib = Imports["talib"] and v_talib(talib)
-    
+
     if _use_talib:
         _fast = fast
         _slow = slow
         _mamode = mamode
-        
+
         def compute_apo(s: pl.Series) -> pl.Series:
             from talib import APO as TALIB_APO
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_APO(arr, _fast, _slow, tal_ma(_mamode))
             return pl.Series(f"APO_{_fast}_{_slow}", result)
-        
+
         apo_expr = close_expr.map_batches(compute_apo, return_dtype=pl.Float64)
     else:
         # Use pl_ma for code reuse
         fast_ma = pl_ma(name=mamode, source=close_expr, length=fast, talib=False)
         slow_ma = pl_ma(name=mamode, source=close_expr, length=slow, talib=False)
         apo_expr = fast_ma - slow_ma
-    
+
     if offset != 0:
         apo_expr = apo_expr.shift(offset)
 
     return apo_expr.alias(f"APO_{fast}_{slow}")
-
-

@@ -38,4 +38,3 @@ def pl_variance(
         result = result.shift(offset)
 
     return result.alias(f"VAR_{length}")
-

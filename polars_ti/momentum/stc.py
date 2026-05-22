@@ -13,12 +13,12 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def nb_schaff_tc(xmacd: np.ndarray, tclength: int, factor: float):
     """Numba-accelerated Schaff Trend Cycle calculation.
-    
+
     Args:
         xmacd: MACD values
         tclength: Lookback period for stochastic
         factor: Smoothing factor
-        
+
     Returns:
         tuple: (pff, pf) arrays
     """
@@ -27,13 +27,13 @@ def nb_schaff_tc(xmacd: np.ndarray, tclength: int, factor: float):
     pf = np.zeros(m, dtype=np.float64)
     stoch2 = np.zeros(m, dtype=np.float64)
     pff = np.zeros(m, dtype=np.float64)
-    
+
     for i in range(1, m):
         # Calculate rolling min/max for xmacd using explicit loop
         start_idx = i - tclength + 1
         if start_idx < 0:
             start_idx = 0
-        
+
         lowest_xmacd = xmacd[start_idx]
         highest_xmacd = xmacd[start_idx]
         for j in range(start_idx + 1, i + 1):
@@ -41,25 +41,25 @@ def nb_schaff_tc(xmacd: np.ndarray, tclength: int, factor: float):
                 lowest_xmacd = xmacd[j]
             if xmacd[j] > highest_xmacd:
                 highest_xmacd = xmacd[j]
-        
+
         xmacd_range = highest_xmacd - lowest_xmacd
         if xmacd_range == 0.0:
             xmacd_range = 1.0
-        
+
         # %Fast K of MACD
         if lowest_xmacd > 0.0:
             stoch1[i] = 100.0 * (xmacd[i] - lowest_xmacd) / xmacd_range
         else:
             stoch1[i] = stoch1[i - 1]
-        
+
         # Smoothed % Fast D of MACD
         pf[i] = pf[i - 1] + factor * (stoch1[i] - pf[i - 1])
-        
+
         # Find min and max of pf so far
         pf_start = i - tclength + 1
         if pf_start < 0:
             pf_start = 0
-        
+
         lowest_pf = pf[pf_start]
         highest_pf = pf[pf_start]
         for j in range(pf_start + 1, i + 1):
@@ -67,20 +67,20 @@ def nb_schaff_tc(xmacd: np.ndarray, tclength: int, factor: float):
                 lowest_pf = pf[j]
             if pf[j] > highest_pf:
                 highest_pf = pf[j]
-        
+
         pf_range = highest_pf - lowest_pf
         if pf_range == 0.0:
             pf_range = 1.0
-        
+
         # % of Fast K of PF
         if pf_range > 0.0:
             stoch2[i] = 100.0 * (pf[i] - lowest_pf) / pf_range
         else:
             stoch2[i] = stoch2[i - 1]
-        
+
         # Final smoothed value
         pff[i] = pff[i - 1] + factor * (stoch2[i] - pff[i - 1])
-    
+
     return pff, pf
 
 
@@ -132,11 +132,11 @@ def pl_stc(
         """Compute STC using Numba kernel."""
         macd_arr = s.to_numpy().astype(np.float64)
         pff, pf = nb_schaff_tc(macd_arr, tclength, factor)
-        
+
         # Set warmup period to NaN
-        pff[:_length - 1] = np.nan
-        pf[:_length - 1] = np.nan
-        
+        pff[: _length - 1] = np.nan
+        pf[: _length - 1] = np.nan
+
         if offset != 0:
             pff = np.roll(pff, offset)
             pf = np.roll(pf, offset)
@@ -145,20 +145,21 @@ def pl_stc(
                 pff[:offset] = np.nan
                 pf[:offset] = np.nan
                 macd_arr[:offset] = np.nan
-        
-        return pl.DataFrame({
-            f"STC{_props}": pff,
-            f"STCmacd{_props}": macd_arr,
-            f"STCstoch{_props}": pf,
-        }).to_struct(f"STC{_props}")
 
-    return_dtype = pl.Struct([
-        pl.Field(f"STC{_props}", pl.Float64),
-        pl.Field(f"STCmacd{_props}", pl.Float64),
-        pl.Field(f"STCstoch{_props}", pl.Float64),
-    ])
+        return pl.DataFrame(
+            {
+                f"STC{_props}": pff,
+                f"STCmacd{_props}": macd_arr,
+                f"STCstoch{_props}": pf,
+            }
+        ).to_struct(f"STC{_props}")
 
-    return xmacd.map_batches(
-        compute_stc,
-        return_dtype=return_dtype
-    ).alias(f"STC{_props}")
+    return_dtype = pl.Struct(
+        [
+            pl.Field(f"STC{_props}", pl.Float64),
+            pl.Field(f"STCmacd{_props}", pl.Float64),
+            pl.Field(f"STCstoch{_props}", pl.Float64),
+        ]
+    )
+
+    return xmacd.map_batches(compute_stc, return_dtype=return_dtype).alias(f"STC{_props}")

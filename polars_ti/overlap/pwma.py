@@ -47,14 +47,10 @@ def pl_pwma(
     def pascal_weighted_mean(s: pl.Series) -> float:
         vals = s.to_numpy()
         if len(vals) < _length:
-            return float('nan')
-        return (vals * _weights[-len(vals):]).sum()
+            return float("nan")
+        return (vals * _weights[-len(vals) :]).sum()
 
-    pwma_expr = close_expr.rolling_map(
-        function=pascal_weighted_mean,
-        window_size=length,
-        min_samples=length
-    )
+    pwma_expr = close_expr.rolling_map(function=pascal_weighted_mean, window_size=length, min_samples=length)
 
     # Apply offset
     if offset != 0:

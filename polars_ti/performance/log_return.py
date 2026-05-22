@@ -48,4 +48,3 @@ def pl_log_return(
         result = result.shift(offset)
 
     return result.alias(name)
-

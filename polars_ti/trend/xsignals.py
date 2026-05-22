@@ -60,6 +60,9 @@ def pl_xsignals(
         trends = pl.lit(1) - trends
 
     return pl_tsignals(
-        trends, asbool=asbool, trade_offset=trade_offset,
-        drift=drift, offset=offset,
+        trends,
+        asbool=asbool,
+        trade_offset=trade_offset,
+        drift=drift,
+        offset=offset,
     )

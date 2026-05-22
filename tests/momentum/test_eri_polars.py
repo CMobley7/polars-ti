@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_eri - Polars + pl_ema implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -14,7 +15,7 @@ class TestPlEri:
         high = 101 + np.cumsum(np.random.randn(n) * 0.5)
         low = high - np.abs(np.random.randn(n) * 0.3)
         close = (high + low) / 2
-        return pl.DataFrame({'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"high": high, "low": low, "close": close})
 
     def test_returns_list_of_expr(self):
         result = pl_eri("high", "low", "close")

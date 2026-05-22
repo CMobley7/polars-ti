@@ -59,7 +59,7 @@ def pl_wma(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -70,21 +70,20 @@ def pl_wma(
 
     def compute_wma(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        
+
         if _use_talib:
             from talib import WMA as TALIB_WMA
+
             result = TALIB_WMA(arr, timeperiod=_length)
         else:
             # Use nb_wma directly - much faster than rolling_map!
             result = nb_wma(arr, _length, _asc, True)
-        
+
         return pl.Series(result)
-    
+
     wma_expr = close_expr.map_batches(compute_wma, return_dtype=pl.Float64)
 
     if offset != 0:
         wma_expr = wma_expr.shift(offset)
 
     return wma_expr.alias(f"WMA_{length}")
-
-

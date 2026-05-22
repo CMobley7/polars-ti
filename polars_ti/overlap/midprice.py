@@ -31,10 +31,12 @@ def pl_midprice(
     """
     high_expr = v_expr(high)
     low_expr = v_expr(low)
-    
+
     if Imports["talib"] and talib:
+
         def compute_midprice(struct: pl.Series) -> pl.Series:
             from talib import MIDPRICE
+
             h = struct.struct.field("h").to_numpy()
             l = struct.struct.field("l").to_numpy()
             result = MIDPRICE(h, l, length)
@@ -43,11 +45,17 @@ def pl_midprice(
                 if offset > 0:
                     result[:offset] = np.nan
             return pl.Series(result)
-        
-        return pl.struct([
-            high_expr.alias("h"),
-            low_expr.alias("l"),
-        ]).map_batches(compute_midprice).alias(f"MIDPRICE_{length}")
+
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("h"),
+                    low_expr.alias("l"),
+                ]
+            )
+            .map_batches(compute_midprice)
+            .alias(f"MIDPRICE_{length}")
+        )
     else:
         lowest_low = low_expr.rolling_min(length)
         highest_high = high_expr.rolling_max(length)
@@ -55,4 +63,3 @@ def pl_midprice(
         if offset != 0:
             result = result.shift(offset)
         return result.alias(f"MIDPRICE_{length}")
-

@@ -43,7 +43,6 @@ def nb_fvg(
     return fvg_high, fvg_low, fvg_type
 
 
-
 # =============================================================================
 # Polars FVG Implementation (Numba @njit via map_batches)
 # =============================================================================
@@ -88,26 +87,24 @@ def pl_fvg(
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if open_expr is None or high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     min_gap_pct = min_gap / 100.0
     _min_gap = min_gap_pct
     _offset = offset
     _min_gap_int = int(min_gap)
-    
+
     def compute_fvg(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()
         np_open = df["_open"].to_numpy().astype(np.float64)
         np_high = df["_high"].to_numpy().astype(np.float64)
         np_low = df["_low"].to_numpy().astype(np.float64)
         np_close = df["_close"].to_numpy().astype(np.float64)
-        
-        fvg_high, fvg_low, fvg_type = nb_fvg(
-            np_open, np_high, np_low, np_close, _min_gap
-        )
-        
+
+        fvg_high, fvg_low, fvg_type = nb_fvg(np_open, np_high, np_low, np_close, _min_gap)
+
         if _offset != 0:
             fvg_high = np.roll(fvg_high, _offset)
             fvg_low = np.roll(fvg_low, _offset)
@@ -116,25 +113,23 @@ def pl_fvg(
                 fvg_high[:_offset] = np.nan
                 fvg_low[:_offset] = np.nan
                 fvg_type[:_offset] = np.nan
-        
-        return pl.DataFrame({
-            "fvg_high": fvg_high,
-            "fvg_low": fvg_low,
-            "fvg_type": fvg_type
-        }).to_struct("fvg")
-    
-    _props = f"_{_min_gap_int}"
-    
-    return pl.struct([
-        open_expr.alias("_open"),
-        high_expr.alias("_high"),
-        low_expr.alias("_low"),
-        close_expr.alias("_close")
-    ]).map_batches(
-        compute_fvg, return_dtype=pl.Struct({
-            "fvg_high": pl.Float64,
-            "fvg_low": pl.Float64,
-            "fvg_type": pl.Float64
-        })
-    ).alias(f"FVG{_props}")
 
+        return pl.DataFrame({"fvg_high": fvg_high, "fvg_low": fvg_low, "fvg_type": fvg_type}).to_struct("fvg")
+
+    _props = f"_{_min_gap_int}"
+
+    return (
+        pl.struct(
+            [
+                open_expr.alias("_open"),
+                high_expr.alias("_high"),
+                low_expr.alias("_low"),
+                close_expr.alias("_close"),
+            ]
+        )
+        .map_batches(
+            compute_fvg,
+            return_dtype=pl.Struct({"fvg_high": pl.Float64, "fvg_low": pl.Float64, "fvg_type": pl.Float64}),
+        )
+        .alias(f"FVG{_props}")
+    )

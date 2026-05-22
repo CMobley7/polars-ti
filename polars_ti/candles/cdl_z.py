@@ -46,7 +46,7 @@ def pl_cdl_z(
         list[pl.Expr]: List of Z-score expressions for OHLC
     """
     props = f"_{length}_{ddof}"
-    
+
     # Build base expressions
     exprs = [
         pl_zscore(open_, length, ddof).alias(f"open_Z{props}"),
@@ -54,10 +54,9 @@ def pl_cdl_z(
         pl_zscore(low, length, ddof).alias(f"low_Z{props}"),
         pl_zscore(close, length, ddof).alias(f"close_Z{props}"),
     ]
-    
+
     # Apply offset if needed
     if offset != 0:
         exprs = [e.shift(offset) for e in exprs]
-    
-    return exprs
 
+    return exprs

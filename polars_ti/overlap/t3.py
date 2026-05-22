@@ -39,7 +39,7 @@ def pl_t3(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -61,9 +61,10 @@ def pl_t3(
 
     def compute_t3(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        
+
         if _use_talib:
             from talib import T3 as TALIB_T3
+
             result = TALIB_T3(arr, timeperiod=_length, vfactor=_a)
         else:
             # Call _ema_numba directly - NO DataFrame creation!
@@ -73,10 +74,10 @@ def pl_t3(
             e4 = _ema_numba(e3, _length, presma=False, adjust=False)
             e5 = _ema_numba(e4, _length, presma=False, adjust=False)
             e6 = _ema_numba(e5, _length, presma=False, adjust=False)
-            
+
             # T3 = c1*e6 + c2*e5 + c3*e4 + c4*e3
             result = c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3
-        
+
         return pl.Series(result)
 
     result = close_expr.map_batches(compute_t3, return_dtype=pl.Float64)
@@ -85,5 +86,3 @@ def pl_t3(
         result = result.shift(offset)
 
     return result.alias(f"T3_{length}_{a}")
-
-

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_brar - Pure Polars implementation."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -15,7 +16,7 @@ class TestPlBrar:
         high = open_ + np.abs(np.random.randn(n) * 0.3) + 0.1
         low = open_ - np.abs(np.random.randn(n) * 0.3) - 0.1
         close = (high + low) / 2
-        return pl.DataFrame({'open': open_, 'high': high, 'low': low, 'close': close})
+        return pl.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
     def test_returns_list_of_expr(self):
         exprs = pl_brar("open", "high", "low", "close")

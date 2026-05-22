@@ -37,7 +37,5 @@ def pl_mmar(
         period = length + (i * step)
         ema_expr = pl_ema(close, length=period, offset=offset, talib=False).alias(f"MMAR_{period}")
         ema_exprs.append(ema_expr)
-    
+
     return pl.struct(ema_exprs).alias(f"MMAR_{length}_{step}_{num_ribbons}")
-
-

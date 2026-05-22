@@ -38,39 +38,40 @@ def pl_bop(
     import numpy as np
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     open_expr = v_expr(open_)
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     _use_talib = Imports["talib"] and v_talib(talib)
-    
+
     if _use_talib:
+
         def compute_bop(df: pl.DataFrame) -> pl.Series:
             from talib import BOP as TALIB_BOP
+
             o = df["open"].to_numpy().astype(np.float64)
             h = df["high"].to_numpy().astype(np.float64)
             l = df["low"].to_numpy().astype(np.float64)
             c = df["close"].to_numpy().astype(np.float64)
             result = TALIB_BOP(o, h, l, c)
             return pl.Series("BOP", result)
-        
-        bop_expr = pl.struct([
-            open_expr.alias("open"),
-            high_expr.alias("high"),
-            low_expr.alias("low"),
-            close_expr.alias("close")
-        ]).map_batches(
-            lambda s: compute_bop(s.struct.unnest()),
-            return_dtype=pl.Float64
-        )
+
+        bop_expr = pl.struct(
+            [
+                open_expr.alias("open"),
+                high_expr.alias("high"),
+                low_expr.alias("low"),
+                close_expr.alias("close"),
+            ]
+        ).map_batches(lambda s: compute_bop(s.struct.unnest()), return_dtype=pl.Float64)
     else:
         # Use shared utility for zero-protected ranges (matches pandas-ta)
         high_low_safe = pl_non_zero_range(high_expr, low_expr)
         close_open_safe = pl_non_zero_range(close_expr, open_expr)
         bop_expr = scalar * close_open_safe / high_low_safe
-    
+
     if offset != 0:
         bop_expr = bop_expr.shift(offset)
 

@@ -19,7 +19,7 @@ def pl_zlma(
     """Polars: Zero Lag Moving Average (ZLMA)
 
     Eliminates lag by using (2 * close - close.shift(lag)) as input to any MA.
-    
+
     Supported mamodes: dema, ema, fwma, hma, linreg, midpoint, pwma, rma,
                        sinwma, sma, ssf, swma, t3, tema, trima, vidya, wma
 
@@ -36,27 +36,40 @@ def pl_zlma(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     # Supported MAs (same as Pandas zlma)
     supported_mas = [
-        "dema", "ema", "fwma", "hma", "linreg", "midpoint", "pwma", "rma",
-        "sinwma", "sma", "ssf", "swma", "t3", "tema", "trima", "vidya", "wma"
+        "dema",
+        "ema",
+        "fwma",
+        "hma",
+        "linreg",
+        "midpoint",
+        "pwma",
+        "rma",
+        "sinwma",
+        "sma",
+        "ssf",
+        "swma",
+        "t3",
+        "tema",
+        "trima",
+        "vidya",
+        "wma",
     ]
-    
+
     _mamode = mamode.lower() if isinstance(mamode, str) else "ema"
     if _mamode not in supported_mas:
         _mamode = "ema"  # Default fallback
-    
+
     # Calculate lag and zero-lag adjusted series
     lag = int(0.5 * (length - 1))
     close_zl = 2 * close_expr - close_expr.shift(lag)
-    
+
     # Apply MA using pl_ma - handles ALL mamodes!
     result = pl_ma(name=_mamode, source=close_zl, length=length, talib=talib)
-    
+
     if offset != 0:
         result = result.shift(offset)
-    
+
     return result.alias(f"ZL_{_mamode.upper()}_{length}")
-
-

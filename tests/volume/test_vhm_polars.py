@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_vhm."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlVhm:
         np.random.seed(42)
         n = 700
         volume = np.abs(np.random.randn(n) * 1000) + 100
-        return pl.DataFrame({'volume': volume})
+        return pl.DataFrame({"volume": volume})
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_vhm("volume"))
@@ -28,9 +29,7 @@ class TestPlVhm:
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
-        df = pl.DataFrame({
-            "volume": [None] + [1000.0] * 699
-        })
+        df = pl.DataFrame({"volume": [None] + [1000.0] * 699})
         result = df.select(pl_vhm("volume"))
         assert result.height == 700
 

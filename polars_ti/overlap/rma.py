@@ -13,14 +13,14 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarray:
     """Numba-optimized RMA with presma support.
-    
+
     RMA (Wilder's Moving Average) = EMA with alpha = 1/length (vs 2/(n+1) for EMA).
-    
+
     With presma=True (TA-Lib style):
         - First `length-1` values are NaN
         - Value at index `length-1` is SMA of first `length` values
         - From `length` onwards: RMA = alpha * close + (1 - alpha) * prev_RMA
-    
+
     With presma=False:
         - First value is the first close value itself
         - Standard exponential smoothing from the start
@@ -28,9 +28,9 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
     n = len(close)
     result = np.empty(n, dtype=np.float64)
     result[:] = np.nan
-    
+
     alpha = 1.0 / length
-    
+
     if presma:
         # Calculate SMA for initial value (first 'length' values)
         sma_sum = 0.0
@@ -39,11 +39,11 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
             if i < n and not np.isnan(close[i]):
                 sma_sum += close[i]
                 valid_count += 1
-        
+
         if valid_count == length:
             sma_val = sma_sum / length
             result[length - 1] = sma_val
-            
+
             # Continue with RMA from there
             for i in range(length, n):
                 if not np.isnan(close[i]):
@@ -57,7 +57,7 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
             if not np.isnan(close[i]):
                 first_valid = i
                 break
-        
+
         if first_valid >= 0:
             result[first_valid] = close[first_valid]
             for i in range(first_valid + 1, n):
@@ -65,7 +65,7 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
                     result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
                 else:
                     result[i] = result[i - 1]
-    
+
     return result
 
 
@@ -114,5 +114,3 @@ def pl_rma(
         rma_expr = rma_expr.shift(offset)
 
     return rma_expr.alias(f"RMA_{length}")
-
-

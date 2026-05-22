@@ -7,6 +7,7 @@ Strategy:
   - For files where pd. also appears in fixture bodies: replace pd.Series/
     pd.DataFrame with numpy arrays / pl.DataFrame and then remove the import.
 """
+
 import ast
 import re
 import sys
@@ -46,10 +47,7 @@ def strip_dead_parity_body(lines: list[str]) -> list[str]:
             curr_indent = raw_indent if raw_indent is not None else indent_level + 1
 
             # Any def or class at the same or lower indent level exits parity scope
-            is_boundary = (
-                (stripped.startswith("def ") or stripped.startswith("class "))
-                and curr_indent <= indent_level
-            )
+            is_boundary = (stripped.startswith("def ") or stripped.startswith("class ")) and curr_indent <= indent_level
             if is_boundary:
                 in_parity = False
                 skip_seen = False

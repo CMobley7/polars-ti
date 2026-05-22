@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_zlma."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,9 +11,11 @@ class TestPlZlma:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'close': 100 + np.cumsum(np.random.randn(100) * 0.5),
-        })
+        return pl.DataFrame(
+            {
+                "close": 100 + np.cumsum(np.random.randn(100) * 0.5),
+            }
+        )
 
     def test_returns_correct_column(self, sample_df):
         result = sample_df.select(pl_zlma("close", length=10, mamode="ema"))
@@ -58,4 +61,3 @@ class TestPlZlma:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(pl_zlma("close", length=10)).collect()
         assert "ZL_EMA_10" in result.columns
-

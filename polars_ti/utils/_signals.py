@@ -49,45 +49,29 @@ def _above_below(
     return _set_name(current, f"{series_a.name}_{'A' if above else 'B'}_{series_b.name}")
 
 
-def above(
-    series_a, series_b, asint: bool = True, offset: Int = None, **kwargs
-):
-    return _above_below(
-        series_a, series_b, above=True, asint=asint, offset=offset, **kwargs
-    )
+def above(series_a, series_b, asint: bool = True, offset: Int = None, **kwargs):
+    return _above_below(series_a, series_b, above=True, asint=asint, offset=offset, **kwargs)
 
 
-def above_value(
-    series_a, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs
-):
+def above_value(series_a, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs):
     if not isinstance(value, (int, float, complex)):
         print("[X] value is not a number")
         return
     series_b = _as_series(value, name=f"{value}".replace(".", "_"), length=len(series_a))
 
-    return _above_below(
-        series_a, series_b, above=True, asint=asint, offset=offset, **kwargs
-    )
+    return _above_below(series_a, series_b, above=True, asint=asint, offset=offset, **kwargs)
 
 
-def below(
-    series_a, series_b, asint: bool = True, offset: Int = None, **kwargs
-):
-    return _above_below(
-        series_a, series_b, above=False, asint=asint, offset=offset, **kwargs
-    )
+def below(series_a, series_b, asint: bool = True, offset: Int = None, **kwargs):
+    return _above_below(series_a, series_b, above=False, asint=asint, offset=offset, **kwargs)
 
 
-def below_value(
-    series_a, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs
-):
+def below_value(series_a, value: IntFloat, asint: bool = True, offset: Int = None, **kwargs):
     if not isinstance(value, (int, float, complex)):
         print("[X] value is not a number")
         return
     series_b = _as_series(value, name=f"{value}".replace(".", "_"), length=len(series_a))
-    return _above_below(
-        series_a, series_b, above=False, asint=asint, offset=offset, **kwargs
-    )
+    return _above_below(series_a, series_b, above=False, asint=asint, offset=offset, **kwargs)
 
 
 def cross_value(

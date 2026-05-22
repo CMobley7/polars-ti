@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_decreasing."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,9 +11,11 @@ class TestPlDecreasing:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'close': 100 + np.cumsum(np.random.randn(100) * 0.5),
-        })
+        return pl.DataFrame(
+            {
+                "close": 100 + np.cumsum(np.random.randn(100) * 0.5),
+            }
+        )
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_decreasing("close"))
@@ -39,7 +42,7 @@ class TestPlDecreasing:
         assert result.height == 50
 
     def test_with_zeros(self):
-        df = pl.DataFrame({"close": [50.0 - i*0.5 for i in range(50)]})
+        df = pl.DataFrame({"close": [50.0 - i * 0.5 for i in range(50)]})
         result = df.select(pl_decreasing("close", length=2))
         assert result.height == 50
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_roc."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,9 +11,11 @@ class TestPlRoc:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'close': 100 + np.cumsum(np.random.randn(100) * 0.5),
-        })
+        return pl.DataFrame(
+            {
+                "close": 100 + np.cumsum(np.random.randn(100) * 0.5),
+            }
+        )
 
     def test_returns_expression(self, sample_df):
         result = sample_df.select(pl_roc("close"))
@@ -40,7 +43,7 @@ class TestPlRoc:
         assert result.height == 50
 
     def test_with_zeros(self):
-        df = pl.DataFrame({"close": [100.0] * 5 + [float(i+100) for i in range(45)]})
+        df = pl.DataFrame({"close": [100.0] * 5 + [float(i + 100) for i in range(45)]})
         result = df.select(pl_roc("close", length=5))
         assert result.height == 50
 

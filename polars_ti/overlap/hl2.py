@@ -24,4 +24,3 @@ def pl_hl2(high: IntoExpr, low: IntoExpr) -> PlExpr:
         return None
 
     return ((high_expr + low_expr) / 2).alias("HL2")
-

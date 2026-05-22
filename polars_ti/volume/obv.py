@@ -31,29 +31,27 @@ def pl_obv(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    
+
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
-    
+
     if close_expr is None or volume_expr is None:
         return None
-    
+
     _use_talib = Imports["talib"] and v_talib(talib)
-    
+
     if _use_talib:
+
         def compute_obv(df: pl.DataFrame) -> pl.Series:
             from talib import OBV as TALIB_OBV
+
             c = df["close"].to_numpy().astype(np.float64)
             v = df["volume"].to_numpy().astype(np.float64)
             result = TALIB_OBV(c, v)
             return pl.Series("OBV", result)
-        
-        obv_expr = pl.struct([
-            close_expr.alias("close"),
-            volume_expr.alias("volume")
-        ]).map_batches(
-            lambda s: compute_obv(s.struct.unnest()),
-            return_dtype=pl.Float64
+
+        obv_expr = pl.struct([close_expr.alias("close"), volume_expr.alias("volume")]).map_batches(
+            lambda s: compute_obv(s.struct.unnest()), return_dtype=pl.Float64
         )
     else:
         # Pure Polars: OBV = cumsum(signed_volume)
@@ -63,9 +61,8 @@ def pl_obv(
         # First value should use 1 as initial sign (matching pandas-ta)
         sign = sign.fill_null(1)
         obv_expr = (sign * volume_expr).cum_sum()
-    
+
     if offset != 0:
         obv_expr = obv_expr.shift(offset)
-    
-    return obv_expr.alias("OBV")
 
+    return obv_expr.alias("OBV")

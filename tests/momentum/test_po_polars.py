@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_po (Projection Oscillator)."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -12,7 +13,7 @@ class TestPlPo:
         np.random.seed(42)
         n = 100
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        return pl.DataFrame({'close': close})
+        return pl.DataFrame({"close": close})
 
     def test_returns_expression(self, sample_df):
         """Test that pl_po returns a valid expression."""
@@ -33,17 +34,13 @@ class TestPlPo:
 
     def test_with_null_values(self):
         """Test handling of null values."""
-        df = pl.DataFrame({
-            "close": [None] + [100.0] * 49
-        })
+        df = pl.DataFrame({"close": [None] + [100.0] * 49})
         result = df.select(pl_po("close", length=10))
         assert result.height == 50
 
     def test_with_zero_values(self):
         """Test handling of zero prices (division protection)."""
-        df = pl.DataFrame({
-            "close": [0.0] * 20 + [100.0] * 30
-        })
+        df = pl.DataFrame({"close": [0.0] * 20 + [100.0] * 30})
         result = df.select(pl_po("close", length=10))
         arr = result[result.columns[0]].to_numpy()
         # Should handle zeros gracefully without inf
@@ -62,4 +59,4 @@ class TestPlPo:
             assert f"PO_{length}" in result.columns
             # First length-1 values should be NaN
             arr = result[result.columns[0]].to_numpy()
-            assert all(np.isnan(arr[:length-1]))
+            assert all(np.isnan(arr[: length - 1]))

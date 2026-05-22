@@ -10,6 +10,7 @@ their Polars equivalents:
 * ``df["col"]``        → Polars Series (already works)
 * ``DataFrame().ti``   → ``pl.DataFrame().ti``
 """
+
 from multiprocessing import cpu_count
 
 import pytest
@@ -35,6 +36,7 @@ ALL_COLUMNS = 384
 # Study property tests
 # ---------------------------------------------------------------------------
 
+
 def test_all_study_props(all_study):
     s = all_study
     assert s.name == "All"
@@ -56,6 +58,7 @@ def test_common_study_props(common_study):
 # ---------------------------------------------------------------------------
 # Study column-count tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "category,columns",
@@ -91,6 +94,7 @@ def test_study_category_talib(df, category, talib):
 # ---------------------------------------------------------------------------
 # Custom Study tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("talib", [False, True])
 def test_study_custom_a_talib(df, custom_study_a, talib):
@@ -131,6 +135,7 @@ def test_study_custom_e_talib(df, custom_study_e, talib):
 # ---------------------------------------------------------------------------
 # All-study multi-run and incremental-row tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("talib", [False, True])
 def test_study_all_multirun_talib(df, all_study, talib):

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_atr."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -30,8 +31,12 @@ class TestPlAtr:
         pl_df = pl.DataFrame(sample_data)
         try:
             from talib import ATR as TALIB_ATR
+
             talib_result = TALIB_ATR(
-                sample_data["high"], sample_data["low"], sample_data["close"], timeperiod=14
+                sample_data["high"],
+                sample_data["low"],
+                sample_data["close"],
+                timeperiod=14,
             )
             pl_result = pl_df.select(pl_atr("high", "low", "close", length=14, talib=True))
             warmup = 20

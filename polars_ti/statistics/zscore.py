@@ -13,23 +13,23 @@ from polars_ti.utils._validate import v_expr
 @njit(cache=True)
 def nb_zscore(close: np.ndarray, length: int, std_mult: float) -> np.ndarray:
     """Numba-optimized Z-Score calculation.
-    
+
     Z = (close - rolling_mean) / (std_mult * rolling_std)
-    
+
     Uses ddof=0 for std matching TA-Lib's behavior.
     """
     n = len(close)
     result = np.full(n, np.nan)
-    
+
     for i in range(length - 1, n):
         window = close[i - length + 1 : i + 1]
-        
+
         # Compute mean
         mean = 0.0
         for j in range(length):
             mean += window[j]
         mean /= length
-        
+
         # Compute std with ddof=0 (TA-Lib style)
         var = 0.0
         for j in range(length):
@@ -37,10 +37,10 @@ def nb_zscore(close: np.ndarray, length: int, std_mult: float) -> np.ndarray:
             var += diff * diff
         var /= length
         std = np.sqrt(var)
-        
+
         if std > 0:
             result[i] = (close[i] - mean) / (std_mult * std)
-    
+
     return result
 
 
@@ -85,5 +85,3 @@ def pl_zscore(
         result = result.shift(offset)
 
     return result.alias(f"ZS_{length}")
-
-

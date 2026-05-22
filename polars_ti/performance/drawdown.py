@@ -43,9 +43,10 @@ def pl_drawdown(
         dd_pct = dd_pct.shift(offset)
         dd_log = dd_log.shift(offset)
 
-    return pl.struct([
-        dd.alias("DD"),
-        dd_pct.alias("DD_PCT"),
-        dd_log.alias("DD_LOG"),
-    ]).alias("DRAWDOWN")
-
+    return pl.struct(
+        [
+            dd.alias("DD"),
+            dd_pct.alias("DD_PCT"),
+            dd_log.alias("DD_LOG"),
+        ]
+    ).alias("DRAWDOWN")

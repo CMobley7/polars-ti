@@ -23,21 +23,13 @@ def nb_ht_trendline(x):
         adj_prev_period = 0.075 * period[i - 1] + 0.54
 
         wma4[i] = 0.4 * x[i] + 0.3 * x[i - 1] + 0.2 * x[i - 2] + 0.1 * x[i - 3]
-        dt[i] = adj_prev_period * (
-            a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6]
-        )
+        dt[i] = adj_prev_period * (a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6])
 
-        q1[i] = adj_prev_period * (
-            a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6]
-        )
+        q1[i] = adj_prev_period * (a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6])
         i1[i] = dt[i - 3]
 
-        ji[i] = adj_prev_period * (
-            a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6]
-        )
-        jq[i] = adj_prev_period * (
-            a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6]
-        )
+        ji[i] = adj_prev_period * (a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6])
+        jq[i] = adj_prev_period * (a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6])
 
         i2[i] = i1[i] - jq[i]
         q2[i] = q1[i] + ji[i]
@@ -75,12 +67,7 @@ def nb_ht_trendline(x):
         i_trend[i] = dcp_avg
 
         if i > 12:
-            result[i] = (
-                0.4 * i_trend[i]
-                + 0.3 * i_trend[i - 1]
-                + 0.2 * i_trend[i - 2]
-                + 0.1 * i_trend[i - 3]
-            )
+            result[i] = 0.4 * i_trend[i] + 0.3 * i_trend[i - 1] + 0.2 * i_trend[i - 2] + 0.1 * i_trend[i - 3]
 
     return result
 

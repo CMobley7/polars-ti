@@ -34,36 +34,30 @@ def pl_alma(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
-    
+
     # Pre-compute Gaussian weights
     x = np.arange(length, dtype=np.float64)
     k = np.floor(dist_offset * (length - 1))
     weights = np.exp(-0.5 * ((sigma / length) * (x - k)) ** 2)
     weights = weights / weights.sum()
     weights_list = weights.tolist()
-    
+
     _length = length
     _weights = weights_list
-    
+
     def gaussian_weighted_mean(s: pl.Series) -> float:
         vals = s.to_numpy()
         if len(vals) < _length:
-            return float('nan')
+            return float("nan")
         # Check for NaN in window
         if np.isnan(vals).any():
-            return float('nan')
+            return float("nan")
         return (vals * _weights).sum()
-    
-    alma_expr = close_expr.rolling_map(
-        function=gaussian_weighted_mean,
-        window_size=length,
-        min_samples=length
-    )
-    
+
+    alma_expr = close_expr.rolling_map(function=gaussian_weighted_mean, window_size=length, min_samples=length)
+
     # Apply offset
     if offset != 0:
         alma_expr = alma_expr.shift(offset)
-    
+
     return alma_expr.alias(f"ALMA_{length}_{sigma}_{dist_offset}")
-
-

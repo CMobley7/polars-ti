@@ -77,6 +77,7 @@ def pl_uo(
 
         def compute_uo(df: pl.DataFrame) -> pl.Series:
             from talib import ULTOSC
+
             h = df["high"].to_numpy().astype(np.float64)
             l = df["low"].to_numpy().astype(np.float64)
             c = df["close"].to_numpy().astype(np.float64)
@@ -84,17 +85,13 @@ def pl_uo(
             return pl.Series(f"UO{_props}", result)
 
         # Build struct and compute
-        uo_expr = (
-            pl.struct([
+        uo_expr = pl.struct(
+            [
                 high_expr.alias("high"),
                 low_expr.alias("low"),
                 close_expr.alias("close"),
-            ])
-            .map_batches(
-                lambda s: compute_uo(s.struct.unnest()),
-                return_dtype=pl.Float64
-            )
-        )
+            ]
+        ).map_batches(lambda s: compute_uo(s.struct.unnest()), return_dtype=pl.Float64)
     else:
         # Native Polars implementation
         # BP = Close - min(Low, PreviousClose)

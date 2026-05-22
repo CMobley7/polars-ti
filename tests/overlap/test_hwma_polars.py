@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for pl_hwma."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -10,17 +11,19 @@ class TestPlHwma:
     @pytest.fixture
     def sample_df(self) -> pl.DataFrame:
         np.random.seed(42)
-        return pl.DataFrame({
-            'close': 100 + np.cumsum(np.random.randn(100) * 0.5),
-        })
+        return pl.DataFrame(
+            {
+                "close": 100 + np.cumsum(np.random.randn(100) * 0.5),
+            }
+        )
 
     @pytest.fixture
     def sample_data(self):
         np.random.seed(42)
         close = 100 + np.random.randn(100).cumsum()
         return {
-            'pd_close': close,
-            'pl_df': pl.DataFrame({'close': close}),
+            "pd_close": close,
+            "pl_df": pl.DataFrame({"close": close}),
         }
 
     def test_returns_correct_column(self, sample_df):
@@ -63,4 +66,3 @@ class TestPlHwma:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(pl_hwma("close")).collect()
         assert "HWMA_0.2_0.1_0.1" in result.columns
-

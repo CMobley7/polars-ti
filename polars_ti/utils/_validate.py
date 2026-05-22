@@ -117,12 +117,8 @@ def v_offset(var: Int) -> Int:
     return partial(v_int, default=0, ne=0)(var=var)
 
 
-def v_pos_default(
-    var: IntFloat, default: IntFloat = 0, strict: bool = True, complement: bool = False
-) -> IntFloat:
-    return partial(v_lowerbound, bound=0)(
-        var=var, default=default, strict=strict, complement=complement
-    )
+def v_pos_default(var: IntFloat, default: IntFloat = 0, strict: bool = True, complement: bool = False) -> IntFloat:
+    return partial(v_lowerbound, bound=0)(var=var, default=default, strict=strict, complement=complement)
 
 
 def v_scalar(var: IntFloat, default: Optional[IntFloat] = 1) -> Float:
@@ -158,12 +154,8 @@ def v_tradingview(var: bool) -> bool:
     return partial(v_bool, default=True)(var=var)
 
 
-def v_upperbound(
-    var: IntFloat, bound: IntFloat = 0, default: IntFloat = 0, strict: bool = True
-) -> IntFloat:
-    return partial(v_lowerbound, complement=True)(
-        var=var, bound=bound, default=default, strict=strict
-    )
+def v_upperbound(var: IntFloat, bound: IntFloat = 0, default: IntFloat = 0, strict: bool = True) -> IntFloat:
+    return partial(v_lowerbound, complement=True)(var=var, bound=bound, default=default, strict=strict)
 
 
 # =============================================================================
@@ -198,9 +190,7 @@ def v_polars_frame(obj) -> None:
         TypeError: If obj is not a Polars DataFrame or LazyFrame
     """
     if not isinstance(obj, (pl.DataFrame, pl.LazyFrame)):
-        raise TypeError(
-            f"Requires a Polars DataFrame or LazyFrame, got {type(obj).__name__}"
-        )
+        raise TypeError(f"Requires a Polars DataFrame or LazyFrame, got {type(obj).__name__}")
 
 
 def v_polars_series(series: pl.Series | None, length: int = 0) -> pl.Series | None:
@@ -217,4 +207,3 @@ def v_polars_series(series: pl.Series | None, length: int = 0) -> pl.Series | No
         if len(series) >= v_pos_default(length, 0):
             return series
     return None
-

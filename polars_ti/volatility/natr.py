@@ -41,22 +41,20 @@ def pl_natr(
         pl.Expr: NATR expression
     """
     from polars_ti.volatility.atr import pl_atr
-    
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
-    
+
     if high_expr is None or low_expr is None or close_expr is None:
         return None
-    
+
     # NATR = (scalar / close) * ATR (matches Pandas exactly)
     atr_result = pl_atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
     result = (pl.lit(scalar) / close_expr) * atr_result
-    
+
     # Apply offset
     if offset != 0:
         result = result.shift(offset)
-    
+
     return result.alias(f"NATR_{length}")
-
-

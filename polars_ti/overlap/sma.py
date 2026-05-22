@@ -46,7 +46,7 @@ def pl_sma(
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
     import numpy as np
-    
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -56,17 +56,17 @@ def pl_sma(
     _length = length
 
     if _use_talib:
+
         def compute_sma(s: pl.Series) -> pl.Series:
             from talib import SMA as TALIB_SMA
+
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_SMA(arr, timeperiod=_length)
             return pl.Series(result)
+
         sma_expr = close_expr.map_batches(compute_sma, return_dtype=pl.Float64)
     else:
-        sma_expr = close_expr.rolling_mean(
-            window_size=length,
-            min_samples=min_periods
-        )
+        sma_expr = close_expr.rolling_mean(window_size=length, min_samples=min_periods)
 
     # Apply offset
     if offset != 0:
