@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.cycles.ebsw import pl_ebsw, pl_ebsw_apply
+from polars_ti.cycles.ebsw import ebsw, ebsw_apply
 
 
 class TestPlEbsw:
@@ -13,7 +13,7 @@ class TestPlEbsw:
 
     def test_pl_ebsw_returns_function(self):
         """Test that pl_ebsw returns a callable."""
-        compute_fn = pl_ebsw()
+        compute_fn = ebsw()
         assert callable(compute_fn)
 
     def test_pl_ebsw_apply_adds_column(self):
@@ -21,7 +21,7 @@ class TestPlEbsw:
         np.random.seed(42)
         close = np.random.randn(60).cumsum() + 100
         df = pl.DataFrame({"close": close})
-        result = pl_ebsw_apply(df, close="close", length=40, bars=10)
+        result = ebsw_apply(df, close="close", length=40, bars=10)
         assert "EBSW_40_10" in result.columns
 
     def test_ebsw_bounded(self):
@@ -29,7 +29,7 @@ class TestPlEbsw:
         np.random.seed(42)
         close = np.random.randn(100).cumsum() + 100
         df = pl.DataFrame({"close": close})
-        result = pl_ebsw_apply(df, close="close", length=40, bars=10)
+        result = ebsw_apply(df, close="close", length=40, bars=10)
         vals = result["EBSW_40_10"].drop_nulls().to_numpy()
         # Filter out NaN values and check bounds
         valid = vals[~np.isnan(vals)]
@@ -40,7 +40,7 @@ class TestPlEbsw:
         np.random.seed(42)
         close = np.random.randn(60).cumsum() + 100
         df = pl.DataFrame({"close": close})
-        result = pl_ebsw_apply(df, close="close", length=40, bars=10)
+        result = ebsw_apply(df, close="close", length=40, bars=10)
         vals = result["EBSW_40_10"].to_numpy()
         # First 39 should be NaN (length-1)
         assert np.isnan(vals[:39]).all()
@@ -50,7 +50,7 @@ class TestPlEbsw:
     def test_with_zeros(self):
         """Handles zero values."""
         df = pl.DataFrame({"close": [0.0] * 10 + [100.0] * 90})
-        result = pl_ebsw_apply(df, length=40, bars=10)
+        result = ebsw_apply(df, length=40, bars=10)
         assert result.height == 100
 
     def test_preserves_original_columns(self):
@@ -58,7 +58,7 @@ class TestPlEbsw:
         np.random.seed(42)
         close = np.random.randn(60).cumsum() + 100
         df = pl.DataFrame({"close": close, "other": range(60)})
-        result = pl_ebsw_apply(df, length=40, bars=10)
+        result = ebsw_apply(df, length=40, bars=10)
         assert "close" in result.columns
         assert "other" in result.columns
         assert "EBSW_40_10" in result.columns

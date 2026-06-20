@@ -102,7 +102,7 @@ from polars_ti.utils import v_talib
 from polars_ti.utils._validate import v_expr
 
 
-def pl_mama(
+def mama(
     df: pl.DataFrame,
     close: str = "close",
     fastlimit: float = 0.5,

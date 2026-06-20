@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_tsignals(
+def tsignals(
     trend: IntoExpr,
     asbool: bool = False,
     trade_offset: int = 0,

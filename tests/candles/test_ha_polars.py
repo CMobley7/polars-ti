@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.candles.ha import pl_ha, pl_ha_apply
+from polars_ti.candles.ha import ha, ha_apply
 
 
 class TestPlHa:
@@ -24,12 +24,12 @@ class TestPlHa:
 
     def test_pl_ha_returns_function(self):
         """Test that pl_ha returns a callable."""
-        compute_fn = pl_ha()
+        compute_fn = ha()
         assert callable(compute_fn)
 
     def test_pl_ha_apply_adds_columns(self, sample_df):
         """Test that pl_ha_apply adds HA columns."""
-        result = pl_ha_apply(sample_df)
+        result = ha_apply(sample_df)
         assert "HA_open" in result.columns
         assert "HA_high" in result.columns
         assert "HA_low" in result.columns
@@ -37,14 +37,14 @@ class TestPlHa:
 
     def test_ha_close_is_ohlc_average(self, sample_df):
         """Test that HA_close is average of OHLC."""
-        result = pl_ha_apply(sample_df)
+        result = ha_apply(sample_df)
         expected_ha_close = (sample_df["open"] + sample_df["high"] + sample_df["low"] + sample_df["close"]) / 4
         diff = (result["HA_close"] - expected_ha_close).abs().max()
         assert diff < 1e-10
 
     def test_ha_high_ge_ha_open_close(self, sample_df):
         """Test that HA_high >= max(HA_open, HA_close)."""
-        result = pl_ha_apply(sample_df)
+        result = ha_apply(sample_df)
         ha_high = result["HA_high"].to_numpy()
         ha_open = result["HA_open"].to_numpy()
         ha_close = result["HA_close"].to_numpy()
@@ -52,7 +52,7 @@ class TestPlHa:
 
     def test_ha_low_le_ha_open_close(self, sample_df):
         """Test that HA_low <= min(HA_open, HA_close)."""
-        result = pl_ha_apply(sample_df)
+        result = ha_apply(sample_df)
         ha_low = result["HA_low"].to_numpy()
         ha_open = result["HA_open"].to_numpy()
         ha_close = result["HA_close"].to_numpy()
@@ -69,7 +69,7 @@ class TestPlHa:
             }
         )
         # Should not crash; result may have NaNs
-        result = pl_ha_apply(df)
+        result = ha_apply(df)
         assert result.height == 20
         assert "HA_close" in result.columns
 
@@ -83,12 +83,12 @@ class TestPlHa:
                 "close": [0.0] * 5 + [105.0] * 15,
             }
         )
-        result = pl_ha_apply(df)
+        result = ha_apply(df)
         assert result.height == 20
 
     def test_preserves_original_columns(self, sample_df):
         """Original columns are preserved."""
-        result = pl_ha_apply(sample_df)
+        result = ha_apply(sample_df)
         assert "open" in result.columns
         assert "high" in result.columns
         assert "low" in result.columns

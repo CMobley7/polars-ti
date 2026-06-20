@@ -104,7 +104,7 @@ def _trix_core(
     return trix, trix_signal
 
 
-def pl_trix(
+def trix(
     close: IntoExpr,
     length: int = 30,
     signal: int = 9,

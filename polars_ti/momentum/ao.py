@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ao(
+def ao(
     high: IntoExpr,
     low: IntoExpr,
     fast: int = 5,
@@ -32,8 +32,8 @@ def pl_ao(
     Returns:
         pl.Expr: AO expression
     """
-    from polars_ti.overlap.hl2 import pl_hl2
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.overlap.hl2 import hl2
+    from polars_ti.overlap.sma import sma
 
     if slow < fast:
         fast, slow = slow, fast
@@ -42,11 +42,11 @@ def pl_ao(
     low_expr = v_expr(low)
 
     # Use pl_hl2 for median price
-    hl2_expr = pl_hl2(high_expr, low_expr)
+    hl2_expr = hl2(high_expr, low_expr)
 
     # Use pl_sma for fast and slow SMAs
-    fast_sma = pl_sma(hl2_expr, length=fast, talib=False, offset=0)
-    slow_sma = pl_sma(hl2_expr, length=slow, talib=False, offset=0)
+    fast_sma = sma(hl2_expr, length=fast, talib=False, offset=0)
+    slow_sma = sma(hl2_expr, length=slow, talib=False, offset=0)
 
     # AO = fast SMA - slow SMA
     ao_expr = fast_sma - slow_sma

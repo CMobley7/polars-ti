@@ -59,7 +59,7 @@ def nb_std(arr: np.ndarray, ddof: int) -> float:
     return np.sqrt(var)
 
 
-def pl_tos_stdevall(
+def tos_stdevall(
     close: IntoExpr,
     length: int | None = None,
     stds: list | None = None,

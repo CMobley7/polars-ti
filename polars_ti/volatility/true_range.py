@@ -3,16 +3,18 @@
 # Polars True Range Implementation (Pure Native Polars)
 # =============================================================================
 import polars as pl
+import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_true_range(
+def true_range(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
     drift: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: True Range
@@ -32,6 +34,7 @@ def pl_true_range(
         low: Column name or pl.Expr for 'low'
         close: Column name or pl.Expr for 'close'
         drift: Shift period for previous close. Default: 1
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -44,16 +47,29 @@ def pl_true_range(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    # Previous close
-    prev_close = close_expr.shift(drift)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    # Three component ranges
-    hl_range = high_expr - low_expr
-    hc_range = (high_expr - prev_close).abs()
-    lc_range = (prev_close - low_expr).abs()
+    if Imports["talib"] and v_talib(talib) and drift == 1:
 
-    # True Range = max of all three
-    result = pl.max_horizontal(hl_range, hc_range, lc_range)
+        def compute_tr(struct: pl.Series) -> pl.Series:
+            from talib import TRANGE
+
+            data = struct.struct.unnest()
+            h = data["h"].to_numpy().astype(np.float64)
+            l_ = data["l"].to_numpy().astype(np.float64)
+            c = data["c"].to_numpy().astype(np.float64)
+            return pl.Series(TRANGE(h, l_, c))
+
+        result = pl.struct(high_expr.alias("h"), low_expr.alias("l"), close_expr.alias("c")).map_batches(
+            compute_tr, return_dtype=pl.Float64
+        )
+    else:
+        prev_close = close_expr.shift(drift)
+        hl_range = high_expr - low_expr
+        hc_range = (high_expr - prev_close).abs()
+        lc_range = (prev_close - low_expr).abs()
+        result = pl.max_horizontal(hl_range, hc_range, lc_range)
 
     if offset != 0:
         result = result.shift(offset)

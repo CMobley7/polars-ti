@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_remap(
+def remap(
     close: IntoExpr,
     from_min: float = 0.0,
     from_max: float = 100.0,

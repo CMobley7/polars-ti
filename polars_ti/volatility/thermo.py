@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_thermo(
+def thermo(
     high: IntoExpr,
     low: IntoExpr,
     length: int = 20,
@@ -41,7 +41,7 @@ def pl_thermo(
     Returns:
         pl.Expr: Struct with thermo, thermo_ma, thermo_long, thermo_short columns
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -57,7 +57,7 @@ def pl_thermo(
     thermo = pl.when(thermo_h < thermo_l).then(thermo_l).otherwise(thermo_h)
 
     # MA of thermo
-    thermo_ma = pl_ma(name=mamode, source=thermo, length=length, talib=False)
+    thermo_ma = ma(name=mamode, source=thermo, length=length, talib=False)
 
     # Long/Short signals
     thermo_long_cond = thermo < (thermo_ma * pl.lit(long))

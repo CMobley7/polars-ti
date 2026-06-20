@@ -5,11 +5,11 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_eom(
+def eom(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -37,8 +37,8 @@ def pl_eom(
     Returns:
         pl.Expr: EOM expression
     """
-    from polars_ti.overlap.hl2 import pl_hl2
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.overlap.hl2 import hl2
+    from polars_ti.overlap.sma import sma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -53,17 +53,17 @@ def pl_eom(
     # box_ratio = (volume / divisor) / (high - low)
 
     # Use pl_hl2 for code reuse
-    hl2_expr = pl_hl2(high_expr, low_expr)
-    hl2_shifted = pl_hl2(high_expr.shift(drift), low_expr.shift(drift))
+    hl2_expr = hl2(high_expr, low_expr)
+    hl2_shifted = hl2(high_expr.shift(drift), low_expr.shift(drift))
     distance = hl2_expr - hl2_shifted
 
-    hl_range_safe = pl_non_zero_range(high_expr, low_expr)
+    hl_range_safe = non_zero_range(high_expr, low_expr)
     box_ratio = (volume_expr / divisor) / hl_range_safe
 
     eom_raw = distance / box_ratio
 
     # Use pl_sma for code reuse
-    eom_expr = pl_sma(eom_raw, length=length, talib=False, offset=0)
+    eom_expr = sma(eom_raw, length=length, talib=False, offset=0)
 
     if offset != 0:
         eom_expr = eom_expr.shift(offset)

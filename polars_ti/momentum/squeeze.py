@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_squeeze(
+def squeeze(
     high: IntoExpr = "high",
     low: IntoExpr = "low",
     close: IntoExpr = "close",
@@ -56,11 +56,11 @@ def pl_squeeze(
     Returns:
         pl.Expr: Struct expression with SQZ (momentum), SQZ_ON, SQZ_OFF, SQZ_NO columns
     """
-    from polars_ti.volatility.bbands import pl_bbands
-    from polars_ti.volatility.kc import pl_kc
-    from polars_ti.momentum.mom import pl_mom
-    from polars_ti.overlap.linreg import pl_linreg
-    from polars_ti.ma import pl_ma
+    from polars_ti.volatility.bbands import bbands
+    from polars_ti.volatility.kc import kc
+    from polars_ti.momentum.mom import mom
+    from polars_ti.overlap.linreg import linreg
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -74,12 +74,12 @@ def pl_squeeze(
     _props += "_LB" if lazybear else ""
 
     # Calculate Bollinger Bands - get struct fields
-    bb_struct = pl_bbands(close_expr, length=bb_length, std=bb_std, talib=False, offset=0)
+    bb_struct = bbands(close_expr, length=bb_length, std=bb_std, talib=False, offset=0)
     bb_lower_name = f"BBL_{bb_length}_{bb_std}"
     bb_upper_name = f"BBU_{bb_length}_{bb_std}"
 
     # Calculate Keltner Channels - get struct fields
-    kc_struct = pl_kc(
+    kc_struct = kc(
         high_expr,
         low_expr,
         close_expr,
@@ -144,11 +144,11 @@ def pl_squeeze(
         # Need kc basis (middle band)
         # For now we use simplified version
         avg_hl = (highest_high + lowest_low) / 2
-        sqz_val = pl_linreg(close_expr - avg_hl, length=kc_length, tsf=True, offset=0)
+        sqz_val = linreg(close_expr - avg_hl, length=kc_length, tsf=True, offset=0)
     else:
         # Standard mode: smoothed momentum
-        momo = pl_mom(close_expr, length=mom_length, talib=False, offset=0)
-        sqz_val = pl_ma(name=mamode, source=momo, length=mom_smooth, talib=False)
+        momo = mom(close_expr, length=mom_length, talib=False, offset=0)
+        sqz_val = ma(name=mamode, source=momo, length=mom_smooth, talib=False)
 
     # Build struct with all needed values and compute
     # This is complex - we need to handle struct extraction properly

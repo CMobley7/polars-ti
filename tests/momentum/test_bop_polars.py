@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.momentum.bop import pl_bop
+from polars_ti.momentum.bop import bop
 
 
 class TestPlBop:
@@ -19,37 +19,37 @@ class TestPlBop:
         return pl.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
     def test_returns_expr(self):
-        expr = pl_bop("open", "high", "low", "close")
+        expr = bop("open", "high", "low", "close")
         assert isinstance(expr, pl.Expr)
 
     def test_has_bop_column(self, sample_df):
-        result = sample_df.select(pl_bop("open", "high", "low", "close"))
+        result = sample_df.select(bop("open", "high", "low", "close"))
         assert "BOP" in result.columns
 
     def test_has_valid_values(self, sample_df):
-        result = sample_df.select(pl_bop("open", "high", "low", "close"))
+        result = sample_df.select(bop("open", "high", "low", "close"))
         # BOP should have values immediately (no warmup)
         assert result["BOP"].null_count() == 0
 
     def test_offset_parameter(self, sample_df):
-        result_with_offset = sample_df.select(pl_bop("open", "high", "low", "close", offset=5))
+        result_with_offset = sample_df.select(bop("open", "high", "low", "close", offset=5))
         # First 5 values should be null
         assert result_with_offset["BOP"][:5].null_count() == 5
 
     def test_lazy_execution(self, sample_df):
-        result = sample_df.lazy().select(pl_bop("open", "high", "low", "close")).collect()
+        result = sample_df.lazy().select(bop("open", "high", "low", "close")).collect()
         assert "BOP" in result.columns
 
     def test_talib_true(self, sample_df):
-        result = sample_df.select(pl_bop("open", "high", "low", "close", talib=True))
+        result = sample_df.select(bop("open", "high", "low", "close", talib=True))
         assert "BOP" in result.columns
 
     def test_talib_false(self, sample_df):
-        result = sample_df.select(pl_bop("open", "high", "low", "close", talib=False))
+        result = sample_df.select(bop("open", "high", "low", "close", talib=False))
         assert "BOP" in result.columns
 
     def test_scalar_parameter(self, sample_df):
-        result = sample_df.select(pl_bop("open", "high", "low", "close", scalar=2.0, talib=False))
+        result = sample_df.select(bop("open", "high", "low", "close", scalar=2.0, talib=False))
         # With scalar=2.0, values should be doubled
         assert "BOP" in result.columns
 
@@ -62,5 +62,5 @@ class TestPlBop:
                 "close": [100.5, 101.0, 102.5, 103.5],
             }
         )
-        result = df.select(pl_bop("open", "high", "low", "close", talib=False))
+        result = df.select(bop("open", "high", "low", "close", talib=False))
         assert result.height == 4

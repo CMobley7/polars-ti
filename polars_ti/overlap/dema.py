@@ -10,7 +10,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.overlap.ema import _ema_numba
 
 
-def pl_dema(
+def dema(
     close: IntoExpr,
     length: int = 10,
     talib: bool = True,

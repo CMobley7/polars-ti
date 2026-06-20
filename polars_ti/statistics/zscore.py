@@ -44,7 +44,7 @@ def nb_zscore(close: np.ndarray, length: int, std_mult: float) -> np.ndarray:
     return result
 
 
-def pl_zscore(
+def zscore(
     close: IntoExpr,
     length: int = 30,
     std: float = 1.0,

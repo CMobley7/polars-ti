@@ -84,7 +84,7 @@ def nb_linreg(
     return result
 
 
-def pl_linreg(
+def linreg(
     close: IntoExpr,
     length: int = 14,
     talib: bool = True,

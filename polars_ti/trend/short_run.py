@@ -6,11 +6,11 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.trend.increasing import pl_increasing
-from polars_ti.trend.decreasing import pl_decreasing
+from polars_ti.trend.increasing import increasing
+from polars_ti.trend.decreasing import decreasing
 
 
-def pl_short_run(
+def short_run(
     fast: IntoExpr,
     slow: IntoExpr,
     length: int = 2,
@@ -41,9 +41,9 @@ def pl_short_run(
 
     # pt = potential top: fast decreasing AND slow increasing
     # bd = both decreasing: fast decreasing AND slow decreasing
-    fast_dec = pl_decreasing(fast_expr, length=length, asint=False)
-    slow_inc = pl_increasing(slow_expr, length=length, asint=False)
-    slow_dec = pl_decreasing(slow_expr, length=length, asint=False)
+    fast_dec = decreasing(fast_expr, length=length, asint=False)
+    slow_inc = increasing(slow_expr, length=length, asint=False)
+    slow_dec = decreasing(slow_expr, length=length, asint=False)
 
     pt = fast_dec & slow_inc
     bd = fast_dec & slow_dec

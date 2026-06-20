@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_zscore(col: IntoExpr, length: int = 30, ddof: int = 1) -> PlExpr:
+def zscore(col: IntoExpr, length: int = 30, ddof: int = 1) -> PlExpr:
     """Polars: Rolling Z-Score calculation."""
     expr = v_expr(col)
     mean = expr.rolling_mean(window_size=length, min_samples=length)
@@ -16,7 +16,7 @@ def pl_zscore(col: IntoExpr, length: int = 30, ddof: int = 1) -> PlExpr:
     return (expr - mean) / std
 
 
-def pl_cdl_z(
+def cdl_z(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,
@@ -49,10 +49,10 @@ def pl_cdl_z(
 
     # Build base expressions
     exprs = [
-        pl_zscore(open_, length, ddof).alias(f"open_Z{props}"),
-        pl_zscore(high, length, ddof).alias(f"high_Z{props}"),
-        pl_zscore(low, length, ddof).alias(f"low_Z{props}"),
-        pl_zscore(close, length, ddof).alias(f"close_Z{props}"),
+        zscore(open_, length, ddof).alias(f"open_Z{props}"),
+        zscore(high, length, ddof).alias(f"high_Z{props}"),
+        zscore(low, length, ddof).alias(f"low_Z{props}"),
+        zscore(close, length, ddof).alias(f"close_Z{props}"),
     ]
 
     # Apply offset if needed

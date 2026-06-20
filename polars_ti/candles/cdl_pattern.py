@@ -6,8 +6,8 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.candles.cdl_doji import pl_cdl_doji
-from polars_ti.candles.cdl_inside import pl_cdl_inside
+from polars_ti.candles.cdl_doji import cdl_doji
+from polars_ti.candles.cdl_inside import cdl_inside
 
 
 # Full list of TA-Lib candle patterns (used when talib=True)
@@ -78,12 +78,12 @@ ALL_PATTERNS = [
 
 # Polars-native patterns available
 POLARS_PATTERNS = {
-    "doji": pl_cdl_doji,
-    "inside": pl_cdl_inside,
+    "doji": cdl_doji,
+    "inside": cdl_inside,
 }
 
 
-def pl_cdl_pattern(
+def cdl_pattern(
     df: pl.DataFrame,
     open_: str = "open",
     high: str = "high",
@@ -135,9 +135,9 @@ def pl_cdl_pattern(
         # Try native Polars first
         if pattern in POLARS_PATTERNS:
             if pattern == "doji":
-                expr = pl_cdl_doji(open_, high, low, close, scalar=scalar, offset=offset)
+                expr = cdl_doji(open_, high, low, close, scalar=scalar, offset=offset)
             elif pattern == "inside":
-                expr = pl_cdl_inside(open_, high, low, close, scalar=scalar, offset=offset)
+                expr = cdl_inside(open_, high, low, close, scalar=scalar, offset=offset)
             result_df = result_df.with_columns(expr)
         elif _use_talib and pattern in ALL_PATTERNS:
             # Use TA-Lib via map_batches
@@ -186,7 +186,7 @@ def pl_cdl_pattern(
     return result_df
 
 
-def pl_cdl_doji_expr(
+def cdl_doji_expr(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,
@@ -195,17 +195,17 @@ def pl_cdl_doji_expr(
     factor: float = 10.0,
     scalar: float = 100.0,
 ) -> PlExpr:
-    """Alias for pl_cdl_doji for consistency."""
-    return pl_cdl_doji(open_, high, low, close, length, factor, scalar)
+    """Alias for cdl_doji for consistency."""
+    return cdl_doji(open_, high, low, close, length, factor, scalar)
 
 
-def pl_cdl_inside_expr(
+def cdl_inside_expr(
     high: IntoExpr,
     low: IntoExpr,
     scalar: float = 100.0,
 ) -> PlExpr:
-    """Alias for pl_cdl_inside for consistency."""
-    return pl_cdl_inside(high, low, scalar)
+    """Alias for cdl_inside for consistency."""
+    return cdl_inside(high, low, scalar)
 
 
-pl_cdl = pl_cdl_pattern  # Alias matching pandas naming convention
+cdl = cdl_pattern  # Alias matching pandas naming convention

@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.hilo import pl_hilo
+from polars_ti.overlap.hilo import hilo as hilo_indicator
 
 
 class TestPlHilo:
@@ -41,27 +41,27 @@ class TestPlHilo:
 
     def test_returns_dataframe_with_correct_columns(self, sample_df):
         """Test that pl_hilo returns DataFrame with expected columns."""
-        result = pl_hilo(sample_df, high_length=13, low_length=21)
+        result = hilo_indicator(sample_df, high_length=13, low_length=21)
         assert "HILO_13_21" in result.columns
         assert "HILOl_13_21" in result.columns
         assert "HILOs_13_21" in result.columns
 
     def test_preserves_original_columns(self, sample_df):
         """Test that original columns are preserved."""
-        result = pl_hilo(sample_df)
+        result = hilo_indicator(sample_df)
         assert "high" in result.columns
         assert "low" in result.columns
         assert "close" in result.columns
 
     def test_custom_lengths(self, sample_df):
         """Test with custom high and low lengths."""
-        result = pl_hilo(sample_df, high_length=10, low_length=15)
+        result = hilo_indicator(sample_df, high_length=10, low_length=15)
         assert "HILO_10_15" in result.columns
 
     def test_different_mamode(self, sample_df):
         """Test with different MA modes."""
-        result_sma = pl_hilo(sample_df, mamode="sma")
-        result_ema = pl_hilo(sample_df, mamode="ema")
+        result_sma = hilo_indicator(sample_df, mamode="sma")
+        result_ema = hilo_indicator(sample_df, mamode="ema")
 
         hilo_sma = result_sma.get_column("HILO_13_21").to_numpy()
         hilo_ema = result_ema.get_column("HILO_13_21").to_numpy()
@@ -71,14 +71,14 @@ class TestPlHilo:
 
     def test_offset_shifts_results(self, sample_df):
         """Test that offset parameter shifts results."""
-        result_offset = pl_hilo(sample_df, offset=5)
+        result_offset = hilo_indicator(sample_df, offset=5)
 
         arr = result_offset.get_column("HILO_13_21").to_numpy()
         assert np.isnan(arr[:5]).all()
 
     def test_hilo_values_are_numeric(self, sample_df):
         """Test that HILO values are numeric."""
-        result = pl_hilo(sample_df)
+        result = hilo_indicator(sample_df)
         hilo = result.get_column("HILO_13_21").to_numpy()
 
         non_null = ~np.isnan(hilo)
@@ -93,7 +93,7 @@ class TestPlHilo:
                 "close": [None] + [100.0] * 39,
             }
         )
-        result = pl_hilo(df)
+        result = hilo_indicator(df)
         assert result.height == 40
 
     def test_with_zeros(self):
@@ -105,10 +105,10 @@ class TestPlHilo:
                 "close": [0.0] * 5 + [100.0] * 35,
             }
         )
-        result = pl_hilo(df)
+        result = hilo_indicator(df)
         assert result.height == 40
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame (converts to eager internally)."""
-        result = pl_hilo(sample_df)
+        result = hilo_indicator(sample_df)
         assert "HILO_13_21" in result.columns

@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_amat(
+def amat(
     close: IntoExpr,
     fast: int = 8,
     slow: int = 21,
@@ -31,17 +31,17 @@ def pl_amat(
     Returns:
         pl.Expr: Struct with AMAT_LR and AMAT_SR columns
     """
-    from polars_ti.ma import pl_ma
-    from polars_ti.trend.long_run import pl_long_run
-    from polars_ti.trend.short_run import pl_short_run
+    from polars_ti.ma import ma
+    from polars_ti.trend.long_run import long_run
+    from polars_ti.trend.short_run import short_run
 
     close_expr = v_expr(close)
 
-    fast_ma = pl_ma(mamode, close_expr, length=fast, talib=False)
-    slow_ma = pl_ma(mamode, close_expr, length=slow, talib=False)
+    fast_ma = ma(mamode, close_expr, length=fast, talib=False)
+    slow_ma = ma(mamode, close_expr, length=slow, talib=False)
 
-    lr = pl_long_run(fast_ma, slow_ma, length=lookback)
-    sr = pl_short_run(fast_ma, slow_ma, length=lookback)
+    lr = long_run(fast_ma, slow_ma, length=lookback)
+    sr = short_run(fast_ma, slow_ma, length=lookback)
 
     if offset != 0:
         lr = lr.shift(offset)

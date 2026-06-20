@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.squeeze_pro import pl_squeeze_pro
+from polars_ti.momentum.squeeze_pro import squeeze_pro
 
 
 @pytest.fixture
@@ -27,13 +27,13 @@ class TestPlSqueezeProBasic:
 
     def test_returns_expr(self, ohlc_data):
         """Test that pl_squeeze_pro returns a Polars expression."""
-        expr = pl_squeeze_pro()
+        expr = squeeze_pro()
         assert isinstance(expr, pl.Expr)
 
     def test_default_parameters(self, ohlc_data):
         """Test pl_squeeze_pro with default parameters."""
         pl_df = ohlc_data["pl_df"]
-        result = pl_df.select(pl_squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
+        result = pl_df.select(squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
 
         assert len(result.columns) == 6
         assert "SQZPRO_20_2.0_20_2.0_1.5_1.0" in result.columns
@@ -47,7 +47,7 @@ class TestPlSqueezeProBasic:
         """Test pl_squeeze_pro with custom parameters."""
         pl_df = ohlc_data["pl_df"]
         result = pl_df.select(
-            pl_squeeze_pro(
+            squeeze_pro(
                 bb_length=15,
                 bb_std=1.5,
                 kc_length=15,
@@ -72,9 +72,9 @@ class TestPlSqueezeProEdgeCases:
         """Test that pl_squeeze_pro works in lazy context."""
         pl_df = ohlc_data["pl_df"]
 
-        lazy_result = pl_df.lazy().select(pl_squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0").collect()
+        lazy_result = pl_df.lazy().select(squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0").collect()
 
-        eager_result = pl_df.select(pl_squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
+        eager_result = pl_df.select(squeeze_pro()).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
 
         for col in ["SQZPRO_ON_WIDE", "SQZPRO_OFF", "SQZPRO_NO"]:
             assert lazy_result[col].to_list() == eager_result[col].to_list()
@@ -82,7 +82,7 @@ class TestPlSqueezeProEdgeCases:
     def test_invalid_kc_scalars(self, ohlc_data):
         """Test that invalid kc scalars return None."""
         # wide must be > normal > narrow
-        result = pl_squeeze_pro(kc_scalar_wide=1.0, kc_scalar_normal=1.5, kc_scalar_narrow=2.0)
+        result = squeeze_pro(kc_scalar_wide=1.0, kc_scalar_normal=1.5, kc_scalar_narrow=2.0)
         assert result is None
 
 
@@ -93,7 +93,7 @@ class TestPlSqueezeProFeatureParity:
         """Test with EMA mode."""
         pl_df = ohlc_data["pl_df"]
 
-        result = pl_df.select(pl_squeeze_pro(mamode="ema")).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
+        result = pl_df.select(squeeze_pro(mamode="ema")).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
 
         assert len(result) == len(pl_df)
 
@@ -101,7 +101,7 @@ class TestPlSqueezeProFeatureParity:
         """Test asint=False returns boolean types."""
         pl_df = ohlc_data["pl_df"]
 
-        result = pl_df.select(pl_squeeze_pro(asint=False)).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
+        result = pl_df.select(squeeze_pro(asint=False)).unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
 
         assert result["SQZPRO_ON_WIDE"].dtype == pl.Boolean
         assert result["SQZPRO_OFF"].dtype == pl.Boolean
@@ -116,7 +116,7 @@ class TestPlSqueezeProIntegration:
         pl_df = ohlc_data["pl_df"]
 
         result = (
-            pl_df.select(pl_squeeze_pro())
+            pl_df.select(squeeze_pro())
             .unnest("SQZPRO_20_2.0_20_2.0_1.5_1.0")
             .select(
                 [

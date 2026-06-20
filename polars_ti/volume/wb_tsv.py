@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_wb_tsv(
+def wb_tsv(
     close: IntoExpr,
     volume: IntoExpr,
     length: int = 18,
@@ -34,7 +34,7 @@ def pl_wb_tsv(
     Returns:
         list[pl.Expr]: [TSV, TSV_signal, TSV_ratio]
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -56,7 +56,7 @@ def pl_wb_tsv(
     tsv_expr = cvd.rolling_sum(window_size=length, min_samples=length)
 
     # Signal = MA(TSV, signal)
-    signal_expr = pl_ma(name=mamode, source=tsv_expr, length=signal)
+    signal_expr = ma(name=mamode, source=tsv_expr, length=signal)
 
     # Ratio = TSV / Signal (with div/0 protection)
     ratio_expr = tsv_expr / signal_expr

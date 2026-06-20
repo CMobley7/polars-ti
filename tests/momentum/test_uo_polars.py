@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.uo import pl_uo
+from polars_ti.momentum.uo import uo as uo_indicator
 
 
 class TestPlUo:
@@ -23,20 +23,20 @@ class TestPlUo:
 
     def test_basic_output(self, sample_data: pl.DataFrame) -> None:
         """Test that pl_uo returns correct column."""
-        result = sample_data.select(pl_uo("high", "low", "close", talib=False))
+        result = sample_data.select(uo_indicator("high", "low", "close", talib=False))
 
         assert result.shape[1] == 1
         assert "UO_7_14_28" in result.columns
 
     def test_custom_parameters(self, sample_data: pl.DataFrame) -> None:
         """Test pl_uo with custom periods."""
-        result = sample_data.select(pl_uo("high", "low", "close", fast=5, medium=10, slow=20, talib=False))
+        result = sample_data.select(uo_indicator("high", "low", "close", fast=5, medium=10, slow=20, talib=False))
 
         assert "UO_5_10_20" in result.columns
 
     def test_uo_range(self, sample_data: pl.DataFrame) -> None:
         """Test that UO values are within 0 to 100."""
-        result = sample_data.select(pl_uo("high", "low", "close", talib=False))
+        result = sample_data.select(uo_indicator("high", "low", "close", talib=False))
 
         uo = result["UO_7_14_28"].to_numpy()
         valid = ~np.isnan(uo)
@@ -47,8 +47,8 @@ class TestPlUo:
 
     def test_offset_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test offset shifts output."""
-        result_no_offset = sample_data.select(pl_uo("high", "low", "close", offset=0, talib=False))
-        result_with_offset = sample_data.select(pl_uo("high", "low", "close", offset=5, talib=False))
+        result_no_offset = sample_data.select(uo_indicator("high", "low", "close", offset=0, talib=False))
+        result_with_offset = sample_data.select(uo_indicator("high", "low", "close", offset=5, talib=False))
 
         uo_no = result_no_offset["UO_7_14_28"].to_numpy()
         uo_with = result_with_offset["UO_7_14_28"].to_numpy()
@@ -62,7 +62,7 @@ class TestPlUo:
     def test_custom_weights(self, sample_data: pl.DataFrame) -> None:
         """Test that custom weights affect output."""
         result_default = sample_data.select(
-            pl_uo(
+            uo_indicator(
                 "high",
                 "low",
                 "close",
@@ -73,7 +73,7 @@ class TestPlUo:
             )
         )
         result_custom = sample_data.select(
-            pl_uo(
+            uo_indicator(
                 "high",
                 "low",
                 "close",
@@ -94,7 +94,7 @@ class TestPlUo:
     def test_lazy_evaluation(self, sample_data: pl.DataFrame) -> None:
         """Test that pl_uo works in lazy context."""
         lazy_df = sample_data.lazy()
-        result = lazy_df.select(pl_uo("high", "low", "close", talib=False)).collect()
+        result = lazy_df.select(uo_indicator("high", "low", "close", talib=False)).collect()
 
         assert result.shape[1] == 1
         assert not result["UO_7_14_28"].is_empty()
@@ -114,7 +114,7 @@ class TestPlUo:
             }
         )
 
-        result = df.select(pl_uo("high", "low", "close", talib=False))
+        result = df.select(uo_indicator("high", "low", "close", talib=False))
 
         assert result.shape[0] == n
         uo = result["UO_7_14_28"].to_numpy()
@@ -122,15 +122,15 @@ class TestPlUo:
 
     def test_expr_input(self, sample_data: pl.DataFrame) -> None:
         """Test pl_uo accepts pl.Expr as input."""
-        result = sample_data.select(pl_uo(pl.col("high"), pl.col("low"), pl.col("close"), talib=False))
+        result = sample_data.select(uo_indicator(pl.col("high"), pl.col("low"), pl.col("close"), talib=False))
 
         assert result.shape[1] == 1
 
     def test_talib_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that talib parameter controls TA-Lib usage."""
         # Both should work regardless of TA-Lib availability
-        result_talib = sample_data.select(pl_uo("high", "low", "close", talib=True))
-        result_pure = sample_data.select(pl_uo("high", "low", "close", talib=False))
+        result_talib = sample_data.select(uo_indicator("high", "low", "close", talib=True))
+        result_pure = sample_data.select(uo_indicator("high", "low", "close", talib=False))
 
         assert result_talib.shape[1] == 1
         assert result_pure.shape[1] == 1
@@ -151,7 +151,7 @@ class TestPlUo:
             c = sample_data["close"].to_numpy()
 
             talib_result = ULTOSC(h, l, c, 7, 14, 28)
-            polars_result = sample_data.select(pl_uo("high", "low", "close", talib=True))
+            polars_result = sample_data.select(uo_indicator("high", "low", "close", talib=True))
             polars_val = polars_result["UO_7_14_28"].to_numpy()
 
             mask = ~np.isnan(talib_result) & ~np.isnan(polars_val)

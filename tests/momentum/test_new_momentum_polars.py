@@ -29,23 +29,23 @@ def ohlcv_df() -> pl.DataFrame:
 
 class TestPlKst:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.momentum.kst import pl_kst
+        from polars_ti.momentum.kst import kst
 
-        result = ohlcv_df.select(pl_kst("close"))
+        result = ohlcv_df.select(kst("close"))
         assert result.height == 200
 
 
 class TestPlLrsi:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.momentum.lrsi import pl_lrsi
+        from polars_ti.momentum.lrsi import lrsi
 
-        result = ohlcv_df.select(pl_lrsi("close"))
+        result = ohlcv_df.select(lrsi("close"))
         assert result.height == 200
 
 
 class TestPlPgo:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.momentum.pgo import pl_pgo
+        from polars_ti.momentum.pgo import pgo
 
-        result = ohlcv_df.select(pl_pgo("high", "low", "close"))
+        result = ohlcv_df.select(pgo("high", "low", "close"))
         assert result.height == 200

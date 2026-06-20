@@ -36,7 +36,7 @@ def nb_cg(close: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def pl_cg(
+def cg(
     close: IntoExpr,
     length: int = 10,
     offset: int = 0,

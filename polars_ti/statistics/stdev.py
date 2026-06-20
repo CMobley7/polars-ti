@@ -3,15 +3,17 @@
 # Polars STDEV Implementation
 # =============================================================================
 import polars as pl
+import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_stdev(
+def stdev(
     close: IntoExpr,
     length: int = 30,
     ddof: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Rolling Standard Deviation
@@ -22,6 +24,7 @@ def pl_stdev(
         close: Column name or pl.Expr for 'close' prices
         length: Rolling window period. Default: 30
         ddof: Delta Degrees of Freedom. Default: 1
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -31,8 +34,20 @@ def pl_stdev(
     if close_expr is None:
         return None
 
-    # Native Polars rolling_std
-    result = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+
+    if Imports["talib"] and v_talib(talib):
+
+        def compute_stdev(s: pl.Series) -> pl.Series:
+            from talib import STDDEV
+
+            arr = s.to_numpy().astype(np.float64)
+            return pl.Series(STDDEV(arr, timeperiod=length))
+
+        result = close_expr.map_batches(compute_stdev, return_dtype=pl.Float64)
+    else:
+        result = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
 
     if offset != 0:
         result = result.shift(offset)

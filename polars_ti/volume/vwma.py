@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_vwma(
+def vwma(
     close: IntoExpr,
     volume: IntoExpr,
     length: int = 10,
@@ -34,7 +34,7 @@ def pl_vwma(
     Returns:
         pl.Expr: VWMA expression
     """
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.overlap.sma import sma
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -44,7 +44,7 @@ def pl_vwma(
 
     # VWMA = SMA(close * volume) / SMA(volume) - matches Pandas exactly
     pv = close_expr * volume_expr
-    result = pl_sma(pv, length=length) / pl_sma(volume_expr, length=length)
+    result = sma(pv, length=length) / sma(volume_expr, length=length)
 
     if offset != 0:
         result = result.shift(offset)

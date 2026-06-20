@@ -3,15 +3,17 @@
 # Polars VARIANCE Implementation
 # =============================================================================
 import polars as pl
+import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_variance(
+def variance(
     close: IntoExpr,
     length: int = 30,
     ddof: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Rolling Variance
@@ -22,6 +24,7 @@ def pl_variance(
         close: Column name or pl.Expr for 'close' prices
         length: Rolling window period. Default: 30
         ddof: Delta Degrees of Freedom. Default: 1
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -31,8 +34,20 @@ def pl_variance(
     if close_expr is None:
         return None
 
-    # Native Polars rolling_var
-    result = close_expr.rolling_var(window_size=length, min_samples=length, ddof=ddof)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+
+    if Imports["talib"] and v_talib(talib):
+
+        def compute_var(s: pl.Series) -> pl.Series:
+            from talib import VAR
+
+            arr = s.to_numpy().astype(np.float64)
+            return pl.Series(VAR(arr, timeperiod=length))
+
+        result = close_expr.map_batches(compute_var, return_dtype=pl.Float64)
+    else:
+        result = close_expr.rolling_var(window_size=length, min_samples=length, ddof=ddof)
 
     if offset != 0:
         result = result.shift(offset)

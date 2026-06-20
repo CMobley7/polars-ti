@@ -8,8 +8,8 @@ from numba import jit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.momentum.rsi import pl_rsi
-from polars_ti.ma import pl_ma
+from polars_ti.momentum.rsi import rsi
+from polars_ti.ma import ma
 
 
 @jit(nopython=True, cache=True)
@@ -80,7 +80,7 @@ def nb_qqe_loop(
     return qqe, qqe_long, qqe_short
 
 
-def pl_qqe(
+def qqe(
     close: IntoExpr,
     length: int = 14,
     smooth: int = 5,
@@ -138,11 +138,11 @@ def pl_qqe(
         tmp = pl.DataFrame({"_close": arr})
 
         # Step 1: RSI via pl_rsi evaluated eagerly
-        rsi_col = tmp.select(pl_rsi("_close", length=_length)).to_series().to_numpy()
+        rsi_col = tmp.select(rsi("_close", length=_length)).to_series().to_numpy()
 
         # Step 2: Smooth RSI with pl_ma
         tmp2 = pl.DataFrame({"_rsi": rsi_col})
-        rsi_ma_expr = pl_ma(_mamode, "_rsi", length=_smooth)
+        rsi_ma_expr = ma(_mamode, "_rsi", length=_smooth)
         rsi_ma_col = tmp2.select(rsi_ma_expr).to_series().to_numpy()
 
         # Step 3: RSI MA True Range
@@ -150,9 +150,9 @@ def pl_qqe(
 
         # Step 4: Double EMA of RSI TR
         tmp3 = pl.DataFrame({"_tr": rsi_ma_tr})
-        s1 = tmp3.select(pl_ma("ema", "_tr", length=_wilders_length)).to_series().to_numpy()
+        s1 = tmp3.select(ma("ema", "_tr", length=_wilders_length)).to_series().to_numpy()
         tmp4 = pl.DataFrame({"_s1": s1})
-        s2 = tmp4.select(pl_ma("ema", "_s1", length=_wilders_length)).to_series().to_numpy()
+        s2 = tmp4.select(ma("ema", "_s1", length=_wilders_length)).to_series().to_numpy()
         dar = _factor * s2
 
         # Step 5: Upper/Lower bands

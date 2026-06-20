@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_cti(
+def cti(
     close: IntoExpr,
     length: int = 12,
     offset: int = 0,
@@ -27,9 +27,9 @@ def pl_cti(
     Returns:
         pl.Expr: CTI expression
     """
-    from polars_ti.overlap.linreg import pl_linreg
+    from polars_ti.overlap.linreg import linreg
 
     # CTI = linreg correlation coefficient (r=True)
-    cti_expr = pl_linreg(close, length=length, r=True, offset=offset)
+    cti_expr = linreg(close, length=length, r=True, offset=offset)
 
     return cti_expr.alias(f"CTI_{length}")

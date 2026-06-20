@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
@@ -68,7 +68,7 @@ def nb_massi_from_ema1(ema1: np.ndarray, fast: int, slow: int) -> np.ndarray:
     return result
 
 
-def pl_massi(
+def massi(
     high: IntoExpr,
     low: IntoExpr,
     fast: int = 9,
@@ -94,7 +94,7 @@ def pl_massi(
     Returns:
         pl.Expr: Mass Index expression
     """
-    from polars_ti.overlap.ema import pl_ema
+    from polars_ti.overlap.ema import ema
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -108,10 +108,10 @@ def pl_massi(
     _offset = offset
 
     # High-Low range (non-zero protection like Pandas non_zero_range)
-    hl_range = pl_non_zero_range(high_expr, low_expr)
+    hl_range = non_zero_range(high_expr, low_expr)
 
     # First EMA using pl_ema composition
-    ema1 = pl_ema(hl_range, length=_fast, talib=False, presma=True)
+    ema1 = ema(hl_range, length=_fast, talib=False, presma=True)
 
     def compute_massi(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()

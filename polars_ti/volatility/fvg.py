@@ -53,7 +53,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_fvg(
+def fvg(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,

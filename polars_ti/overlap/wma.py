@@ -32,7 +32,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_wma(
+def wma(
     close: IntoExpr,
     length: int = 10,
     asc: bool = True,

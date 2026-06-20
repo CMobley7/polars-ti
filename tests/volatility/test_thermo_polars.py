@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volatility.thermo import pl_thermo
+from polars_ti.volatility.thermo import thermo
 
 
 class TestPlThermo:
@@ -18,12 +18,12 @@ class TestPlThermo:
         return {"high": high, "low": low}
 
     def test_returns_expression(self, sample_data):
-        result = pl_thermo("high", "low")
+        result = thermo("high", "low")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_thermo("high", "low"))
+        result = df.select(thermo("high", "low"))
         assert "THERMO" in result.columns[0]
 
     def test_with_null_values(self, sample_data):
@@ -31,7 +31,7 @@ class TestPlThermo:
         data["high"] = np.array(data["high"])
         data["high"][10:15] = np.nan
         df = pl.DataFrame(data)
-        result = df.select(pl_thermo("high", "low"))
+        result = df.select(thermo("high", "low"))
         assert result.height == 100
 
     def test_with_zeros(self, sample_data):
@@ -39,10 +39,10 @@ class TestPlThermo:
         data["low"] = np.array(data["low"])
         data["low"][50:55] = 0.0
         df = pl.DataFrame(data)
-        result = df.select(pl_thermo("high", "low"))
+        result = df.select(thermo("high", "low"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.lazy().select(pl_thermo("high", "low")).collect()
+        result = df.lazy().select(thermo("high", "low")).collect()
         assert result.height == 100

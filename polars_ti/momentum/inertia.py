@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_inertia(
+def inertia(
     close: IntoExpr,
     high: IntoExpr | None = None,
     low: IntoExpr | None = None,
@@ -40,8 +40,8 @@ def pl_inertia(
     Returns:
         pl.Expr: Inertia expression
     """
-    from polars_ti.volatility.rvi import pl_rvi
-    from polars_ti.overlap.linreg import pl_linreg
+    from polars_ti.volatility.rvi import rvi
+    from polars_ti.overlap.linreg import linreg
     import numpy as np
 
     close_expr = v_expr(close)
@@ -66,7 +66,7 @@ def pl_inertia(
             # Compute RVI
             if _refined:
                 rvi_arr = df.select(
-                    pl_rvi(
+                    rvi(
                         "close",
                         high="high",
                         low="low",
@@ -78,7 +78,7 @@ def pl_inertia(
                 )[df.columns[0]]
             else:  # thirds
                 rvi_arr = df.select(
-                    pl_rvi(
+                    rvi(
                         "close",
                         high="high",
                         low="low",
@@ -91,7 +91,7 @@ def pl_inertia(
 
             # Apply linreg
             rvi_df = pl.DataFrame({"rvi": rvi_arr})
-            result = rvi_df.select(pl_linreg("rvi", length=_length))
+            result = rvi_df.select(linreg("rvi", length=_length))
             return result.to_series()
 
         struct_expr = pl.struct(close=close_expr, high=high_expr, low=low_expr)
@@ -101,10 +101,10 @@ def pl_inertia(
         # Simple case - compute RVI then apply linreg in map_batches
         def compute_simple(s: pl.Series) -> pl.Series:
             df = pl.DataFrame({"close": s})
-            rvi_result = df.select(pl_rvi("close", length=_rvi_length, scalar=_scalar, mamode=_mamode))
+            rvi_result = df.select(rvi("close", length=_rvi_length, scalar=_scalar, mamode=_mamode))
             rvi_col = rvi_result.to_series()
             rvi_df = pl.DataFrame({"rvi": rvi_col})
-            linreg_result = rvi_df.select(pl_linreg("rvi", length=_length))
+            linreg_result = rvi_df.select(linreg("rvi", length=_length))
             return linreg_result.to_series()
 
         inertia_expr = close_expr.map_batches(compute_simple, return_dtype=pl.Float64)

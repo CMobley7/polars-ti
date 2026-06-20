@@ -33,7 +33,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_lrsi(
+def lrsi(
     close: IntoExpr,
     length: int = 14,
     gamma: float = 0.5,

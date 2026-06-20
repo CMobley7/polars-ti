@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.momentum.stochf import pl_stochf
+from polars_ti.momentum.stochf import stochf as stochf_indicator
 
 
 class TestPlStochf:
@@ -18,50 +18,50 @@ class TestPlStochf:
         return pl.DataFrame({"high": high, "low": low, "close": close})
 
     def test_returns_expr(self):
-        expr = pl_stochf("high", "low", "close")
+        expr = stochf_indicator("high", "low", "close")
         assert isinstance(expr, pl.Expr)
 
     def test_has_stochf_column(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close"))
+        result = sample_df.select(stochf_indicator("high", "low", "close"))
         assert "STOCHF" in result.columns
 
     def test_struct_has_k_d_fields(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close"))
+        result = sample_df.select(stochf_indicator("high", "low", "close"))
         stochf = result["STOCHF"]
         assert "STOCHFk_14_3" in stochf.struct.fields
         assert "STOCHFd_14_3" in stochf.struct.fields
 
     def test_has_valid_values(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close"))
+        result = sample_df.select(stochf_indicator("high", "low", "close"))
         stochf = result["STOCHF"]
         k_vals = stochf.struct.field("STOCHFk_14_3")
         assert k_vals[20:].null_count() == 0
 
     def test_offset_parameter(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close", offset=5))
+        result = sample_df.select(stochf_indicator("high", "low", "close", offset=5))
         stochf = result["STOCHF"]
         k_vals = stochf.struct.field("STOCHFk_14_3")
         assert k_vals[:5].null_count() == 5
 
     def test_lazy_execution(self, sample_df):
-        result = sample_df.lazy().select(pl_stochf("high", "low", "close")).collect()
+        result = sample_df.lazy().select(stochf_indicator("high", "low", "close")).collect()
         assert "STOCHF" in result.columns
 
     def test_talib_true(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close", talib=True))
+        result = sample_df.select(stochf_indicator("high", "low", "close", talib=True))
         assert "STOCHF" in result.columns
 
     def test_talib_false(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close", talib=False))
+        result = sample_df.select(stochf_indicator("high", "low", "close", talib=False))
         assert "STOCHF" in result.columns
 
     def test_custom_k_parameter(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close", k=20))
+        result = sample_df.select(stochf_indicator("high", "low", "close", k=20))
         stochf = result["STOCHF"]
         assert "STOCHFk_20_3" in stochf.struct.fields
 
     def test_custom_d_parameter(self, sample_df):
-        result = sample_df.select(pl_stochf("high", "low", "close", d=5))
+        result = sample_df.select(stochf_indicator("high", "low", "close", d=5))
         stochf = result["STOCHF"]
         assert "STOCHFd_14_5" in stochf.struct.fields
 
@@ -73,7 +73,7 @@ class TestPlStochf:
                 "close": [100.0, 101.0, 102.0] + [100.0] * 50,
             }
         )
-        result = df.select(pl_stochf("high", "low", "close", talib=False))
+        result = df.select(stochf_indicator("high", "low", "close", talib=False))
         assert result.height == 53
 
     def test_with_zeros(self):
@@ -84,7 +84,7 @@ class TestPlStochf:
                 "close": [0.0] * 10 + [100.0] * 50,
             }
         )
-        result = df.select(pl_stochf("high", "low", "close", talib=False))
+        result = df.select(stochf_indicator("high", "low", "close", talib=False))
         assert result.height == 60
 
     def test_talib_parity(self):
@@ -104,7 +104,7 @@ class TestPlStochf:
 
         talib_k, talib_d = TALIB_STOCHF(high, low, close, 14, 3, 0)
 
-        polars_result = pldf.select(pl_stochf("high", "low", "close", talib=True))
+        polars_result = pldf.select(stochf_indicator("high", "low", "close", talib=True))
         stochf = polars_result["STOCHF"]
         polars_k = stochf.struct.field("STOCHFk_14_3").to_numpy()
 

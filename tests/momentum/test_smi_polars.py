@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.smi import pl_smi
+from polars_ti.momentum.smi import smi
 
 
 @pytest.fixture
@@ -25,13 +25,13 @@ class TestPlSmiBasic:
 
     def test_returns_expr(self, close_data):
         """Test that pl_smi returns a Polars expression."""
-        expr = pl_smi()
+        expr = smi()
         assert isinstance(expr, pl.Expr)
 
     def test_default_parameters(self, close_data):
         """Test pl_smi with default parameters."""
         pl_df = close_data["pl_df"]
-        result = pl_df.select(pl_smi()).unnest("SMI_5_20_5_1.0")
+        result = pl_df.select(smi()).unnest("SMI_5_20_5_1.0")
 
         assert len(result.columns) == 3
         assert "SMI_5_20_5_1.0" in result.columns
@@ -41,7 +41,7 @@ class TestPlSmiBasic:
     def test_custom_parameters(self, close_data):
         """Test pl_smi with custom parameters."""
         pl_df = close_data["pl_df"]
-        result = pl_df.select(pl_smi(fast=3, slow=10, signal=3, scalar=100)).unnest("SMI_3_10_3_100")
+        result = pl_df.select(smi(fast=3, slow=10, signal=3, scalar=100)).unnest("SMI_3_10_3_100")
 
         assert "SMI_3_10_3_100" in result.columns
         assert len(result) == len(pl_df)
@@ -62,23 +62,23 @@ class TestPlSmiEdgeCases:
             [pl.when(pl.col("close").is_first_distinct()).then(None).otherwise(pl.col("close")).alias("close")]
         )
 
-        result = pl_df_with_nulls.select(pl_smi()).unnest("SMI_5_20_5_1.0")
+        result = pl_df_with_nulls.select(smi()).unnest("SMI_5_20_5_1.0")
         assert len(result) == len(pl_df)
 
     def test_zeros_handling(self, close_data):
         """Test that pl_smi handles constant values."""
         pl_df = pl.DataFrame({"close": [100.0] * 100})
 
-        result = pl_df.select(pl_smi()).unnest("SMI_5_20_5_1.0")
+        result = pl_df.select(smi()).unnest("SMI_5_20_5_1.0")
         assert len(result) == 100
 
     def test_lazy_evaluation(self, close_data):
         """Test that pl_smi works in lazy context."""
         pl_df = close_data["pl_df"]
 
-        lazy_result = pl_df.lazy().select(pl_smi()).unnest("SMI_5_20_5_1.0").collect()
+        lazy_result = pl_df.lazy().select(smi()).unnest("SMI_5_20_5_1.0").collect()
 
-        eager_result = pl_df.select(pl_smi()).unnest("SMI_5_20_5_1.0")
+        eager_result = pl_df.select(smi()).unnest("SMI_5_20_5_1.0")
 
         for col in lazy_result.columns:
             lazy_vals = lazy_result[col].to_list()
@@ -96,9 +96,9 @@ class TestPlSmiFeatureParity:
         """Test offset parameter shifts results."""
         pl_df = close_data["pl_df"]
 
-        result_no_offset = pl_df.select(pl_smi(offset=0)).unnest("SMI_5_20_5_1.0")
+        result_no_offset = pl_df.select(smi(offset=0)).unnest("SMI_5_20_5_1.0")
 
-        result_offset = pl_df.select(pl_smi(offset=5)).unnest("SMI_5_20_5_1.0")
+        result_offset = pl_df.select(smi(offset=5)).unnest("SMI_5_20_5_1.0")
 
         # Values should be different due to shift
         assert len(result_no_offset) == len(result_offset)
@@ -107,9 +107,9 @@ class TestPlSmiFeatureParity:
         """Test scalar parameter scales results."""
         pl_df = close_data["pl_df"]
 
-        result_1x = pl_df.select(pl_smi(scalar=1)).unnest("SMI_5_20_5_1")
+        result_1x = pl_df.select(smi(scalar=1)).unnest("SMI_5_20_5_1")
 
-        result_100x = pl_df.select(pl_smi(scalar=100)).unnest("SMI_5_20_5_100")
+        result_100x = pl_df.select(smi(scalar=100)).unnest("SMI_5_20_5_100")
 
         # 100x scalar should have 100x the value
         warmup = 50
@@ -127,7 +127,7 @@ class TestPlSmiFeatureParity:
         pl_df = close_data["pl_df"]
 
         # Pass fast > slow - should be swapped internally
-        result = pl_df.select(pl_smi(fast=20, slow=5, signal=5, scalar=1)).unnest(
+        result = pl_df.select(smi(fast=20, slow=5, signal=5, scalar=1)).unnest(
             "SMI_5_20_5_1"
         )  # Note: props should show swapped values
 
@@ -142,7 +142,7 @@ class TestPlSmiIntegration:
         pl_df = close_data["pl_df"]
 
         result = (
-            pl_df.select(pl_smi())
+            pl_df.select(smi())
             .unnest("SMI_5_20_5_1.0")
             .select(
                 [

@@ -149,7 +149,7 @@ def _stochrsi_core(
     return stochrsi_k, stochrsi_d
 
 
-def pl_stochrsi(
+def stochrsi(
     close: IntoExpr,
     length: int = 14,
     rsi_length: int = 14,

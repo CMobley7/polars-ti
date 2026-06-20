@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_chandelier_exit(
+def chandelier_exit(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -43,7 +43,7 @@ def pl_chandelier_exit(
     Returns:
         pl.Expr: Struct with long, short, direction columns
     """
-    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -53,7 +53,7 @@ def pl_chandelier_exit(
         return None
 
     # ATR using pl_atr composition
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
     atr_mult = atr_expr * pl.lit(multiplier)
 
     # Rolling max/min for long/short

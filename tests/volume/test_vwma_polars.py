@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volume.vwma import pl_vwma
+from polars_ti.volume.vwma import vwma
 
 
 class TestPlVwma:
@@ -17,12 +17,12 @@ class TestPlVwma:
         return {"close": close, "volume": volume}
 
     def test_returns_expression(self, sample_data):
-        result = pl_vwma("close", "volume")
+        result = vwma("close", "volume")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_vwma("close", "volume", length=10))
+        result = df.select(vwma("close", "volume", length=10))
         assert "VWMA_10" in result.columns[0]
 
     def test_with_null_values(self, sample_data):
@@ -30,7 +30,7 @@ class TestPlVwma:
         data["close"] = data["close"].copy()
         data["close"][10:15] = np.nan
         df = pl.DataFrame(data)
-        result = df.select(pl_vwma("close", "volume"))
+        result = df.select(vwma("close", "volume"))
         assert result.height == 100
 
     def test_with_zeros(self, sample_data):
@@ -38,10 +38,10 @@ class TestPlVwma:
         data["volume"] = data["volume"].copy()
         data["volume"][50:55] = 1.0  # Low volume
         df = pl.DataFrame(data)
-        result = df.select(pl_vwma("close", "volume"))
+        result = df.select(vwma("close", "volume"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.lazy().select(pl_vwma("close", "volume")).collect()
+        result = df.lazy().select(vwma("close", "volume")).collect()
         assert result.height == 100

@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 from datetime import datetime, timedelta
-from polars_ti.volume.vwap import pl_vwap
+from polars_ti.volume.vwap import vwap as vwap_indicator
 
 
 class TestPlVwap:
@@ -41,16 +41,16 @@ class TestPlVwap:
         )
 
     def test_returns_list_of_expressions(self, sample_df):
-        result = sample_df.select(pl_vwap("high", "low", "close", "volume"))
-        assert isinstance(pl_vwap("high", "low", "close", "volume"), list)
-        assert len(pl_vwap("high", "low", "close", "volume")) == 1
+        result = sample_df.select(vwap_indicator("high", "low", "close", "volume"))
+        assert isinstance(vwap_indicator("high", "low", "close", "volume"), list)
+        assert len(vwap_indicator("high", "low", "close", "volume")) == 1
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_vwap("high", "low", "close", "volume"))
+        result = sample_df.select(vwap_indicator("high", "low", "close", "volume"))
         assert "VWAP_1D" in result.columns
 
     def test_offset_shifts_result(self, sample_df):
-        result = sample_df.select(pl_vwap("high", "low", "close", "volume", offset=5))
+        result = sample_df.select(vwap_indicator("high", "low", "close", "volume", offset=5))
         arr = result["VWAP_1D"].to_numpy()
         assert all(np.isnan(arr[:5]))
 
@@ -63,17 +63,17 @@ class TestPlVwap:
                 "volume": [None] + [1000.0] * 99,
             }
         )
-        result = df.select(pl_vwap("high", "low", "close", "volume"))
+        result = df.select(vwap_indicator("high", "low", "close", "volume"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_df):
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_vwap("high", "low", "close", "volume")).collect()
+        result = lazy_df.select(vwap_indicator("high", "low", "close", "volume")).collect()
         assert "VWAP_1D" in result.columns
 
     def test_bands_parameter(self, sample_df):
         """Test stddev bands are created correctly."""
-        exprs = pl_vwap("high", "low", "close", "volume", bands=[1, 2])
+        exprs = vwap_indicator("high", "low", "close", "volume", bands=[1, 2])
         result = sample_df.select(exprs)
         assert "VWAP_1D" in result.columns
         assert "VWAP_1D_L_1" in result.columns
@@ -83,13 +83,13 @@ class TestPlVwap:
 
     def test_anchored_vwap(self, sample_df_with_datetime):
         """Test anchored VWAP resets each period."""
-        exprs = pl_vwap("high", "low", "close", "volume", datetime_col="datetime", anchor="1d")
+        exprs = vwap_indicator("high", "low", "close", "volume", datetime_col="datetime", anchor="1d")
         result = sample_df_with_datetime.select(exprs)
         assert "VWAP_1D" in result.columns
         # Anchored VWAP should reset each day, so first value of each day should be close to typical price
 
     def test_value_is_reasonable(self, sample_df):
-        result = sample_df.select(pl_vwap("high", "low", "close", "volume"))
+        result = sample_df.select(vwap_indicator("high", "low", "close", "volume"))
         vwap_vals = result["VWAP_1D"].to_numpy()
         close_vals = sample_df["close"].to_numpy()
         # VWAP should be in similar range to close
@@ -98,7 +98,7 @@ class TestPlVwap:
 
     def test_bands_are_symmetric(self, sample_df):
         """Verify upper and lower bands are symmetric around VWAP."""
-        result = sample_df.select(pl_vwap("high", "low", "close", "volume", bands=[1]))
+        result = sample_df.select(vwap_indicator("high", "low", "close", "volume", bands=[1]))
         vwap = result["VWAP_1D"].to_numpy()
         lower = result["VWAP_1D_L_1"].to_numpy()
         upper = result["VWAP_1D_U_1"].to_numpy()

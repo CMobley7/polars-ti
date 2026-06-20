@@ -5,11 +5,11 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_cmf(
+def cmf(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -44,7 +44,7 @@ def pl_cmf(
     # CMF = rolling_sum(CLV * volume) / rolling_sum(volume)
     # Note: Unlike AD which uses cumsum, CMF uses rolling_sum - cannot reuse pl_ad
     # CLV (Close Location Value) = (2*close - high - low) / (high - low)
-    hl_range_safe = pl_non_zero_range(high_expr, low_expr)
+    hl_range_safe = non_zero_range(high_expr, low_expr)
     clv = (2 * close_expr - high_expr - low_expr) / hl_range_safe
     ad_component = clv * volume_expr
 

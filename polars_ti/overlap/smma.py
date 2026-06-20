@@ -8,7 +8,7 @@ from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
 @njit(cache=True)
@@ -25,7 +25,7 @@ def _smma_numba(close: np.ndarray, length: int, initial: float) -> np.ndarray:
     return result
 
 
-def pl_smma(
+def smma(
     close: IntoExpr,
     length: int = 7,
     mamode: str = "sma",
@@ -50,7 +50,7 @@ def pl_smma(
         arr = s.to_numpy().astype(np.float64)
         # Get initial value from MA
         temp_df = pl.DataFrame({"c": arr[:length]})
-        initial = temp_df.select(pl_ma(mamode, "c", length=length, talib=talib)).item(length - 1, 0)
+        initial = temp_df.select(ma(mamode, "c", length=length, talib=talib)).item(length - 1, 0)
 
         result = _smma_numba(arr, length, initial)
         if offset != 0:

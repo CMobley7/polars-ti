@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.alligator import pl_alligator
+from polars_ti.overlap.alligator import alligator
 
 
 class TestPlAlligator:
@@ -23,43 +23,43 @@ class TestPlAlligator:
         }
 
     def test_returns_expr(self):
-        expr = pl_alligator("close")
+        expr = alligator("close")
         assert isinstance(expr, pl.Expr)
 
     def test_returns_struct(self, sample_df):
-        result = sample_df.select(pl_alligator("close"))
+        result = sample_df.select(alligator("close"))
         assert len(result.columns) == 1
 
     def test_has_three_fields(self, sample_df):
-        result = sample_df.select(pl_alligator("close"))
+        result = sample_df.select(alligator("close"))
         unnested = result.unnest(result.columns[0])
         assert len(unnested.columns) == 3
 
     def test_column_names(self, sample_df):
-        result = sample_df.select(pl_alligator("close"))
+        result = sample_df.select(alligator("close"))
         unnested = result.unnest(result.columns[0])
         assert any("AGj" in c for c in unnested.columns)
         assert any("AGt" in c for c in unnested.columns)
         assert any("AGl" in c for c in unnested.columns)
 
     def test_custom_parameters(self, sample_df):
-        result = sample_df.select(pl_alligator("close", jaw=10, teeth=6, lips=4))
+        result = sample_df.select(alligator("close", jaw=10, teeth=6, lips=4))
         assert "AG_10_6_4" in result.columns
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
         df = pl.DataFrame({"close": [None] + [100.0] * 39})
-        result = df.select(pl_alligator("close"))
+        result = df.select(alligator("close"))
         assert result.height == 40
 
     def test_with_zeros(self):
         """Handles zero values."""
         df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 35})
-        result = df.select(pl_alligator("close"))
+        result = df.select(alligator("close"))
         assert result.height == 40
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_alligator("close")).collect()
+        result = lazy_df.select(alligator("close")).collect()
         assert "AG_13_8_5" in result.columns

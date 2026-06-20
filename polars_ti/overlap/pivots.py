@@ -128,7 +128,7 @@ _anchor_to_duration = {
 }
 
 
-def pl_pivots(
+def pivots(
     df: pl.DataFrame,
     open_col: str = "open",
     high_col: str = "high",

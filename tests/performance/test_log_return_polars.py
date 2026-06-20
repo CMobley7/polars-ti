@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.performance.log_return import pl_log_return
+from polars_ti.performance.log_return import log_return
 
 
 class TestPlLogReturn:
@@ -24,27 +24,27 @@ class TestPlLogReturn:
         }
 
     def test_returns_expression(self):
-        result = pl_log_return("close")
+        result = log_return("close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_log_return("close", length=1))
+        result = sample_df.select(log_return("close", length=1))
         assert "LOGRET_1" in result.columns
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
         df = pl.DataFrame({"close": [None] + [100.0] * 49})
-        result = df.select(pl_log_return("close"))
+        result = df.select(log_return("close"))
         assert result.height == 50
 
     def test_with_zeros(self):
         """Handles zero values (produces NaN/inf)."""
         df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45})
-        result = df.select(pl_log_return("close"))
+        result = df.select(log_return("close"))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_log_return("close")).collect()
+        result = lazy_df.select(log_return("close")).collect()
         assert "LOGRET_1" in result.columns

@@ -10,7 +10,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.maps import Imports
 
 
-def pl_wcp(
+def wcp(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

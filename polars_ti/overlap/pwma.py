@@ -9,7 +9,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.utils._math import pascals_triangle
 
 
-def pl_pwma(
+def pwma(
     close: IntoExpr,
     length: int = 10,
     asc: bool = True,

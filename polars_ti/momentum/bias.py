@@ -6,10 +6,10 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
-def pl_bias(
+def bias(
     close: IntoExpr,
     length: int = 26,
     mamode: str = "sma",
@@ -32,7 +32,7 @@ def pl_bias(
     close_expr = v_expr(close)
 
     # Use pl_ma for code reuse
-    ma_expr = pl_ma(mamode, close_expr, length=length, talib=False)
+    ma_expr = ma(mamode, close_expr, length=length, talib=False)
     ma_name = f"{mamode.upper()}_{length}"
 
     # BIAS = (close / MA) - 1 - Pure Polars expression

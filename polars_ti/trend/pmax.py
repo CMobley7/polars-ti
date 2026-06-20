@@ -97,7 +97,7 @@ def _nb_sma_raw(close, length):
     return result
 
 
-def pl_pmax(
+def pmax(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

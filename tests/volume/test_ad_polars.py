@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volume.ad import pl_ad
+from polars_ti.volume.ad import ad
 
 
 class TestPlAd:
@@ -26,21 +26,21 @@ class TestPlAd:
         )
 
     def test_returns_expression(self, sample_df):
-        result = sample_df.select(pl_ad("high", "low", "close", "volume"))
+        result = sample_df.select(ad("high", "low", "close", "volume"))
         assert result.height == 100
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_ad("high", "low", "close", "volume"))
+        result = sample_df.select(ad("high", "low", "close", "volume"))
         assert "AD" in result.columns
 
     def test_offset_shifts_result(self, sample_df):
-        result = sample_df.select(pl_ad("high", "low", "close", "volume", offset=5))
+        result = sample_df.select(ad("high", "low", "close", "volume", offset=5))
         arr = result[result.columns[0]].to_numpy()
         assert all(np.isnan(arr[:5]))
 
     def test_talib_parameter(self, sample_df):
         """TA-Lib path produces valid results."""
-        result = sample_df.select(pl_ad("high", "low", "close", "volume", talib=True))
+        result = sample_df.select(ad("high", "low", "close", "volume", talib=True))
         arr = result[result.columns[0]].to_numpy()
         valid = ~np.isnan(arr)
         assert valid.sum() > 50
@@ -54,10 +54,10 @@ class TestPlAd:
                 "volume": [None] + [1000.0] * 49,
             }
         )
-        result = df.select(pl_ad("high", "low", "close", "volume"))
+        result = df.select(ad("high", "low", "close", "volume"))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_ad("high", "low", "close", "volume")).collect()
+        result = lazy_df.select(ad("high", "low", "close", "volume")).collect()
         assert "AD" in result.columns

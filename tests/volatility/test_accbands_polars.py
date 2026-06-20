@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volatility.accbands import pl_accbands
+from polars_ti.volatility.accbands import accbands
 
 
 class TestPlAccbands:
@@ -18,12 +18,12 @@ class TestPlAccbands:
         return {"high": high, "low": low, "close": close}
 
     def test_returns_expression(self, sample_data):
-        result = pl_accbands("high", "low", "close")
+        result = accbands("high", "low", "close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_accbands("high", "low", "close", length=20))
+        result = df.select(accbands("high", "low", "close", length=20))
         assert "ACCBANDS" in result.columns[0]
 
     def test_talib_option(self, sample_data):
@@ -38,7 +38,7 @@ class TestPlAccbands:
                 sample_data["close"],
                 timeperiod=20,
             )
-            pl_result = pl_df.select(pl_accbands("high", "low", "close", length=20, talib=True))
+            pl_result = pl_df.select(accbands("high", "low", "close", length=20, talib=True))
             pl_unnest = pl_result.unnest(pl_result.columns[0])
             warmup = 25
             for name, talib_arr in [
@@ -60,7 +60,7 @@ class TestPlAccbands:
         data["close"] = data["close"].copy()
         data["close"][10:15] = np.nan
         df = pl.DataFrame(data)
-        result = df.select(pl_accbands("high", "low", "close"))
+        result = df.select(accbands("high", "low", "close"))
         assert result.height == 100
 
     def test_with_zeros(self, sample_data):
@@ -68,10 +68,10 @@ class TestPlAccbands:
         data["low"] = data["low"].copy()
         data["low"][50:55] = 50.0
         df = pl.DataFrame(data)
-        result = df.select(pl_accbands("high", "low", "close"))
+        result = df.select(accbands("high", "low", "close"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.lazy().select(pl_accbands("high", "low", "close")).collect()
+        result = df.lazy().select(accbands("high", "low", "close")).collect()
         assert result.height == 100

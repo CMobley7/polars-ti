@@ -3,48 +3,48 @@
 # Polars MA Dispatcher
 # =============================================================================
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.overlap.dema import pl_dema
-from polars_ti.overlap.ema import pl_ema
-from polars_ti.overlap.fwma import pl_fwma
-from polars_ti.overlap.hma import pl_hma
-from polars_ti.overlap.linreg import pl_linreg
-from polars_ti.overlap.midpoint import pl_midpoint
-from polars_ti.overlap.pwma import pl_pwma
-from polars_ti.overlap.rma import pl_rma
-from polars_ti.overlap.sinwma import pl_sinwma
-from polars_ti.overlap.sma import pl_sma
-from polars_ti.overlap.ssf import pl_ssf
-from polars_ti.overlap.swma import pl_swma
-from polars_ti.overlap.t3 import pl_t3
-from polars_ti.overlap.tema import pl_tema
-from polars_ti.overlap.trima import pl_trima
-from polars_ti.overlap.vidya import pl_vidya
-from polars_ti.overlap.wma import pl_wma
+from polars_ti.overlap.dema import dema
+from polars_ti.overlap.ema import ema
+from polars_ti.overlap.fwma import fwma
+from polars_ti.overlap.hma import hma
+from polars_ti.overlap.linreg import linreg
+from polars_ti.overlap.midpoint import midpoint
+from polars_ti.overlap.pwma import pwma
+from polars_ti.overlap.rma import rma
+from polars_ti.overlap.sinwma import sinwma
+from polars_ti.overlap.sma import sma
+from polars_ti.overlap.ssf import ssf
+from polars_ti.overlap.swma import swma
+from polars_ti.overlap.t3 import t3
+from polars_ti.overlap.tema import tema
+from polars_ti.overlap.trima import trima
+from polars_ti.overlap.vidya import vidya
+from polars_ti.overlap.wma import wma
 
 
 # MA function mapping
 _PL_MA_FUNCS = {
-    "dema": pl_dema,
-    "ema": pl_ema,
-    "fwma": pl_fwma,
-    "hma": pl_hma,
-    "linreg": pl_linreg,
-    "midpoint": pl_midpoint,
-    "pwma": pl_pwma,
-    "rma": pl_rma,
-    "sinwma": pl_sinwma,
-    "sma": pl_sma,
-    "ssf": pl_ssf,
-    "swma": pl_swma,
-    "t3": pl_t3,
-    "tema": pl_tema,
-    "trima": pl_trima,
-    "vidya": pl_vidya,
-    "wma": pl_wma,
+    "dema": dema,
+    "ema": ema,
+    "fwma": fwma,
+    "hma": hma,
+    "linreg": linreg,
+    "midpoint": midpoint,
+    "pwma": pwma,
+    "rma": rma,
+    "sinwma": sinwma,
+    "sma": sma,
+    "ssf": ssf,
+    "swma": swma,
+    "t3": t3,
+    "tema": tema,
+    "trima": trima,
+    "vidya": vidya,
+    "wma": wma,
 }
 
 
-def pl_ma(
+def ma(
     name: str = "ema",
     source: IntoExpr = None,
     length: int = 10,

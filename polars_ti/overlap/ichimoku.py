@@ -7,10 +7,10 @@ import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.overlap.midprice import pl_midprice
+from polars_ti.overlap.midprice import midprice
 
 
-def pl_ichimoku(
+def ichimoku(
     df: pl.DataFrame,
     high: str = "high",
     low: str = "low",
@@ -51,9 +51,9 @@ def pl_ichimoku(
         include_chikou = False
 
     # Calculate the components using pl_midprice
-    tenkan_sen = df.select(pl_midprice(high, low, length=tenkan, talib=False)).get_column(f"MIDPRICE_{tenkan}")
-    kijun_sen = df.select(pl_midprice(high, low, length=kijun, talib=False)).get_column(f"MIDPRICE_{kijun}")
-    senkou_b = df.select(pl_midprice(high, low, length=senkou, talib=False)).get_column(f"MIDPRICE_{senkou}")
+    tenkan_sen = df.select(midprice(high, low, length=tenkan, talib=False)).get_column(f"MIDPRICE_{tenkan}")
+    kijun_sen = df.select(midprice(high, low, length=kijun, talib=False)).get_column(f"MIDPRICE_{kijun}")
+    senkou_b = df.select(midprice(high, low, length=senkou, talib=False)).get_column(f"MIDPRICE_{senkou}")
 
     # Span A = (tenkan_sen + kijun_sen) / 2
     span_a = (tenkan_sen + kijun_sen) / 2

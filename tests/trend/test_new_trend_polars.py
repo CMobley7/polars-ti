@@ -35,152 +35,152 @@ def pd_ohlcv(ohlcv_df):
 
 class TestPlDpo:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.dpo import pl_dpo
+        from polars_ti.trend.dpo import dpo
 
-        result = ohlcv_df.select(pl_dpo("close"))
+        result = ohlcv_df.select(dpo("close"))
         assert result.height == 200
 
 
 class TestPlQstick:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.qstick import pl_qstick
+        from polars_ti.trend.qstick import qstick
 
-        result = ohlcv_df.select(pl_qstick("open", "close"))
+        result = ohlcv_df.select(qstick("open", "close"))
         assert result.height == 200
 
 
 class TestPlVhf:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.vhf import pl_vhf
+        from polars_ti.trend.vhf import vhf
 
-        result = ohlcv_df.select(pl_vhf("close"))
+        result = ohlcv_df.select(vhf("close"))
         assert result.height == 200
 
 
 class TestPlDecay:
     def test_linear(self, ohlcv_df):
-        from polars_ti.trend.decay import pl_decay
+        from polars_ti.trend.decay import decay
 
-        result = ohlcv_df.select(pl_decay("close", length=5))
+        result = ohlcv_df.select(decay("close", length=5))
         assert result.height == 200
 
 
 class TestPlTtmTrend:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.ttm_trend import pl_ttm_trend
+        from polars_ti.trend.ttm_trend import ttm_trend
 
-        result = ohlcv_df.select(pl_ttm_trend("high", "low", "close"))
+        result = ohlcv_df.select(ttm_trend("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlTsignals:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.tsignals import pl_tsignals
+        from polars_ti.trend.tsignals import tsignals
 
         trend = pl.col("close") > pl.col("close").rolling_mean(window_size=20)
-        result = ohlcv_df.select(pl_tsignals(trend))
+        result = ohlcv_df.select(tsignals(trend))
         assert result.height == 200
 
 
 class TestPlChop:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.chop import pl_chop
+        from polars_ti.trend.chop import chop
 
-        result = ohlcv_df.select(pl_chop("high", "low", "close"))
+        result = ohlcv_df.select(chop("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlVortex:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.vortex import pl_vortex
+        from polars_ti.trend.vortex import vortex
 
-        result = ohlcv_df.select(pl_vortex("high", "low", "close"))
+        result = ohlcv_df.select(vortex("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlAroon:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.aroon import pl_aroon
+        from polars_ti.trend.aroon import aroon
 
-        result = ohlcv_df.select(pl_aroon("high", "low"))
+        result = ohlcv_df.select(aroon("high", "low"))
         assert result.height == 200
 
 
 class TestPlAdx:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.adx import pl_adx
+        from polars_ti.trend.adx import adx
 
-        result = ohlcv_df.select(pl_adx("high", "low", "close"))
+        result = ohlcv_df.select(adx("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlPsar:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.psar import pl_psar
+        from polars_ti.trend.psar import psar
 
-        result = ohlcv_df.select(pl_psar("high", "low"))
+        result = ohlcv_df.select(psar("high", "low"))
         assert result.height == 200
 
 
 class TestPlCksp:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.cksp import pl_cksp
+        from polars_ti.trend.cksp import cksp
 
-        result = ohlcv_df.select(pl_cksp("high", "low", "close"))
+        result = ohlcv_df.select(cksp("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlRwi:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.rwi import pl_rwi
+        from polars_ti.trend.rwi import rwi
 
-        result = ohlcv_df.select(pl_rwi("high", "low", "close"))
+        result = ohlcv_df.select(rwi("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlHtTrendline:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.ht_trendline import pl_ht_trendline
+        from polars_ti.trend.ht_trendline import ht_trendline
 
-        result = ohlcv_df.select(pl_ht_trendline("close"))
+        result = ohlcv_df.select(ht_trendline("close"))
         assert result.height == 200
 
 
 class TestPlTrama:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.trama import pl_trama
+        from polars_ti.trend.trama import trama
 
-        result = ohlcv_df.select(pl_trama("close"))
+        result = ohlcv_df.select(trama("close"))
         assert result.height == 200
 
 
 class TestPlTrendflex:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.trendflex import pl_trendflex
+        from polars_ti.trend.trendflex import trendflex
 
-        result = ohlcv_df.select(pl_trendflex("close"))
+        result = ohlcv_df.select(trendflex("close"))
         assert result.height == 200
 
 
 class TestPlZigzag:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.zigzag import pl_zigzag
+        from polars_ti.trend.zigzag import zigzag
 
-        result = ohlcv_df.select(pl_zigzag("high", "low"))
+        result = ohlcv_df.select(zigzag("high", "low"))
         assert result.height == 200
 
 
 class TestPlPmax:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.pmax import pl_pmax
+        from polars_ti.trend.pmax import pmax
 
-        result = ohlcv_df.select(pl_pmax("high", "low", "close"))
+        result = ohlcv_df.select(pmax("high", "low", "close"))
         assert result.height == 200
 
 
 class TestPlAlphatrend:
     def test_returns_expression(self, ohlcv_df):
-        from polars_ti.trend.alphatrend import pl_alphatrend
+        from polars_ti.trend.alphatrend import alphatrend
 
-        result = ohlcv_df.select(pl_alphatrend("high", "low", "close"))
+        result = ohlcv_df.select(alphatrend("high", "low", "close"))
         assert result.height == 200

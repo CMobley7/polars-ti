@@ -84,7 +84,7 @@ def nb_schaff_tc(xmacd: np.ndarray, tclength: int, factor: float):
     return pff, pf
 
 
-def pl_stc(
+def stc(
     close: IntoExpr = "close",
     tclength: int = 10,
     fast: int = 12,
@@ -111,7 +111,7 @@ def pl_stc(
     Returns:
         pl.Expr: Struct expression with STC, STCmacd, STCstoch columns
     """
-    from polars_ti.overlap.ema import pl_ema
+    from polars_ti.overlap.ema import ema
 
     close_expr = v_expr(close)
     if close_expr is None:
@@ -124,8 +124,8 @@ def pl_stc(
     _props = f"_{tclength}_{fast}_{slow}_{factor}"
 
     # Calculate MACD (fast EMA - slow EMA)
-    fast_ema = pl_ema(close_expr, length=fast)
-    slow_ema = pl_ema(close_expr, length=slow)
+    fast_ema = ema(close_expr, length=fast)
+    slow_ema = ema(close_expr, length=slow)
     xmacd = fast_ema - slow_ema
 
     def compute_stc(s: pl.Series) -> pl.Series:

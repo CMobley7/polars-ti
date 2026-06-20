@@ -5,11 +5,11 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_pdist(
+def pdist(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,
@@ -45,7 +45,7 @@ def pl_pdist(
 
     # PDIST = 2 * (high - low) + |open - close.shift| - |close - open|
     # Using non_zero protection like Pandas
-    hl_range = pl_non_zero_range(high_expr, low_expr)
+    hl_range = non_zero_range(high_expr, low_expr)
     oc_shift_range = (open_expr - close_expr.shift(drift)).abs()
     co_range = (close_expr - open_expr).abs()
 

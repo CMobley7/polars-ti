@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_dm(
+def dm(
     high: IntoExpr,
     low: IntoExpr,
     length: int = 14,
@@ -35,7 +35,7 @@ def pl_dm(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib, v_mamode
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -77,8 +77,8 @@ def pl_dm(
         neg_raw = pl.when((dn > up) & (dn > 0)).then(dn).otherwise(0.0)
 
         # Smooth with MA
-        dmp_expr = pl_ma(_mamode, pos_raw, length=length, offset=0)
-        dmn_expr = pl_ma(_mamode, neg_raw, length=length, offset=0)
+        dmp_expr = ma(_mamode, pos_raw, length=length, offset=0)
+        dmn_expr = ma(_mamode, neg_raw, length=length, offset=0)
 
     if offset != 0:
         dmp_expr = dmp_expr.shift(offset)

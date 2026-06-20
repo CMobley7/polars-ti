@@ -8,7 +8,7 @@ from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
 @njit(cache=True)
@@ -60,7 +60,7 @@ def nb_ott(mavg: np.ndarray, multiplier: float) -> tuple:
     return trend, after_dir
 
 
-def pl_ott(
+def ott(
     close: IntoExpr,
     length: int = 5,
     multiplier: float = 2.4,
@@ -85,7 +85,7 @@ def pl_ott(
     _props = f"_{length}_{multiplier}"
 
     # Get the MA expression
-    ma_expr = pl_ma(mamode, close, length=length).alias(f"OTTSL{_props}")
+    ma_expr = ma(mamode, close, length=length).alias(f"OTTSL{_props}")
 
     def compute_ott(struct: pl.Series) -> pl.Series:
         # Extract MA values from struct

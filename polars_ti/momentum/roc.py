@@ -18,7 +18,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_roc(
+def roc(
     close: IntoExpr,
     length: int = 10,
     scalar: float = 100.0,

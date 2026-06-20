@@ -11,7 +11,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.utils import v_talib
 
 
-def pl_atr(
+def atr(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -43,8 +43,8 @@ def pl_atr(
     Returns:
         pl.Expr: ATR expression
     """
-    from polars_ti.volatility.true_range import pl_true_range
-    from polars_ti.ma import pl_ma
+    from polars_ti.volatility.true_range import true_range
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -90,8 +90,8 @@ def pl_atr(
         )
     else:
         # Simple composition: TR → MA (just like Pandas!)
-        tr_expr = pl_true_range(high_expr, low_expr, close_expr)
-        atr_expr = pl_ma(name=_mamode, source=tr_expr, length=length, talib=False, presma=True)
+        tr_expr = true_range(high_expr, low_expr, close_expr)
+        atr_expr = ma(name=_mamode, source=tr_expr, length=length, talib=False, presma=True)
 
         if offset != 0:
             atr_expr = atr_expr.shift(offset)

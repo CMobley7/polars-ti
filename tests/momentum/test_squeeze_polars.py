@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.squeeze import pl_squeeze
+from polars_ti.momentum.squeeze import squeeze
 
 
 @pytest.fixture
@@ -27,13 +27,13 @@ class TestPlSqueezeBasic:
 
     def test_returns_expr(self, ohlc_data):
         """Test that pl_squeeze returns a Polars expression."""
-        expr = pl_squeeze()
+        expr = squeeze()
         assert isinstance(expr, pl.Expr)
 
     def test_default_parameters(self, ohlc_data):
         """Test pl_squeeze with default parameters."""
         pl_df = ohlc_data["pl_df"]
-        result = pl_df.select(pl_squeeze()).unnest("SQZ_20_2.0_20_1.5")
+        result = pl_df.select(squeeze()).unnest("SQZ_20_2.0_20_1.5")
 
         assert len(result.columns) == 4
         assert "SQZ_20_2.0_20_1.5" in result.columns
@@ -44,7 +44,7 @@ class TestPlSqueezeBasic:
     def test_custom_parameters(self, ohlc_data):
         """Test pl_squeeze with custom parameters."""
         pl_df = ohlc_data["pl_df"]
-        result = pl_df.select(pl_squeeze(bb_length=10, bb_std=1.5, kc_length=15, kc_scalar=2.0)).unnest(
+        result = pl_df.select(squeeze(bb_length=10, bb_std=1.5, kc_length=15, kc_scalar=2.0)).unnest(
             "SQZ_10_1.5_15_2.0"
         )
 
@@ -67,16 +67,16 @@ class TestPlSqueezeEdgeCases:
             [pl.when(pl.col("close").is_first_distinct()).then(None).otherwise(pl.col("close")).alias("close")]
         )
 
-        result = pl_df_with_nulls.select(pl_squeeze()).unnest("SQZ_20_2.0_20_1.5")
+        result = pl_df_with_nulls.select(squeeze()).unnest("SQZ_20_2.0_20_1.5")
         assert len(result) == len(pl_df)
 
     def test_lazy_evaluation(self, ohlc_data):
         """Test that pl_squeeze works in lazy context."""
         pl_df = ohlc_data["pl_df"]
 
-        lazy_result = pl_df.lazy().select(pl_squeeze()).unnest("SQZ_20_2.0_20_1.5").collect()
+        lazy_result = pl_df.lazy().select(squeeze()).unnest("SQZ_20_2.0_20_1.5").collect()
 
-        eager_result = pl_df.select(pl_squeeze()).unnest("SQZ_20_2.0_20_1.5")
+        eager_result = pl_df.select(squeeze()).unnest("SQZ_20_2.0_20_1.5")
 
         for col in ["SQZ_ON", "SQZ_OFF", "SQZ_NO"]:
             assert lazy_result[col].to_list() == eager_result[col].to_list()
@@ -89,7 +89,7 @@ class TestPlSqueezeFeatureParity:
         """Test with EMA mode."""
         pl_df = ohlc_data["pl_df"]
 
-        result = pl_df.select(pl_squeeze(mamode="ema")).unnest("SQZ_20_2.0_20_1.5")
+        result = pl_df.select(squeeze(mamode="ema")).unnest("SQZ_20_2.0_20_1.5")
 
         assert len(result) == len(pl_df)
 
@@ -97,7 +97,7 @@ class TestPlSqueezeFeatureParity:
         """Test with use_tr=False."""
         pl_df = ohlc_data["pl_df"]
 
-        result = pl_df.select(pl_squeeze(use_tr=False)).unnest("SQZhlr_20_2.0_20_1.5")
+        result = pl_df.select(squeeze(use_tr=False)).unnest("SQZhlr_20_2.0_20_1.5")
 
         assert "SQZhlr_20_2.0_20_1.5" in result.columns
 
@@ -105,7 +105,7 @@ class TestPlSqueezeFeatureParity:
         """Test asint=False returns boolean types."""
         pl_df = ohlc_data["pl_df"]
 
-        result = pl_df.select(pl_squeeze(asint=False)).unnest("SQZ_20_2.0_20_1.5")
+        result = pl_df.select(squeeze(asint=False)).unnest("SQZ_20_2.0_20_1.5")
 
         assert result["SQZ_ON"].dtype == pl.Boolean
         assert result["SQZ_OFF"].dtype == pl.Boolean
@@ -120,7 +120,7 @@ class TestPlSqueezeIntegration:
         pl_df = ohlc_data["pl_df"]
 
         result = (
-            pl_df.select(pl_squeeze())
+            pl_df.select(squeeze())
             .unnest("SQZ_20_2.0_20_1.5")
             .select(
                 [

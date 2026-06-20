@@ -77,7 +77,7 @@ def _nb_rolling_min(arr, window):
     return result
 
 
-def pl_trama(
+def trama(
     close: IntoExpr,
     length: int = 10,
     offset: int = 0,

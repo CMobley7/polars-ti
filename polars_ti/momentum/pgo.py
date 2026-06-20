@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_pgo(
+def pgo(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -32,17 +32,17 @@ def pl_pgo(
     Returns:
         pl.Expr: PGO expression
     """
-    from polars_ti.overlap.sma import pl_sma
-    from polars_ti.overlap.ema import pl_ema
-    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.overlap.sma import sma
+    from polars_ti.overlap.ema import ema
+    from polars_ti.volatility.atr import atr
 
     close_expr = v_expr(close)
     high_expr = v_expr(high)
     low_expr = v_expr(low)
 
-    sma_close = pl_sma(close_expr, length=length, talib=False)
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=length, talib=False)
-    ema_atr = pl_ema(atr_expr, length=length, talib=False)
+    sma_close = sma(close_expr, length=length, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=False)
+    ema_atr = ema(atr_expr, length=length, talib=False)
 
     pgo_expr = (close_expr - sma_close) / ema_atr
 

@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.rvgi import pl_rvgi
+from polars_ti.momentum.rvgi import rvgi
 
 
 class TestPlRvgi:
@@ -27,13 +27,13 @@ class TestPlRvgi:
 
     def test_returns_expression(self, sample_data):
         """pl_rvgi should return a Polars expression."""
-        result = pl_rvgi("open", "high", "low", "close")
+        result = rvgi("open", "high", "low", "close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_structure(self, sample_data):
         """Output should be a struct with RVGI and RVGIs fields."""
         pl_df, _ = sample_data
-        result = pl_df.select(pl_rvgi("open", "high", "low", "close", length=14, swma_length=4))
+        result = pl_df.select(rvgi("open", "high", "low", "close", length=14, swma_length=4))
 
         assert "RVGI" in result.columns
         struct = result["RVGI"]
@@ -45,8 +45,8 @@ class TestPlRvgi:
         pl_df, _ = sample_data
         offset = 5
 
-        result_no_offset = pl_df.select(pl_rvgi("open", "high", "low", "close", offset=0))
-        result_with_offset = pl_df.select(pl_rvgi("open", "high", "low", "close", offset=offset))
+        result_no_offset = pl_df.select(rvgi("open", "high", "low", "close", offset=0))
+        result_with_offset = pl_df.select(rvgi("open", "high", "low", "close", offset=offset))
 
         no_offset_vals = result_no_offset["RVGI"].struct.field("RVGI_14_4").to_numpy()
         with_offset_vals = result_with_offset["RVGI"].struct.field("RVGI_14_4").to_numpy()
@@ -60,7 +60,7 @@ class TestPlRvgi:
         pl_df, _ = sample_data
         lazy_df = pl_df.lazy()
 
-        result = lazy_df.select(pl_rvgi("open", "high", "low", "close")).collect()
+        result = lazy_df.select(rvgi("open", "high", "low", "close")).collect()
         assert result.height == pl_df.height
         assert "RVGI" in result.columns
 
@@ -71,7 +71,7 @@ class TestPlRvgi:
         for length in [7, 14, 21]:
             for swma_length in [3, 4, 5]:
                 result = pl_df.select(
-                    pl_rvgi(
+                    rvgi(
                         "open",
                         "high",
                         "low",

@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
 @njit(cache=True)
@@ -42,7 +42,7 @@ def nb_hilo(close: np.ndarray, high_ma: np.ndarray, low_ma: np.ndarray) -> tuple
     return hilo, long, short
 
 
-def pl_hilo(
+def hilo(
     df: pl.DataFrame,
     high: str = "high",
     low: str = "low",
@@ -73,8 +73,8 @@ def pl_hilo(
         pl.DataFrame: Original DataFrame with HILO, HILOl, HILOs columns
     """
     # Calculate MAs
-    high_ma = df.select(pl_ma(mamode, high, length=high_length, talib=talib).alias("high_ma")).get_column("high_ma")
-    low_ma = df.select(pl_ma(mamode, low, length=low_length, talib=talib).alias("low_ma")).get_column("low_ma")
+    high_ma = df.select(ma(mamode, high, length=high_length, talib=talib).alias("high_ma")).get_column("high_ma")
+    low_ma = df.select(ma(mamode, low, length=low_length, talib=talib).alias("low_ma")).get_column("low_ma")
     close_arr = df.get_column(close)
 
     # Convert to numpy for Numba kernel

@@ -58,7 +58,7 @@ def _ema_numba(close, length, presma=True, adjust=False):
     return result
 
 
-def pl_ema(
+def ema(
     close: IntoExpr,
     length: int = 10,
     talib: bool = True,

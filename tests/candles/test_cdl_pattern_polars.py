@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.candles.cdl_pattern import pl_cdl_pattern, POLARS_PATTERNS
+from polars_ti.candles.cdl_pattern import cdl_pattern, POLARS_PATTERNS
 
 
 class TestPlCdlPattern:
@@ -24,7 +24,7 @@ class TestPlCdlPattern:
 
     def test_all_patterns(self, sample_df):
         """Test detecting all available patterns."""
-        result = pl_cdl_pattern(sample_df, name="all")
+        result = cdl_pattern(sample_df, name="all")
         # Should have original columns plus pattern columns
         assert len(result.columns) > 4
         assert "CDL_DOJI_10_0.1" in result.columns
@@ -32,24 +32,24 @@ class TestPlCdlPattern:
 
     def test_single_pattern(self, sample_df):
         """Test detecting single pattern by name."""
-        result = pl_cdl_pattern(sample_df, name="doji")
+        result = cdl_pattern(sample_df, name="doji")
         assert "CDL_DOJI_10_0.1" in result.columns
 
     def test_pattern_list(self, sample_df):
         """Test detecting multiple patterns by list."""
-        result = pl_cdl_pattern(sample_df, name=["doji", "inside"])
+        result = cdl_pattern(sample_df, name=["doji", "inside"])
         assert "CDL_DOJI_10_0.1" in result.columns
         assert "CDL_INSIDE" in result.columns
 
     def test_unknown_pattern_warning(self, sample_df, capsys):
         """Test that unknown patterns print a warning."""
-        result = pl_cdl_pattern(sample_df, name="unknown_pattern")
+        result = cdl_pattern(sample_df, name="unknown_pattern")
         captured = capsys.readouterr()
         assert "not available" in captured.out
 
     def test_custom_scalar(self, sample_df):
         """Test custom scalar is passed through."""
-        result = pl_cdl_pattern(sample_df, name="inside", scalar=50.0)
+        result = cdl_pattern(sample_df, name="inside", scalar=50.0)
         # Inside bar values should be 0 or 50
         vals = result["CDL_INSIDE"].unique().to_list()
         assert all(v in [0, 50] for v in vals)
@@ -64,7 +64,7 @@ class TestPlCdlPattern:
                 "close": [100.01] * 20,
             }
         )
-        result = pl_cdl_pattern(df, name="doji")
+        result = cdl_pattern(df, name="doji")
         assert result.height == 20
 
     def test_with_zeros(self):
@@ -77,11 +77,11 @@ class TestPlCdlPattern:
                 "close": [0.0] * 5 + [100.01] * 15,
             }
         )
-        result = pl_cdl_pattern(df, name="doji")
+        result = cdl_pattern(df, name="doji")
         assert result.height == 20
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame (via collect)."""
         # pl_cdl_pattern takes DataFrame, lazy not directly supported
-        result = pl_cdl_pattern(sample_df, name="inside")
+        result = cdl_pattern(sample_df, name="inside")
         assert "CDL_INSIDE" in result.columns

@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_rsi(
+def rsi(
     close: IntoExpr,
     length: int = 14,
     scalar: float = 100.0,
@@ -37,7 +37,7 @@ def pl_rsi(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     close_expr = v_expr(close)
 
@@ -70,8 +70,8 @@ def pl_rsi(
 
         # Apply MA for smoothing (default RMA/Wilder's)
         # Note: presma=False matches Pandas ewm(alpha=1/n, adjust=False) behavior
-        avg_gain = pl_ma(name=mamode, source=gains, length=length, talib=False, presma=False)
-        avg_loss = pl_ma(name=mamode, source=losses, length=length, talib=False, presma=False)
+        avg_gain = ma(name=mamode, source=gains, length=length, talib=False, presma=False)
+        avg_loss = ma(name=mamode, source=losses, length=length, talib=False, presma=False)
 
         # RSI calculation: scalar * avg_gain / (avg_gain + |avg_loss|)
         # Note: avg_loss is negative, so .abs() is required to match Pandas

@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.momentum.rsi import pl_rsi
+from polars_ti.momentum.rsi import rsi
 
 
 class TestPlRsi:
@@ -16,16 +16,16 @@ class TestPlRsi:
         return pl.DataFrame({"close": close})
 
     def test_returns_expression(self, sample_df):
-        result = sample_df.select(pl_rsi("close"))
+        result = sample_df.select(rsi("close"))
         assert result.height == 100
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_rsi("close", length=10))
+        result = sample_df.select(rsi("close", length=10))
         assert "RSI_10" in result.columns
 
     def test_numerical_parity_talib(self, sample_df):
         """Numerical parity with TA-Lib."""
-        result = sample_df.select(pl_rsi("close", talib=True))
+        result = sample_df.select(rsi("close", talib=True))
         arr = result[result.columns[0]].to_numpy()
         valid = ~np.isnan(arr)
         assert valid.sum() > 50
@@ -34,14 +34,14 @@ class TestPlRsi:
         assert np.nanmax(arr) <= 100
 
     def test_offset_shifts_result(self, sample_df):
-        result = sample_df.select(pl_rsi("close", offset=5))
+        result = sample_df.select(rsi("close", offset=5))
         arr = result[result.columns[0]].to_numpy()
         assert all(np.isnan(arr[:5]))
 
     def test_talib_parameter_toggle(self, sample_df):
         """Both talib=True and talib=False produce valid results."""
-        result_talib = sample_df.select(pl_rsi("close", talib=True))
-        result_polars = sample_df.select(pl_rsi("close", talib=False))
+        result_talib = sample_df.select(rsi("close", talib=True))
+        result_polars = sample_df.select(rsi("close", talib=False))
 
         arr_talib = result_talib[result_talib.columns[0]].to_numpy()
         arr_polars = result_polars[result_polars.columns[0]].to_numpy()
@@ -52,17 +52,17 @@ class TestPlRsi:
 
     def test_with_null_values(self):
         df = pl.DataFrame({"close": [None] + [100.0] * 49})
-        result = df.select(pl_rsi("close", length=10))
+        result = df.select(rsi("close", length=10))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_rsi("close")).collect()
+        result = lazy_df.select(rsi("close")).collect()
         assert "RSI_14" in result.columns
 
     def test_mamode_parameter(self, sample_df):
         """Different mamode produces valid results."""
-        result = sample_df.select(pl_rsi("close", mamode="ema", talib=False))
+        result = sample_df.select(rsi("close", mamode="ema", talib=False))
         arr = result[result.columns[0]].to_numpy()
         valid = ~np.isnan(arr)
         assert valid.sum() > 50

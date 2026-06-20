@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_rwi(
+def rwi(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -33,13 +33,13 @@ def pl_rwi(
     Returns:
         pl.Expr: Struct with RWIh and RWIl columns
     """
-    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=length, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=False)
     denom = atr_expr * (length**0.5)
 
     rwi_high = (high_expr - low_expr.shift(length)) / denom

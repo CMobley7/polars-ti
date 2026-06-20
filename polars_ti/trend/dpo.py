@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_dpo(
+def dpo(
     close: IntoExpr,
     length: int = 20,
     centered: bool = True,
@@ -37,12 +37,12 @@ def pl_dpo(
     Returns:
         pl.Expr: DPO expression
     """
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.overlap.sma import sma
 
     close_expr = v_expr(close)
     t = int(0.5 * length) + 1
 
-    ma_expr = pl_sma(close_expr, length=length, talib=False, offset=0)
+    ma_expr = sma(close_expr, length=length, talib=False, offset=0)
 
     _centered = centered and lookahead
     if _centered:

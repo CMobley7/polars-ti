@@ -27,187 +27,187 @@ from multiprocessing import cpu_count
 import polars as pl
 
 from polars_ti._typing import DictLike
-from polars_ti.candles.cdl_doji import pl_cdl_doji
-from polars_ti.candles.cdl_inside import pl_cdl_inside
-from polars_ti.candles.cdl_pattern import pl_cdl, pl_cdl_pattern
-from polars_ti.candles.cdl_z import pl_cdl_z
-from polars_ti.candles.ha import pl_ha
-from polars_ti.cycles.dsp import pl_dsp
-from polars_ti.cycles.ebsw import pl_ebsw
-from polars_ti.cycles.reflex import pl_reflex
-from polars_ti.ma import pl_ma
+from polars_ti.candles.cdl_doji import cdl_doji
+from polars_ti.candles.cdl_inside import cdl_inside
+from polars_ti.candles.cdl_pattern import cdl, cdl_pattern
+from polars_ti.candles.cdl_z import cdl_z
+from polars_ti.candles.ha import ha
+from polars_ti.cycles.dsp import dsp
+from polars_ti.cycles.ebsw import ebsw
+from polars_ti.cycles.reflex import reflex
+from polars_ti.ma import ma
 from polars_ti.maps import EXCHANGE_TZ, Category, Imports, version
-from polars_ti.momentum.ao import pl_ao
-from polars_ti.momentum.apo import pl_apo
-from polars_ti.momentum.bias import pl_bias
-from polars_ti.momentum.bop import pl_bop
-from polars_ti.momentum.brar import pl_brar
-from polars_ti.momentum.cci import pl_cci
-from polars_ti.momentum.cfo import pl_cfo
-from polars_ti.momentum.cg import pl_cg
-from polars_ti.momentum.cmo import pl_cmo
-from polars_ti.momentum.coppock import pl_coppock
-from polars_ti.momentum.crsi import pl_crsi
-from polars_ti.momentum.cti import pl_cti
-from polars_ti.momentum.dm import pl_dm
-from polars_ti.momentum.er import pl_er
-from polars_ti.momentum.eri import pl_eri
-from polars_ti.momentum.exhc import pl_exhc
-from polars_ti.momentum.fisher import pl_fisher
-from polars_ti.momentum.imi import pl_imi
-from polars_ti.momentum.inertia import pl_inertia
-from polars_ti.momentum.kdj import pl_kdj
-from polars_ti.momentum.kst import pl_kst
-from polars_ti.momentum.lrsi import pl_lrsi
-from polars_ti.momentum.macd import pl_macd
-from polars_ti.momentum.mom import pl_mom
-from polars_ti.momentum.pgo import pl_pgo
-from polars_ti.momentum.po import pl_po
-from polars_ti.momentum.ppo import pl_ppo
-from polars_ti.momentum.psl import pl_psl
-from polars_ti.momentum.qqe import pl_qqe
-from polars_ti.momentum.rmi import pl_rmi
-from polars_ti.momentum.roc import pl_roc
-from polars_ti.momentum.rsi import pl_rsi
-from polars_ti.momentum.rsx import pl_rsx
-from polars_ti.momentum.rvgi import pl_rvgi
-from polars_ti.momentum.slope import pl_slope
-from polars_ti.momentum.smc import pl_smc
-from polars_ti.momentum.smi import pl_smi
-from polars_ti.momentum.squeeze import pl_squeeze
-from polars_ti.momentum.squeeze_pro import pl_squeeze_pro
-from polars_ti.momentum.stc import pl_stc
-from polars_ti.momentum.stoch import pl_stoch
-from polars_ti.momentum.stochf import pl_stochf
-from polars_ti.momentum.stochrsi import pl_stochrsi
-from polars_ti.momentum.tmo import pl_tmo
-from polars_ti.momentum.trix import pl_trix
-from polars_ti.momentum.trixh import pl_trixh
-from polars_ti.momentum.tsi import pl_tsi
-from polars_ti.momentum.uo import pl_uo
-from polars_ti.momentum.vwmacd import pl_vwmacd
-from polars_ti.momentum.willr import pl_willr
-from polars_ti.overlap.alligator import pl_alligator
-from polars_ti.overlap.alma import pl_alma
-from polars_ti.overlap.dema import pl_dema
-from polars_ti.overlap.ema import pl_ema
-from polars_ti.overlap.fwma import pl_fwma
-from polars_ti.overlap.hilo import pl_hilo
-from polars_ti.overlap.hl2 import pl_hl2
-from polars_ti.overlap.hlc3 import pl_hlc3
-from polars_ti.overlap.hma import pl_hma
-from polars_ti.overlap.hwma import pl_hwma
-from polars_ti.overlap.ichimoku import pl_ichimoku
-from polars_ti.overlap.jma import pl_jma
-from polars_ti.overlap.kama import pl_kama
-from polars_ti.overlap.linreg import pl_linreg
-from polars_ti.overlap.mama import pl_mama
-from polars_ti.overlap.mcgd import pl_mcgd
-from polars_ti.overlap.midpoint import pl_midpoint
-from polars_ti.overlap.midprice import pl_midprice
-from polars_ti.overlap.mmar import pl_mmar
-from polars_ti.overlap.ohlc4 import pl_ohlc4
-from polars_ti.overlap.ott import pl_ott
-from polars_ti.overlap.pivots import pl_pivots
-from polars_ti.overlap.pwma import pl_pwma
-from polars_ti.overlap.rainbow import pl_rainbow
-from polars_ti.overlap.rma import pl_rma
-from polars_ti.overlap.sinwma import pl_sinwma
-from polars_ti.overlap.sma import pl_sma
-from polars_ti.overlap.smma import pl_smma
-from polars_ti.overlap.ssf import pl_ssf
-from polars_ti.overlap.ssf3 import pl_ssf3
-from polars_ti.overlap.supertrend import pl_supertrend
-from polars_ti.overlap.swma import pl_swma
-from polars_ti.overlap.t3 import pl_t3
-from polars_ti.overlap.tema import pl_tema
-from polars_ti.overlap.trima import pl_trima
-from polars_ti.overlap.vidya import pl_vidya
-from polars_ti.overlap.wcp import pl_wcp
-from polars_ti.overlap.wma import pl_wma
-from polars_ti.overlap.zlma import pl_zlma
-from polars_ti.performance.drawdown import pl_drawdown
-from polars_ti.performance.log_return import pl_log_return
-from polars_ti.performance.percent_return import pl_percent_return
-from polars_ti.statistics.entropy import pl_entropy
-from polars_ti.statistics.kurtosis import pl_kurtosis
-from polars_ti.statistics.mad import pl_mad
-from polars_ti.statistics.median import pl_median
-from polars_ti.statistics.quantile import pl_quantile
-from polars_ti.statistics.skew import pl_skew
-from polars_ti.statistics.stdev import pl_stdev
-from polars_ti.statistics.tos_stdevall import pl_tos_stdevall
-from polars_ti.statistics.variance import pl_variance
-from polars_ti.statistics.zscore import pl_zscore
-from polars_ti.transform.cube import pl_cube
-from polars_ti.transform.ifisher import pl_ifisher
-from polars_ti.transform.remap import pl_remap
-from polars_ti.trend.adx import pl_adx
-from polars_ti.trend.alphatrend import pl_alphatrend
-from polars_ti.trend.amat import pl_amat
-from polars_ti.trend.aroon import pl_aroon
-from polars_ti.trend.chop import pl_chop
-from polars_ti.trend.cksp import pl_cksp
-from polars_ti.trend.decay import pl_decay
-from polars_ti.trend.decreasing import pl_decreasing
-from polars_ti.trend.dpo import pl_dpo
-from polars_ti.trend.ht_trendline import pl_ht_trendline
-from polars_ti.trend.increasing import pl_increasing
-from polars_ti.trend.long_run import pl_long_run
-from polars_ti.trend.pmax import pl_pmax
-from polars_ti.trend.psar import pl_psar
-from polars_ti.trend.qstick import pl_qstick
-from polars_ti.trend.rwi import pl_rwi
-from polars_ti.trend.short_run import pl_short_run
-from polars_ti.trend.trama import pl_trama
-from polars_ti.trend.trendflex import pl_trendflex
-from polars_ti.trend.tsignals import pl_tsignals
-from polars_ti.trend.ttm_trend import pl_ttm_trend
-from polars_ti.trend.vhf import pl_vhf
-from polars_ti.trend.vortex import pl_vortex
-from polars_ti.trend.xsignals import pl_xsignals
-from polars_ti.trend.zigzag import pl_zigzag
-from polars_ti.volatility.aberration import pl_aberration
-from polars_ti.volatility.accbands import pl_accbands
-from polars_ti.volatility.atr import pl_atr
-from polars_ti.volatility.atrts import pl_atrts
-from polars_ti.volatility.avsl import pl_avsl
-from polars_ti.volatility.bbands import pl_bbands
-from polars_ti.volatility.chandelier_exit import pl_chandelier_exit
-from polars_ti.volatility.donchian import pl_donchian
-from polars_ti.volatility.fvg import pl_fvg
-from polars_ti.volatility.halftrend import pl_halftrend
-from polars_ti.volatility.hwc import pl_hwc
-from polars_ti.volatility.kc import pl_kc
-from polars_ti.volatility.massi import pl_massi
-from polars_ti.volatility.natr import pl_natr
-from polars_ti.volatility.pdist import pl_pdist
-from polars_ti.volatility.rvi import pl_rvi
-from polars_ti.volatility.thermo import pl_thermo
-from polars_ti.volatility.true_range import pl_true_range
-from polars_ti.volatility.ui import pl_ui
-from polars_ti.volume.ad import pl_ad
-from polars_ti.volume.adosc import pl_adosc
-from polars_ti.volume.aobv import pl_aobv
-from polars_ti.volume.avwap import pl_avwap
-from polars_ti.volume.cmf import pl_cmf
-from polars_ti.volume.efi import pl_efi
-from polars_ti.volume.eom import pl_eom
-from polars_ti.volume.kvo import pl_kvo
-from polars_ti.volume.mfi import pl_mfi
-from polars_ti.volume.nvi import pl_nvi
-from polars_ti.volume.obv import pl_obv
-from polars_ti.volume.pvi import pl_pvi
-from polars_ti.volume.pvo import pl_pvo
-from polars_ti.volume.pvol import pl_pvol
-from polars_ti.volume.pvr import pl_pvr
-from polars_ti.volume.pvt import pl_pvt
-from polars_ti.volume.vfi import pl_vfi
-from polars_ti.volume.vhm import pl_vhm
-from polars_ti.volume.vp import pl_vp
-from polars_ti.volume.vwap import pl_vwap
-from polars_ti.volume.vwma import pl_vwma
-from polars_ti.volume.wb_tsv import pl_wb_tsv
+from polars_ti.momentum.ao import ao
+from polars_ti.momentum.apo import apo
+from polars_ti.momentum.bias import bias
+from polars_ti.momentum.bop import bop
+from polars_ti.momentum.brar import brar
+from polars_ti.momentum.cci import cci
+from polars_ti.momentum.cfo import cfo
+from polars_ti.momentum.cg import cg
+from polars_ti.momentum.cmo import cmo
+from polars_ti.momentum.coppock import coppock
+from polars_ti.momentum.crsi import crsi
+from polars_ti.momentum.cti import cti
+from polars_ti.momentum.dm import dm
+from polars_ti.momentum.er import er
+from polars_ti.momentum.eri import eri
+from polars_ti.momentum.exhc import exhc
+from polars_ti.momentum.fisher import fisher
+from polars_ti.momentum.imi import imi
+from polars_ti.momentum.inertia import inertia
+from polars_ti.momentum.kdj import kdj
+from polars_ti.momentum.kst import kst
+from polars_ti.momentum.lrsi import lrsi
+from polars_ti.momentum.macd import macd
+from polars_ti.momentum.mom import mom
+from polars_ti.momentum.pgo import pgo
+from polars_ti.momentum.po import po
+from polars_ti.momentum.ppo import ppo
+from polars_ti.momentum.psl import psl
+from polars_ti.momentum.qqe import qqe
+from polars_ti.momentum.rmi import rmi
+from polars_ti.momentum.roc import roc
+from polars_ti.momentum.rsi import rsi
+from polars_ti.momentum.rsx import rsx
+from polars_ti.momentum.rvgi import rvgi
+from polars_ti.momentum.slope import slope
+from polars_ti.momentum.smc import smc
+from polars_ti.momentum.smi import smi
+from polars_ti.momentum.squeeze import squeeze
+from polars_ti.momentum.squeeze_pro import squeeze_pro
+from polars_ti.momentum.stc import stc
+from polars_ti.momentum.stoch import stoch
+from polars_ti.momentum.stochf import stochf
+from polars_ti.momentum.stochrsi import stochrsi
+from polars_ti.momentum.tmo import tmo
+from polars_ti.momentum.trix import trix
+from polars_ti.momentum.trixh import trixh
+from polars_ti.momentum.tsi import tsi
+from polars_ti.momentum.uo import uo
+from polars_ti.momentum.vwmacd import vwmacd
+from polars_ti.momentum.willr import willr
+from polars_ti.overlap.alligator import alligator
+from polars_ti.overlap.alma import alma
+from polars_ti.overlap.dema import dema
+from polars_ti.overlap.ema import ema
+from polars_ti.overlap.fwma import fwma
+from polars_ti.overlap.hilo import hilo
+from polars_ti.overlap.hl2 import hl2
+from polars_ti.overlap.hlc3 import hlc3
+from polars_ti.overlap.hma import hma
+from polars_ti.overlap.hwma import hwma
+from polars_ti.overlap.ichimoku import ichimoku
+from polars_ti.overlap.jma import jma
+from polars_ti.overlap.kama import kama
+from polars_ti.overlap.linreg import linreg
+from polars_ti.overlap.mama import mama
+from polars_ti.overlap.mcgd import mcgd
+from polars_ti.overlap.midpoint import midpoint
+from polars_ti.overlap.midprice import midprice
+from polars_ti.overlap.mmar import mmar
+from polars_ti.overlap.ohlc4 import ohlc4
+from polars_ti.overlap.ott import ott
+from polars_ti.overlap.pivots import pivots
+from polars_ti.overlap.pwma import pwma
+from polars_ti.overlap.rainbow import rainbow
+from polars_ti.overlap.rma import rma
+from polars_ti.overlap.sinwma import sinwma
+from polars_ti.overlap.sma import sma
+from polars_ti.overlap.smma import smma
+from polars_ti.overlap.ssf import ssf
+from polars_ti.overlap.ssf3 import ssf3
+from polars_ti.overlap.supertrend import supertrend
+from polars_ti.overlap.swma import swma
+from polars_ti.overlap.t3 import t3
+from polars_ti.overlap.tema import tema
+from polars_ti.overlap.trima import trima
+from polars_ti.overlap.vidya import vidya
+from polars_ti.overlap.wcp import wcp
+from polars_ti.overlap.wma import wma
+from polars_ti.overlap.zlma import zlma
+from polars_ti.performance.drawdown import drawdown
+from polars_ti.performance.log_return import log_return
+from polars_ti.performance.percent_return import percent_return
+from polars_ti.statistics.entropy import entropy
+from polars_ti.statistics.kurtosis import kurtosis
+from polars_ti.statistics.mad import mad
+from polars_ti.statistics.median import median
+from polars_ti.statistics.quantile import quantile
+from polars_ti.statistics.skew import skew
+from polars_ti.statistics.stdev import stdev
+from polars_ti.statistics.tos_stdevall import tos_stdevall
+from polars_ti.statistics.variance import variance
+from polars_ti.statistics.zscore import zscore
+from polars_ti.transform.cube import cube
+from polars_ti.transform.ifisher import ifisher
+from polars_ti.transform.remap import remap
+from polars_ti.trend.adx import adx
+from polars_ti.trend.alphatrend import alphatrend
+from polars_ti.trend.amat import amat
+from polars_ti.trend.aroon import aroon
+from polars_ti.trend.chop import chop
+from polars_ti.trend.cksp import cksp
+from polars_ti.trend.decay import decay
+from polars_ti.trend.decreasing import decreasing
+from polars_ti.trend.dpo import dpo
+from polars_ti.trend.ht_trendline import ht_trendline
+from polars_ti.trend.increasing import increasing
+from polars_ti.trend.long_run import long_run
+from polars_ti.trend.pmax import pmax
+from polars_ti.trend.psar import psar
+from polars_ti.trend.qstick import qstick
+from polars_ti.trend.rwi import rwi
+from polars_ti.trend.short_run import short_run
+from polars_ti.trend.trama import trama
+from polars_ti.trend.trendflex import trendflex
+from polars_ti.trend.tsignals import tsignals
+from polars_ti.trend.ttm_trend import ttm_trend
+from polars_ti.trend.vhf import vhf
+from polars_ti.trend.vortex import vortex
+from polars_ti.trend.xsignals import xsignals
+from polars_ti.trend.zigzag import zigzag
+from polars_ti.volatility.aberration import aberration
+from polars_ti.volatility.accbands import accbands
+from polars_ti.volatility.atr import atr
+from polars_ti.volatility.atrts import atrts
+from polars_ti.volatility.avsl import avsl
+from polars_ti.volatility.bbands import bbands
+from polars_ti.volatility.chandelier_exit import chandelier_exit
+from polars_ti.volatility.donchian import donchian
+from polars_ti.volatility.fvg import fvg
+from polars_ti.volatility.halftrend import halftrend
+from polars_ti.volatility.hwc import hwc
+from polars_ti.volatility.kc import kc
+from polars_ti.volatility.massi import massi
+from polars_ti.volatility.natr import natr
+from polars_ti.volatility.pdist import pdist
+from polars_ti.volatility.rvi import rvi
+from polars_ti.volatility.thermo import thermo
+from polars_ti.volatility.true_range import true_range
+from polars_ti.volatility.ui import ui
+from polars_ti.volume.ad import ad
+from polars_ti.volume.adosc import adosc
+from polars_ti.volume.aobv import aobv
+from polars_ti.volume.avwap import avwap
+from polars_ti.volume.cmf import cmf
+from polars_ti.volume.efi import efi
+from polars_ti.volume.eom import eom
+from polars_ti.volume.kvo import kvo
+from polars_ti.volume.mfi import mfi
+from polars_ti.volume.nvi import nvi
+from polars_ti.volume.obv import obv
+from polars_ti.volume.pvi import pvi
+from polars_ti.volume.pvo import pvo
+from polars_ti.volume.pvol import pvol
+from polars_ti.volume.pvr import pvr
+from polars_ti.volume.pvt import pvt
+from polars_ti.volume.vfi import vfi
+from polars_ti.volume.vhm import vhm
+from polars_ti.volume.vp import vp
+from polars_ti.volume.vwap import vwap
+from polars_ti.volume.vwma import vwma
+from polars_ti.volume.wb_tsv import wb_tsv
 
 
 def _collect(result) -> pl.DataFrame | None:
@@ -409,8 +409,8 @@ class TechnicalIndicators:
             **kwargs: Additional keyword arguments forwarded to every indicator.
 
         Returns:
-            The DataFrame with all study columns appended in-place via
-            ``app"""
+            The DataFrame with all study columns appended.
+        """
         from polars_ti.utils._study import Study
         from polars_ti.maps import Category
 
@@ -421,12 +421,24 @@ class TechnicalIndicators:
                 return
             try:
                 result = fn(**kw)
+            except TypeError as exc:
+                if "talib" not in kw or "unexpected keyword argument" not in str(exc):
+                    return
+                kw = {k: v for k, v in kw.items() if k != "talib"}
+                try:
+                    result = fn(**kw)
+                except Exception:
+                    return
+            except Exception:
+                return  # Skip indicators that fail (e.g. missing required columns)
+
+            try:
                 if isinstance(result, pl.DataFrame) and result.width > 0:
                     new_cols = [c for c in result.columns if c not in self._df.columns]
                     if new_cols:
                         self._df = self._df.hstack(result.select(new_cols))
             except Exception:
-                pass  # Skip indicators that fail (e.g. missing required columns)
+                return
 
         # Accept a Study class/instance, a category string, or AllStudy sentinel
         if isinstance(study, type) and issubclass(study, Study):
@@ -439,8 +451,7 @@ class TechnicalIndicators:
                 raise ValueError(f"Unknown category '{category}'. Valid: {list(Category.keys())}")
             for kind in Category[category]:
                 kw = dict(kwargs)
-                if talib:
-                    kw["talib"] = True
+                kw["talib"] = talib
                 _run(kind, kw)
             return self._df
 
@@ -449,8 +460,7 @@ class TechnicalIndicators:
             for category_inds in Category.values():
                 for kind in category_inds:
                     kw = dict(kwargs)
-                    if talib:
-                        kw["talib"] = True
+                    kw["talib"] = talib
                     _run(kind, kw)
             return self._df
 
@@ -461,8 +471,7 @@ class TechnicalIndicators:
             # Shallow-copy so we never mutate the Study definition
             kw = {k: v for k, v in ind_spec.items() if k != "kind"}
             kw.update(kwargs)
-            if talib:
-                kw["talib"] = True
+            kw["talib"] = talib
             _run(ind_spec["kind"], kw)
 
         return self._df
@@ -498,15 +507,15 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_cdl_doji(o, h, lo, c, **kw), **kw)
+        return self._post_process(cdl_doji(o, h, lo, c, **kw), **kw)
 
     def cdl_inside(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_cdl_inside(h, lo, **kw), **kw)
+        return self._post_process(cdl_inside(h, lo, **kw), **kw)
 
     def cdl_pattern(self, name="all", **kw):
-        result = pl_cdl_pattern(self._df, name=name, **kw)
+        result = cdl_pattern(self._df, name=name, **kw)
         return self._post_process(result, **kw)
 
     def cdl_z(self, open_=None, high=None, low=None, close=None, **kw):
@@ -514,14 +523,14 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_cdl_z(o, h, lo, c, **kw), **kw)
+        return self._post_process(cdl_z(o, h, lo, c, **kw), **kw)
 
     def ha(self, open_=None, high=None, low=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_ha(o, h, lo, c, **kw), **kw)
+        return self._post_process(ha(o, h, lo, c, **kw), **kw)
 
     # ==================================================================
     #  Cycles
@@ -529,15 +538,15 @@ class TechnicalIndicators:
 
     def dsp(self, close=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_dsp(c, **kw), **kw)
+        return self._post_process(dsp(c, **kw), **kw)
 
     def ebsw(self, close=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_ebsw(c, **kw), **kw)
+        return self._post_process(ebsw(c, **kw), **kw)
 
     def reflex(self, close=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_reflex(c, **kw), **kw)
+        return self._post_process(reflex(c, **kw), **kw)
 
     # ==================================================================
     #  Momentum
@@ -545,7 +554,7 @@ class TechnicalIndicators:
 
     def ao(self, high=None, low=None, **kw):
         return self._post_process(
-            pl_ao(
+            ao(
                 self._high(kw) if not high else self._col(high),
                 self._low(kw) if not low else self._col(low),
                 **kw,
@@ -554,10 +563,10 @@ class TechnicalIndicators:
         )
 
     def apo(self, close=None, **kw):
-        return self._post_process(pl_apo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(apo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def bias(self, close=None, **kw):
-        return self._post_process(pl_bias(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(bias(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def bop(self, open_=None, high=None, low=None, close=None, **kw):
         kw.setdefault("open", "open")
@@ -568,7 +577,7 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high"))
         lo = self._col(low or kw.pop("low"))
         c = self._col(close or kw.pop("close"))
-        return self._post_process(pl_bop(o, h, lo, c, **kw), **kw)
+        return self._post_process(bop(o, h, lo, c, **kw), **kw)
 
     def brar(self, open_=None, high=None, low=None, close=None, **kw):
         kw.setdefault("open", "open")
@@ -579,266 +588,266 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high"))
         lo = self._col(low or kw.pop("low"))
         c = self._col(close or kw.pop("close"))
-        return self._post_process(pl_brar(o, h, lo, c, **kw), **kw)
+        return self._post_process(brar(o, h, lo, c, **kw), **kw)
 
     def cci(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_cci(h, lo, c, **kw), **kw)
+        return self._post_process(cci(h, lo, c, **kw), **kw)
 
     def cfo(self, close=None, **kw):
-        return self._post_process(pl_cfo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(cfo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def cg(self, close=None, **kw):
-        return self._post_process(pl_cg(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(cg(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def cmo(self, close=None, **kw):
-        return self._post_process(pl_cmo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(cmo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def coppock(self, close=None, **kw):
-        return self._post_process(pl_coppock(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(coppock(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def crsi(self, close=None, **kw):
-        return self._post_process(pl_crsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(crsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def cti(self, close=None, **kw):
-        return self._post_process(pl_cti(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(cti(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def dm(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_dm(h, lo, **kw), **kw)
+        return self._post_process(dm(h, lo, **kw), **kw)
 
     def er(self, close=None, **kw):
-        return self._post_process(pl_er(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(er(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def eri(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_eri(h, lo, c, **kw), **kw)
+        return self._post_process(eri(h, lo, c, **kw), **kw)
 
     def exhc(self, close=None, **kw):
-        return self._post_process(pl_exhc(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(exhc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def fisher(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_fisher(h, lo, **kw), **kw)
+        return self._post_process(fisher(h, lo, **kw), **kw)
 
     def imi(self, open_=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_imi(o, c, **kw), **kw)
+        return self._post_process(imi(o, c, **kw), **kw)
 
     def inertia(self, close=None, **kw):
-        return self._post_process(pl_inertia(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(inertia(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def kdj(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_kdj(h, lo, c, **kw), **kw)
+        return self._post_process(kdj(h, lo, c, **kw), **kw)
 
     def kst(self, close=None, **kw):
-        return self._post_process(pl_kst(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(kst(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def lrsi(self, close=None, **kw):
-        return self._post_process(pl_lrsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(lrsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def macd(self, close=None, **kw):
-        return self._post_process(pl_macd(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(macd(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def mom(self, close=None, **kw):
-        return self._post_process(pl_mom(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(mom(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def pgo(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_pgo(h, lo, c, **kw), **kw)
+        return self._post_process(pgo(h, lo, c, **kw), **kw)
 
     def po(self, close=None, **kw):
-        return self._post_process(pl_po(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(po(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ppo(self, close=None, **kw):
-        return self._post_process(pl_ppo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ppo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def psl(self, close=None, **kw):
-        return self._post_process(pl_psl(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(psl(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def qqe(self, close=None, **kw):
-        return self._post_process(pl_qqe(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(qqe(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rmi(self, close=None, **kw):
-        return self._post_process(pl_rmi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(rmi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def roc(self, close=None, **kw):
-        return self._post_process(pl_roc(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(roc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rsi(self, close=None, **kw):
-        return self._post_process(pl_rsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(rsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rsx(self, close=None, **kw):
-        return self._post_process(pl_rsx(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(rsx(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rvgi(self, open_=None, high=None, low=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_rvgi(o, h, lo, c, **kw), **kw)
+        return self._post_process(rvgi(o, h, lo, c, **kw), **kw)
 
     def slope(self, close=None, **kw):
-        return self._post_process(pl_slope(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(slope(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def smc(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_smc(h, lo, c, **kw), **kw)
+        return self._post_process(smc(h, lo, c, **kw), **kw)
 
     def smi(self, close=None, **kw):
-        return self._post_process(pl_smi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(smi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def squeeze(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_squeeze(h, lo, c, **kw), **kw)
+        return self._post_process(squeeze(h, lo, c, **kw), **kw)
 
     def squeeze_pro(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_squeeze_pro(h, lo, c, **kw), **kw)
+        return self._post_process(squeeze_pro(h, lo, c, **kw), **kw)
 
     def stc(self, close=None, **kw):
-        return self._post_process(pl_stc(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(stc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def stoch(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_stoch(h, lo, c, **kw), **kw)
+        return self._post_process(stoch(h, lo, c, **kw), **kw)
 
     def stochf(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_stochf(h, lo, c, **kw), **kw)
+        return self._post_process(stochf(h, lo, c, **kw), **kw)
 
     def stochrsi(self, close=None, **kw):
-        return self._post_process(pl_stochrsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(stochrsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def tmo(self, open_=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_tmo(o, c, **kw), **kw)
+        return self._post_process(tmo(o, c, **kw), **kw)
 
     def trix(self, close=None, **kw):
-        return self._post_process(pl_trix(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(trix(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def trixh(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_trixh(h, lo, c, **kw), **kw)
+        return self._post_process(trixh(h, lo, c, **kw), **kw)
 
     def tsi(self, close=None, **kw):
-        return self._post_process(pl_tsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(tsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def uo(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_uo(h, lo, c, **kw), **kw)
+        return self._post_process(uo(h, lo, c, **kw), **kw)
 
     def vwmacd(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_vwmacd(c, v, **kw), **kw)
+        return self._post_process(vwmacd(c, v, **kw), **kw)
 
     def willr(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_willr(h, lo, c, **kw), **kw)
+        return self._post_process(willr(h, lo, c, **kw), **kw)
 
     # ==================================================================
     #  Overlap
     # ==================================================================
 
     def alligator(self, close=None, **kw):
-        return self._post_process(pl_alligator(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(alligator(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def alma(self, close=None, **kw):
-        return self._post_process(pl_alma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(alma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def dema(self, close=None, **kw):
-        return self._post_process(pl_dema(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(dema(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ema(self, close=None, **kw):
-        return self._post_process(pl_ema(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ema(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def fwma(self, close=None, **kw):
-        return self._post_process(pl_fwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(fwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def hilo(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_hilo(h, lo, c, **kw), **kw)
+        return self._post_process(hilo(h, lo, c, **kw), **kw)
 
     def hl2(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_hl2(h, lo, **kw), **kw)
+        return self._post_process(hl2(h, lo, **kw), **kw)
 
     def hlc3(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_hlc3(h, lo, c, **kw), **kw)
+        return self._post_process(hlc3(h, lo, c, **kw), **kw)
 
     def hma(self, close=None, **kw):
-        return self._post_process(pl_hma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(hma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def hwma(self, close=None, **kw):
-        return self._post_process(pl_hwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(hwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ichimoku(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_ichimoku(h, lo, c, **kw), **kw)
+        return self._post_process(ichimoku(h, lo, c, **kw), **kw)
 
     def jma(self, close=None, **kw):
-        return self._post_process(pl_jma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(jma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def kama(self, close=None, **kw):
-        return self._post_process(pl_kama(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(kama(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def linreg(self, close=None, **kw):
-        return self._post_process(pl_linreg(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(linreg(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def mama(self, close=None, **kw):
-        return self._post_process(pl_mama(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(mama(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def mcgd(self, close=None, **kw):
-        return self._post_process(pl_mcgd(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(mcgd(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def midpoint(self, close=None, **kw):
-        return self._post_process(pl_midpoint(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(midpoint(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def midprice(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_midprice(h, lo, **kw), **kw)
+        return self._post_process(midprice(h, lo, **kw), **kw)
 
     def mmar(self, close=None, **kw):
-        return self._post_process(pl_mmar(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(mmar(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ohlc4(self, open_=None, high=None, low=None, close=None, **kw):
         kw.setdefault("open", "open")
@@ -849,133 +858,133 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high"))
         lo = self._col(low or kw.pop("low"))
         c = self._col(close or kw.pop("close"))
-        return self._post_process(pl_ohlc4(o, h, lo, c, **kw), **kw)
+        return self._post_process(ohlc4(o, h, lo, c, **kw), **kw)
 
     def ott(self, close=None, **kw):
-        return self._post_process(pl_ott(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ott(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def pivots(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_pivots(h, lo, c, **kw), **kw)
+        return self._post_process(pivots(h, lo, c, **kw), **kw)
 
     def pwma(self, close=None, **kw):
-        return self._post_process(pl_pwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(pwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rainbow(self, close=None, **kw):
-        return self._post_process(pl_rainbow(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(rainbow(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rma(self, close=None, **kw):
-        return self._post_process(pl_rma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(rma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def sinwma(self, close=None, **kw):
-        return self._post_process(pl_sinwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(sinwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def sma(self, close=None, **kw):
-        return self._post_process(pl_sma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(sma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def smma(self, close=None, **kw):
-        return self._post_process(pl_smma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(smma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ssf(self, close=None, **kw):
-        return self._post_process(pl_ssf(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ssf(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ssf3(self, close=None, **kw):
-        return self._post_process(pl_ssf3(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ssf3(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def supertrend(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_supertrend(h, lo, c, **kw), **kw)
+        return self._post_process(supertrend(h, lo, c, **kw), **kw)
 
     def swma(self, close=None, **kw):
-        return self._post_process(pl_swma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(swma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def t3(self, close=None, **kw):
-        return self._post_process(pl_t3(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(t3(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def tema(self, close=None, **kw):
-        return self._post_process(pl_tema(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(tema(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def trima(self, close=None, **kw):
-        return self._post_process(pl_trima(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(trima(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def vidya(self, close=None, **kw):
-        return self._post_process(pl_vidya(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(vidya(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def wcp(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_wcp(h, lo, c, **kw), **kw)
+        return self._post_process(wcp(h, lo, c, **kw), **kw)
 
     def wma(self, close=None, **kw):
-        return self._post_process(pl_wma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(wma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def zlma(self, close=None, **kw):
-        return self._post_process(pl_zlma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(zlma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     # ==================================================================
     #  Performance
     # ==================================================================
 
     def drawdown(self, close=None, **kw):
-        return self._post_process(pl_drawdown(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(drawdown(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def log_return(self, close=None, **kw):
-        return self._post_process(pl_log_return(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(log_return(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def percent_return(self, close=None, **kw):
-        return self._post_process(pl_percent_return(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(percent_return(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     # ==================================================================
     #  Statistics
     # ==================================================================
 
     def entropy(self, close=None, **kw):
-        return self._post_process(pl_entropy(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(entropy(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def kurtosis(self, close=None, **kw):
-        return self._post_process(pl_kurtosis(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(kurtosis(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def mad(self, close=None, **kw):
-        return self._post_process(pl_mad(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(mad(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def median(self, close=None, **kw):
-        return self._post_process(pl_median(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(median(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def quantile(self, close=None, **kw):
-        return self._post_process(pl_quantile(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(quantile(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def skew(self, close=None, **kw):
-        return self._post_process(pl_skew(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(skew(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def stdev(self, close=None, **kw):
-        return self._post_process(pl_stdev(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(stdev(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def tos_stdevall(self, close=None, **kw):
-        return self._post_process(pl_tos_stdevall(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(tos_stdevall(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def variance(self, close=None, **kw):
-        return self._post_process(pl_variance(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(variance(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def zscore(self, close=None, **kw):
-        return self._post_process(pl_zscore(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(zscore(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     # ==================================================================
     #  Transform
     # ==================================================================
 
     def cube(self, close=None, **kw):
-        return self._post_process(pl_cube(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(cube(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ifisher(self, close=None, **kw):
-        return self._post_process(pl_ifisher(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ifisher(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def remap(self, close=None, **kw):
-        return self._post_process(pl_remap(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(remap(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     # ==================================================================
     #  Trend
@@ -985,120 +994,120 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_adx(h, lo, c, **kw), **kw)
+        return self._post_process(adx(h, lo, c, **kw), **kw)
 
     def alphatrend(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_alphatrend(h, lo, c, v, **kw), **kw)
+        return self._post_process(alphatrend(h, lo, c, v, **kw), **kw)
 
     def amat(self, close=None, **kw):
-        return self._post_process(pl_amat(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(amat(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def aroon(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_aroon(h, lo, **kw), **kw)
+        return self._post_process(aroon(h, lo, **kw), **kw)
 
     def chop(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_chop(h, lo, c, **kw), **kw)
+        return self._post_process(chop(h, lo, c, **kw), **kw)
 
     def cksp(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_cksp(h, lo, c, **kw), **kw)
+        return self._post_process(cksp(h, lo, c, **kw), **kw)
 
     def decay(self, close=None, **kw):
-        return self._post_process(pl_decay(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(decay(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def decreasing(self, close=None, **kw):
-        return self._post_process(pl_decreasing(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(decreasing(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def dpo(self, close=None, **kw):
-        return self._post_process(pl_dpo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(dpo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ht_trendline(self, close=None, **kw):
-        return self._post_process(pl_ht_trendline(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ht_trendline(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def increasing(self, close=None, **kw):
-        return self._post_process(pl_increasing(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(increasing(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def long_run(self, fast=None, slow=None, **kw):
         f = self._col(fast or kw.pop("fast", "fast"))
         s = self._col(slow or kw.pop("slow", "slow"))
-        return self._post_process(pl_long_run(f, s, **kw), **kw)
+        return self._post_process(long_run(f, s, **kw), **kw)
 
     def pmax(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_pmax(h, lo, c, v, **kw), **kw)
+        return self._post_process(pmax(h, lo, c, v, **kw), **kw)
 
     def psar(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_psar(h, lo, c, **kw), **kw)
+        return self._post_process(psar(h, lo, c, **kw), **kw)
 
     def qstick(self, open_=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_qstick(o, c, **kw), **kw)
+        return self._post_process(qstick(o, c, **kw), **kw)
 
     def rwi(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_rwi(h, lo, c, **kw), **kw)
+        return self._post_process(rwi(h, lo, c, **kw), **kw)
 
     def short_run(self, fast=None, slow=None, **kw):
         f = self._col(fast or kw.pop("fast", "fast"))
         s = self._col(slow or kw.pop("slow", "slow"))
-        return self._post_process(pl_short_run(f, s, **kw), **kw)
+        return self._post_process(short_run(f, s, **kw), **kw)
 
     def trama(self, close=None, **kw):
-        return self._post_process(pl_trama(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(trama(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def trendflex(self, close=None, **kw):
-        return self._post_process(pl_trendflex(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(trendflex(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def tsignals(self, trend=None, **kw):
         t = self._col(trend or kw.pop("trend", "trend"))
-        return self._post_process(pl_tsignals(t, **kw), **kw)
+        return self._post_process(tsignals(t, **kw), **kw)
 
     def ttm_trend(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_ttm_trend(h, lo, c, **kw), **kw)
+        return self._post_process(ttm_trend(h, lo, c, **kw), **kw)
 
     def vhf(self, close=None, **kw):
-        return self._post_process(pl_vhf(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(vhf(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def vortex(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_vortex(h, lo, c, **kw), **kw)
+        return self._post_process(vortex(h, lo, c, **kw), **kw)
 
     def xsignals(self, signal=None, xa=None, xb=None, **kw):
         s = self._col(signal or kw.pop("signal", "signal"))
         a = self._col(xa or kw.pop("above", "above"))
         b = self._col(xb or kw.pop("below", "below"))
-        return self._post_process(pl_xsignals(s, a, b, **kw), **kw)
+        return self._post_process(xsignals(s, a, b, **kw), **kw)
 
     def zigzag(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_zigzag(h, lo, c, **kw), **kw)
+        return self._post_process(zigzag(h, lo, c, **kw), **kw)
 
     # ==================================================================
     #  Volatility
@@ -1108,45 +1117,45 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_aberration(h, lo, c, **kw), **kw)
+        return self._post_process(aberration(h, lo, c, **kw), **kw)
 
     def accbands(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_accbands(h, lo, c, **kw), **kw)
+        return self._post_process(accbands(h, lo, c, **kw), **kw)
 
     def atr(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_atr(h, lo, c, **kw), **kw)
+        return self._post_process(atr(h, lo, c, **kw), **kw)
 
     def atrts(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_atrts(h, lo, c, **kw), **kw)
+        return self._post_process(atrts(h, lo, c, **kw), **kw)
 
     def avsl(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_avsl(h, lo, c, **kw), **kw)
+        return self._post_process(avsl(h, lo, c, **kw), **kw)
 
     def bbands(self, close=None, **kw):
-        return self._post_process(pl_bbands(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(bbands(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def chandelier_exit(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_chandelier_exit(h, lo, c, **kw), **kw)
+        return self._post_process(chandelier_exit(h, lo, c, **kw), **kw)
 
     def donchian(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_donchian(h, lo, **kw), **kw)
+        return self._post_process(donchian(h, lo, **kw), **kw)
 
     def fvg(self, open_=None, high=None, low=None, close=None, **kw):
         kw.setdefault("open", "open")
@@ -1157,33 +1166,33 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high"))
         lo = self._col(low or kw.pop("low"))
         c = self._col(close or kw.pop("close"))
-        return self._post_process(pl_fvg(o, h, lo, c, **kw), **kw)
+        return self._post_process(fvg(o, h, lo, c, **kw), **kw)
 
     def halftrend(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_halftrend(h, lo, c, **kw), **kw)
+        return self._post_process(halftrend(h, lo, c, **kw), **kw)
 
     def hwc(self, close=None, **kw):
-        return self._post_process(pl_hwc(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(hwc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def kc(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_kc(h, lo, c, **kw), **kw)
+        return self._post_process(kc(h, lo, c, **kw), **kw)
 
     def massi(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_massi(h, lo, **kw), **kw)
+        return self._post_process(massi(h, lo, **kw), **kw)
 
     def natr(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_natr(h, lo, c, **kw), **kw)
+        return self._post_process(natr(h, lo, c, **kw), **kw)
 
     def pdist(self, open_=None, high=None, low=None, close=None, **kw):
         kw.setdefault("open", "open")
@@ -1194,7 +1203,7 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high"))
         lo = self._col(low or kw.pop("low"))
         c = self._col(close or kw.pop("close"))
-        return self._post_process(pl_pdist(o, h, lo, c, **kw), **kw)
+        return self._post_process(pdist(o, h, lo, c, **kw), **kw)
 
     def rvi(self, open_=None, high=None, low=None, close=None, **kw):
         kw.setdefault("open", "open")
@@ -1205,21 +1214,21 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high"))
         lo = self._col(low or kw.pop("low"))
         c = self._col(close or kw.pop("close"))
-        return self._post_process(pl_rvi(o, h, lo, c, **kw), **kw)
+        return self._post_process(rvi(o, h, lo, c, **kw), **kw)
 
     def thermo(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(pl_thermo(h, lo, **kw), **kw)
+        return self._post_process(thermo(h, lo, **kw), **kw)
 
     def true_range(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(pl_true_range(h, lo, c, **kw), **kw)
+        return self._post_process(true_range(h, lo, c, **kw), **kw)
 
     def ui(self, close=None, **kw):
-        return self._post_process(pl_ui(self._col(close or kw.pop("close", "close")), **kw), **kw)
+        return self._post_process(ui(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     # ==================================================================
     #  Volume
@@ -1230,124 +1239,124 @@ class TechnicalIndicators:
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_ad(h, lo, c, v, **kw), **kw)
+        return self._post_process(ad(h, lo, c, v, **kw), **kw)
 
     def adosc(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_adosc(h, lo, c, v, **kw), **kw)
+        return self._post_process(adosc(h, lo, c, v, **kw), **kw)
 
     def aobv(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_aobv(c, v, **kw), **kw)
+        return self._post_process(aobv(c, v, **kw), **kw)
 
     def avwap(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_avwap(h, lo, c, v, **kw), **kw)
+        return self._post_process(avwap(h, lo, c, v, **kw), **kw)
 
     def cmf(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_cmf(h, lo, c, v, **kw), **kw)
+        return self._post_process(cmf(h, lo, c, v, **kw), **kw)
 
     def efi(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_efi(c, v, **kw), **kw)
+        return self._post_process(efi(c, v, **kw), **kw)
 
     def eom(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_eom(h, lo, c, v, **kw), **kw)
+        return self._post_process(eom(h, lo, c, v, **kw), **kw)
 
     def kvo(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_kvo(h, lo, c, v, **kw), **kw)
+        return self._post_process(kvo(h, lo, c, v, **kw), **kw)
 
     def mfi(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_mfi(h, lo, c, v, **kw), **kw)
+        return self._post_process(mfi(h, lo, c, v, **kw), **kw)
 
     def nvi(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_nvi(c, v, **kw), **kw)
+        return self._post_process(nvi(c, v, **kw), **kw)
 
     def obv(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_obv(c, v, **kw), **kw)
+        return self._post_process(obv(c, v, **kw), **kw)
 
     def pvi(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_pvi(c, v, **kw), **kw)
+        return self._post_process(pvi(c, v, **kw), **kw)
 
     def pvo(self, volume=None, **kw):
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_pvo(v, **kw), **kw)
+        return self._post_process(pvo(v, **kw), **kw)
 
     def pvol(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_pvol(c, v, **kw), **kw)
+        return self._post_process(pvol(c, v, **kw), **kw)
 
     def pvr(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_pvr(c, v, **kw), **kw)
+        return self._post_process(pvr(c, v, **kw), **kw)
 
     def pvt(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_pvt(c, v, **kw), **kw)
+        return self._post_process(pvt(c, v, **kw), **kw)
 
     def vfi(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_vfi(h, lo, c, v, **kw), **kw)
+        return self._post_process(vfi(h, lo, c, v, **kw), **kw)
 
     def vhm(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_vhm(c, v, **kw), **kw)
+        return self._post_process(vhm(c, v, **kw), **kw)
 
     def vp(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_vp(c, v, **kw), **kw)
+        return self._post_process(vp(c, v, **kw), **kw)
 
     def vwap(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_vwap(h, lo, c, v, **kw), **kw)
+        return self._post_process(vwap(h, lo, c, v, **kw), **kw)
 
     def vwma(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_vwma(c, v, **kw), **kw)
+        return self._post_process(vwma(c, v, **kw), **kw)
 
     def wb_tsv(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(pl_wb_tsv(c, v, **kw), **kw)
+        return self._post_process(wb_tsv(c, v, **kw), **kw)

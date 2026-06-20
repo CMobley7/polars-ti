@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.momentum.tmo import pl_tmo
+from polars_ti.momentum.tmo import tmo as tmo_indicator
 
 
 class TestPlTmo:
@@ -17,15 +17,15 @@ class TestPlTmo:
         return pl.DataFrame({"open": open_, "close": close})
 
     def test_returns_expr(self):
-        expr = pl_tmo("open", "close")
+        expr = tmo_indicator("open", "close")
         assert isinstance(expr, pl.Expr)
 
     def test_has_tmo_column(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close"))
+        result = sample_df.select(tmo_indicator("open", "close"))
         assert "TMO" in result.columns
 
     def test_struct_has_all_fields(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close"))
+        result = sample_df.select(tmo_indicator("open", "close"))
         tmo = result["TMO"]
         assert "TMO_14_5_3" in tmo.struct.fields
         assert "TMOs_14_5_3" in tmo.struct.fields
@@ -33,28 +33,28 @@ class TestPlTmo:
         assert "TMOMs_14_5_3" in tmo.struct.fields
 
     def test_has_valid_values(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close"))
+        result = sample_df.select(tmo_indicator("open", "close"))
         tmo = result["TMO"]
         main = tmo.struct.field("TMO_14_5_3")
         assert main[30:].null_count() == 0
 
     def test_offset_parameter(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close", offset=5))
+        result = sample_df.select(tmo_indicator("open", "close", offset=5))
         tmo = result["TMO"]
         main = tmo.struct.field("TMO_14_5_3")
         assert main[:5].null_count() == 5
 
     def test_lazy_execution(self, sample_df):
-        result = sample_df.lazy().select(pl_tmo("open", "close")).collect()
+        result = sample_df.lazy().select(tmo_indicator("open", "close")).collect()
         assert "TMO" in result.columns
 
     def test_custom_lengths(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close", tmo_length=20, calc_length=10, smooth_length=5))
+        result = sample_df.select(tmo_indicator("open", "close", tmo_length=20, calc_length=10, smooth_length=5))
         tmo = result["TMO"]
         assert "TMO_20_10_5" in tmo.struct.fields
 
     def test_momentum_enabled(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close", momentum=True))
+        result = sample_df.select(tmo_indicator("open", "close", momentum=True))
         tmo = result["TMO"]
         mom_main = tmo.struct.field("TMOM_14_5_3").drop_nulls()
         # When momentum=True, values should not be all zeros
@@ -65,7 +65,7 @@ class TestPlTmo:
             assert np.std(non_zero) > 0  # Should have variance
 
     def test_normalize(self, sample_df):
-        result = sample_df.select(pl_tmo("open", "close", normalize=True))
+        result = sample_df.select(tmo_indicator("open", "close", normalize=True))
         tmo = result["TMO"]
         main = tmo.struct.field("TMO_14_5_3").drop_nulls()
         # Normalized values should be within [-100, 100] generally
@@ -73,8 +73,8 @@ class TestPlTmo:
         assert main.min() >= -110
 
     def test_exclusive_vs_inclusive(self, sample_df):
-        result_excl = sample_df.select(pl_tmo("open", "close", exclusive=True))
-        result_incl = sample_df.select(pl_tmo("open", "close", exclusive=False))
+        result_excl = sample_df.select(tmo_indicator("open", "close", exclusive=True))
+        result_incl = sample_df.select(tmo_indicator("open", "close", exclusive=False))
 
         main_excl = result_excl["TMO"].struct.field("TMO_14_5_3")
         main_incl = result_incl["TMO"].struct.field("TMO_14_5_3")
@@ -93,5 +93,5 @@ class TestPlTmo:
                 "close": [101.0, 102.0, None] + [101.0 + i * 0.1 for i in range(60)],
             }
         )
-        result = df.select(pl_tmo("open", "close"))
+        result = df.select(tmo_indicator("open", "close"))
         assert result.height == 63

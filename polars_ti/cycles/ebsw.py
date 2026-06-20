@@ -8,7 +8,7 @@ from numpy import cos, exp, mean, pi, roll, sin, sqrt, zeros
 from polars_ti._typing import IntoExpr
 
 
-def pl_ebsw(
+def ebsw(
     close: str = "close",
     length: int = 40,
     bars: int = 10,
@@ -85,7 +85,7 @@ def pl_ebsw(
     return compute_ebsw
 
 
-def pl_ebsw_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def ebsw_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     """Apply EBSW to a DataFrame.
 
     Args:
@@ -99,6 +99,6 @@ def pl_ebsw_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     length = kwargs.get("length", 40)
     bars = kwargs.get("bars", 10)
 
-    compute_fn = pl_ebsw(close, length, bars)
+    compute_fn = ebsw(close, length, bars)
     ebsw_df = compute_fn(df)
     return df.hstack(ebsw_df)

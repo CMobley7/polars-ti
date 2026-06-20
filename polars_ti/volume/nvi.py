@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_nvi(
+def nvi(
     close: IntoExpr,
     volume: IntoExpr,
     length: int = 1,
@@ -30,7 +30,7 @@ def pl_nvi(
     Returns:
         pl.Expr: NVI expression
     """
-    from polars_ti.momentum.roc import pl_roc
+    from polars_ti.momentum.roc import roc
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -40,7 +40,7 @@ def pl_nvi(
 
     # Pure Polars implementation - no Numba needed!
     # ROC calculated using pl_roc for code reuse
-    roc_expr = pl_roc(close_expr, length=length, scalar=100.0, talib=False, offset=0)
+    roc_expr = roc(close_expr, length=length, scalar=100.0, talib=False, offset=0)
 
     # NVI: When volume decreases, add ROC; otherwise add 0
     # Then cumsum + initial

@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_vhm(
+def vhm(
     volume: IntoExpr,
     length: int = 610,
     slength: int | None = None,
@@ -29,7 +29,7 @@ def pl_vhm(
     Returns:
         pl.Expr: VHM expression
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     volume_expr = v_expr(volume)
     if volume_expr is None:
@@ -38,7 +38,7 @@ def pl_vhm(
     _slength = slength if slength is not None else length
 
     # VHM = (volume - MA(volume)) / rolling_std(volume)
-    mu = pl_ma(name=mamode, source=volume_expr, length=length)
+    mu = ma(name=mamode, source=volume_expr, length=length)
     std = volume_expr.rolling_std(window_size=_slength, min_samples=_slength)
 
     vhm_expr = (volume_expr - mu) / std

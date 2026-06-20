@@ -80,7 +80,7 @@ def _stochf_core(
     return stochf_k, stochf_d
 
 
-def pl_stochf(
+def stochf(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

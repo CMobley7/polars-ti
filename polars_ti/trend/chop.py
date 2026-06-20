@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_chop(
+def chop(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -40,14 +40,14 @@ def pl_chop(
     Returns:
         pl.Expr: CHOP expression
     """
-    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
     diff = high_expr.rolling_max(window_size=length) - low_expr.rolling_min(window_size=length)
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, talib=False)
     atr_sum = atr_expr.rolling_sum(window_size=length)
 
     if ln:

@@ -6,10 +6,10 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.overlap.linreg import pl_linreg
+from polars_ti.overlap.linreg import linreg
 
 
-def pl_po(
+def po(
     close: IntoExpr,
     length: int = 14,
     offset: int = 0,
@@ -41,7 +41,7 @@ def pl_po(
         return None
 
     # Calculate linear regression using pl_linreg
-    lr = pl_linreg(close, length=length, talib=True)
+    lr = linreg(close, length=length, talib=True)
 
     # PO = 100 * (close - LR) / LR with division protection
     # When LR is 0, result should be NaN

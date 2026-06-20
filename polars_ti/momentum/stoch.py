@@ -93,7 +93,7 @@ def _stoch_core(
     return stoch_k, stoch_d, stoch_h
 
 
-def pl_stoch(
+def stoch(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

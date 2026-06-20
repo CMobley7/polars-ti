@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_kc(
+def kc(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -40,8 +40,8 @@ def pl_kc(
     Returns:
         pl.Expr: Struct with kcl (Lower), kcb (Basis), kcu (Upper) columns
     """
-    from polars_ti.ma import pl_ma
-    from polars_ti.volatility.true_range import pl_true_range
+    from polars_ti.ma import ma
+    from polars_ti.volatility.true_range import true_range
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -52,13 +52,13 @@ def pl_kc(
 
     # Range: True Range or High-Low (matches Pandas: true_range() if tr else high_low_range())
     if tr:
-        range_expr = pl_true_range(high_expr, low_expr, close_expr)
+        range_expr = true_range(high_expr, low_expr, close_expr)
     else:
         range_expr = high_expr - low_expr
 
     # Basis = MA(close) and Band = MA(range) using pl_ma composition
-    basis = pl_ma(name=mamode, source=close_expr, length=length, talib=False)
-    band = pl_ma(name=mamode, source=range_expr, length=length, talib=False)
+    basis = ma(name=mamode, source=close_expr, length=length, talib=False)
+    band = ma(name=mamode, source=range_expr, length=length, talib=False)
 
     # KC bands
     lower = basis - pl.lit(scalar) * band

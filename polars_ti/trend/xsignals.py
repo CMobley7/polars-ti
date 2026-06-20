@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_xsignals(
+def xsignals(
     signal: IntoExpr,
     xa: float,
     xb: float,
@@ -37,7 +37,7 @@ def pl_xsignals(
     Returns:
         pl.Expr: Struct with TS_Trends, TS_Trades, TS_Entries, TS_Exits
     """
-    from polars_ti.trend.tsignals import pl_tsignals
+    from polars_ti.trend.tsignals import tsignals
 
     signal_expr = v_expr(signal)
 
@@ -59,7 +59,7 @@ def pl_xsignals(
     if not long:
         trends = pl.lit(1) - trends
 
-    return pl_tsignals(
+    return tsignals(
         trends,
         asbool=asbool,
         trade_offset=trade_offset,

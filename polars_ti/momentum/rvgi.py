@@ -6,10 +6,10 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.overlap.swma import pl_swma
+from polars_ti.overlap.swma import swma
 
 
-def pl_rvgi(
+def rvgi(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,
@@ -53,8 +53,8 @@ def pl_rvgi(
     high_low_range = high_expr - low_expr
 
     # Apply SWMA to ranges, then rolling sum
-    swma_close_open = pl_swma(close_open_range, length=swma_length)
-    swma_high_low = pl_swma(high_low_range, length=swma_length)
+    swma_close_open = swma(close_open_range, length=swma_length)
+    swma_high_low = swma(high_low_range, length=swma_length)
 
     numerator = swma_close_open.rolling_sum(window_size=length)
     denominator = swma_high_low.rolling_sum(window_size=length)
@@ -63,7 +63,7 @@ def pl_rvgi(
     rvgi_expr = numerator / pl.when(denominator == 0).then(None).otherwise(denominator)
 
     # Signal is SWMA of RVGI
-    signal_expr = pl_swma(rvgi_expr, length=swma_length)
+    signal_expr = swma(rvgi_expr, length=swma_length)
 
     # Apply offset
     if offset != 0:

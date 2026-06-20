@@ -10,7 +10,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.overlap.sma import nb_sma
 
 
-def pl_trima(
+def trima(
     close: IntoExpr,
     length: int = 10,
     talib: bool = True,

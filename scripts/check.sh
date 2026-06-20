@@ -62,6 +62,14 @@ dependency_audit() {
     uv run pip-audit -r "$REQ_FILE" --desc off --progress-spinner off
 }
 
+mypy_targets() {
+    local targets=("polars_ti")
+    if compgen -G "scripts/*.py" >/dev/null; then
+        targets+=("scripts")
+    fi
+    uv run mypy --strict "${targets[@]}"
+}
+
 pandas_purge_check() {
     ! grep -R -n -E "import pandas|from pandas|\bpd\." polars_ti --include="*.py"
     ! grep -R -n -E "import pandas|from pandas|\bpd\." tests --include="*_polars.py"
@@ -98,7 +106,7 @@ gate "Ruff format" \
     uv run ruff format --check polars_ti tests scripts
 
 gate "Mypy strict" \
-    uv run mypy --strict polars_ti scripts
+    mypy_targets
 
 gate "Syntax check" \
     uv run python -m compileall -q polars_ti tests scripts

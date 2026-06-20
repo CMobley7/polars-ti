@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.statistics.tos_stdevall import pl_tos_stdevall
+from polars_ti.statistics.tos_stdevall import tos_stdevall
 
 
 class TestPlTosStdevall:
@@ -20,18 +20,18 @@ class TestPlTosStdevall:
         return {"pd_close": close, "pl_df": pl.DataFrame({"close": close})}
 
     def test_returns_expression(self):
-        assert isinstance(pl_tos_stdevall("close"), pl.Expr)
+        assert isinstance(tos_stdevall("close"), pl.Expr)
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_tos_stdevall("close"))
+        result = sample_df.select(tos_stdevall("close"))
         assert "TOS_STDEVALL" in result.columns
 
     def test_with_null_values(self):
-        assert pl.DataFrame({"close": [None] + [100.0] * 49}).select(pl_tos_stdevall("close")).height == 50
+        assert pl.DataFrame({"close": [None] + [100.0] * 49}).select(tos_stdevall("close")).height == 50
 
     def test_with_zeros(self):
-        assert pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45}).select(pl_tos_stdevall("close")).height == 50
+        assert pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45}).select(tos_stdevall("close")).height == 50
 
     def test_lazy_execution(self, sample_df):
-        result = sample_df.lazy().select(pl_tos_stdevall("close")).collect()
+        result = sample_df.lazy().select(tos_stdevall("close")).collect()
         assert "TOS_STDEVALL" in result.columns

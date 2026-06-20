@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.overlap.sma import pl_sma
+from polars_ti.overlap.sma import sma
 
 
 class TestPlSma:
@@ -23,13 +23,13 @@ class TestPlSma:
 
     def test_output_has_correct_alias(self, sample_data):
         """Test that output column has correct alias."""
-        result = sample_data["pl_df"].select(pl_sma("close", length=10))
+        result = sample_data["pl_df"].select(sma("close", length=10))
         assert result.columns[0] == "SMA_10"
 
     def test_offset_shifts_result(self, sample_data):
         """Test that offset parameter shifts the result."""
-        no_offset = sample_data["pl_df"].select(pl_sma("close", length=10)).to_series()
-        with_offset = sample_data["pl_df"].select(pl_sma("close", length=10, offset=5)).to_series()
+        no_offset = sample_data["pl_df"].select(sma("close", length=10)).to_series()
+        with_offset = sample_data["pl_df"].select(sma("close", length=10, offset=5)).to_series()
 
         for i in range(10, 50):
             if not np.isnan(no_offset[i]):
@@ -37,29 +37,29 @@ class TestPlSma:
 
     def test_warmup_period_has_nan(self, sample_data):
         """Test that warmup period contains NaN values."""
-        result = sample_data["pl_df"].select(pl_sma("close", length=10)).to_series()
+        result = sample_data["pl_df"].select(sma("close", length=10)).to_series()
         assert result[:9].is_nan().all()
 
     def test_min_periods_parameter(self, sample_data):
         """Test that min_periods allows early values."""
-        result = sample_data["pl_df"].select(pl_sma("close", length=10, min_periods=1)).to_series()
+        result = sample_data["pl_df"].select(sma("close", length=10, min_periods=1)).to_series()
         # Should have non-NaN from index 0
         assert not result[0:].is_nan().all()
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
         df = pl.DataFrame({"close": [None] + [100.0] * 29})
-        result = df.select(pl_sma("close", length=10))
+        result = df.select(sma("close", length=10))
         assert result.height == 30
 
     def test_with_zeros(self):
         """Handles zero values."""
         df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 25})
-        result = df.select(pl_sma("close", length=10))
+        result = df.select(sma("close", length=10))
         assert result.height == 30
 
     def test_lazy_execution(self, sample_data):
         """Works with LazyFrame."""
         lazy_df = sample_data["pl_df"].lazy()
-        result = lazy_df.select(pl_sma("close", length=10)).collect()
+        result = lazy_df.select(sma("close", length=10)).collect()
         assert "SMA_10" in result.columns

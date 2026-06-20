@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_tsi(
+def tsi(
     close: IntoExpr,
     fast: int = 13,
     slow: int = 25,
@@ -37,8 +37,8 @@ def pl_tsi(
     Returns:
         list[pl.Expr]: [TSI, TSI_signal]
     """
-    from polars_ti.overlap.ema import pl_ema
-    from polars_ti.ma import pl_ma
+    from polars_ti.overlap.ema import ema
+    from polars_ti.ma import ma
 
     close_expr = v_expr(close)
     if close_expr is None:
@@ -53,19 +53,19 @@ def pl_tsi(
     diff = close_expr.diff(drift)
 
     # Double smooth the diff
-    diff_slow = pl_ema(diff, length=slow)
-    diff_fast_slow = pl_ema(diff_slow, length=fast)
+    diff_slow = ema(diff, length=slow)
+    diff_fast_slow = ema(diff_slow, length=fast)
 
     # Double smooth the abs(diff)
     abs_diff = diff.abs()
-    abs_slow = pl_ema(abs_diff, length=slow)
-    abs_fast_slow = pl_ema(abs_slow, length=fast)
+    abs_slow = ema(abs_diff, length=slow)
+    abs_fast_slow = ema(abs_slow, length=fast)
 
     # TSI = scalar * double_smooth(diff) / double_smooth(|diff|)
     tsi_expr = scalar * diff_fast_slow / abs_fast_slow
 
     # Signal = MA(TSI, signal)
-    tsi_signal_expr = pl_ma(name=mamode, source=tsi_expr, length=signal)
+    tsi_signal_expr = ma(name=mamode, source=tsi_expr, length=signal)
 
     if offset != 0:
         tsi_expr = tsi_expr.shift(offset)

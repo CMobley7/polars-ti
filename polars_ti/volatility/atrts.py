@@ -44,7 +44,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_atrts(
+def atrts(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -75,8 +75,8 @@ def pl_atrts(
     Returns:
         pl.Expr: ATRTS expression
     """
-    from polars_ti.volatility.atr import pl_atr
-    from polars_ti.ma import pl_ma
+    from polars_ti.volatility.atr import atr
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -105,8 +105,8 @@ def pl_atrts(
         return pl.Series(result)
 
     # Use composition: pl_atr for ATR, pl_ma for MA (just like Pandas!)
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=length, mamode="ema", talib=False)
-    ma_expr = pl_ma(name=_mamode, source=close_expr, length=ma_length, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode="ema", talib=False)
+    ma_expr = ma(name=_mamode, source=close_expr, length=ma_length, talib=False)
 
     return (
         pl.struct(

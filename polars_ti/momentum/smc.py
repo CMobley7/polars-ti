@@ -7,10 +7,10 @@ from sys import float_info as sflt
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
-def pl_smc(
+def smc(
     open_: IntoExpr = "open",
     high: IntoExpr = "high",
     low: IntoExpr = "low",
@@ -96,7 +96,7 @@ def pl_smc(
     hld = high_col - low_col + eps
 
     # High volatility: HLD > vol_ratio * MA(HLD)
-    hld_ma = pl_ma(name=mamode, source=hld, length=vol_length, talib=talib)
+    hld_ma = ma(name=mamode, source=hld, length=vol_length, talib=talib)
     high_volatility = hld > (vol_ratio * hld_ma)
 
     # Imbalance flags

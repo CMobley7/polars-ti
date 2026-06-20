@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ttm_trend(
+def ttm_trend(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -34,13 +34,13 @@ def pl_ttm_trend(
     Returns:
         pl.Expr: TTM Trend struct expression with TTM_TRND column
     """
-    from polars_ti.overlap.hl2 import pl_hl2
+    from polars_ti.overlap.hl2 import hl2
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
-    hl2_expr = pl_hl2(high_expr, low_expr)
+    hl2_expr = hl2(high_expr, low_expr)
     trend_avg = hl2_expr.rolling_mean(window_size=length)
 
     ttm = pl.when(close_expr > trend_avg).then(1).otherwise(-1)

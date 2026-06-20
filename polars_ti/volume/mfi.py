@@ -40,7 +40,7 @@ def _nb_mfi(
     return result
 
 
-def pl_mfi(
+def mfi(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

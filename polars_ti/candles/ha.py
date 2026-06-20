@@ -28,7 +28,7 @@ from numpy import empty_like, maximum, minimum
 from polars_ti._typing import IntoExpr
 
 
-def pl_ha(
+def ha(
     open_: str = "open",
     high: str = "high",
     low: str = "low",
@@ -102,7 +102,7 @@ def pl_ha(
     return compute_ha
 
 
-def pl_ha_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def ha_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     """Apply Heikin-Ashi transformation to a DataFrame.
 
     Args:
@@ -117,6 +117,6 @@ def pl_ha_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     low = kwargs.get("low", "low")
     close = kwargs.get("close", "close")
 
-    compute_ha = pl_ha(open_, high, low, close)
+    compute_ha = ha(open_, high, low, close)
     ha_df = compute_ha(df)
     return df.hstack(ha_df)

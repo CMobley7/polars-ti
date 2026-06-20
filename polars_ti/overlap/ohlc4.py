@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ohlc4(open_: IntoExpr, high: IntoExpr, low: IntoExpr, close: IntoExpr) -> PlExpr:
+def ohlc4(open_: IntoExpr, high: IntoExpr, low: IntoExpr, close: IntoExpr) -> PlExpr:
     """Polars: OHLC4 - Average of Open, High, Low, Close
 
     Args:

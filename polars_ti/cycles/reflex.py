@@ -41,7 +41,7 @@ from numpy import nan
 from polars_ti._typing import IntoExpr
 
 
-def pl_reflex(
+def reflex(
     close: str = "close",
     length: int = 20,
     smooth: int = 20,
@@ -89,7 +89,7 @@ def pl_reflex(
     return compute_reflex
 
 
-def pl_reflex_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def reflex_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     """Apply Reflex to a DataFrame.
 
     Args:
@@ -106,6 +106,6 @@ def pl_reflex_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
     pi_val = kwargs.get("pi", 3.14159)
     sqrt2 = kwargs.get("sqrt2", 1.414)
 
-    compute_fn = pl_reflex(close, length, smooth, alpha, pi_val, sqrt2)
+    compute_fn = reflex(close, length, smooth, alpha, pi_val, sqrt2)
     reflex_df = compute_fn(df)
     return df.hstack(reflex_df)

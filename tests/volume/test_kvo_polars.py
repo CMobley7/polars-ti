@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volume.kvo import pl_kvo
+from polars_ti.volume.kvo import kvo
 
 
 class TestPlKvo:
@@ -26,18 +26,18 @@ class TestPlKvo:
         )
 
     def test_returns_list_of_expressions(self, sample_df):
-        exprs = pl_kvo("high", "low", "close", "volume")
+        exprs = kvo("high", "low", "close", "volume")
         assert isinstance(exprs, list)
         assert len(exprs) == 2
 
     def test_output_has_correct_columns(self, sample_df):
-        exprs = pl_kvo("high", "low", "close", "volume")
+        exprs = kvo("high", "low", "close", "volume")
         result = sample_df.select(exprs)
         assert "KVO_34_55_13" in result.columns
         assert "KVOs_34_55_13" in result.columns
 
     def test_offset_shifts_result(self, sample_df):
-        exprs = pl_kvo("high", "low", "close", "volume", offset=5)
+        exprs = kvo("high", "low", "close", "volume", offset=5)
         result = sample_df.select(exprs)
         arr = result["KVO_34_55_13"].to_numpy()
         assert all(np.isnan(arr[:5]))
@@ -51,17 +51,17 @@ class TestPlKvo:
                 "volume": [None] + [1000.0] * 79,
             }
         )
-        exprs = pl_kvo("high", "low", "close", "volume")
+        exprs = kvo("high", "low", "close", "volume")
         result = df.select(exprs)
         assert result.height == 80
 
     def test_lazy_execution(self, sample_df):
         lazy_df = sample_df.lazy()
-        exprs = pl_kvo("high", "low", "close", "volume")
+        exprs = kvo("high", "low", "close", "volume")
         result = lazy_df.select(exprs).collect()
         assert "KVO_34_55_13" in result.columns
 
     def test_custom_parameters(self, sample_df):
-        exprs = pl_kvo("high", "low", "close", "volume", fast=20, slow=40, mamode="sma")
+        exprs = kvo("high", "low", "close", "volume", fast=20, slow=40, mamode="sma")
         result = sample_df.select(exprs)
         assert "KVO_20_40_13" in result.columns

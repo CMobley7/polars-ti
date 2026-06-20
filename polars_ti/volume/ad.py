@@ -6,11 +6,11 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ad(
+def ad(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -70,7 +70,7 @@ def pl_ad(
         ).map_batches(lambda s: compute_ad(s.struct.unnest()), return_dtype=pl.Float64)
     else:
         # Pure Polars: AD = cumsum(volume * (2*close - high - low) / (high - low))
-        hl_range_safe = pl_non_zero_range(high_expr, low_expr)
+        hl_range_safe = non_zero_range(high_expr, low_expr)
         clv = (2 * close_expr - high_expr - low_expr) / hl_range_safe
         ad_expr = (clv * volume_expr).cum_sum()
 

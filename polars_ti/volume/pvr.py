@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_pvr(
+def pvr(
     close: IntoExpr,
     volume: IntoExpr,
     drift: int = 1,

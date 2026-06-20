@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.transform.ifisher import pl_ifisher
+from polars_ti.transform.ifisher import ifisher
 
 
 class TestPlIfisher:
@@ -15,29 +15,29 @@ class TestPlIfisher:
         return np.clip(close, -1, 1)
 
     def test_returns_expression(self, sample_data):
-        result = pl_ifisher("close")
+        result = ifisher("close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame({"close": sample_data})
-        result = df.select(pl_ifisher("close", amp=1.0))
+        result = df.select(ifisher("close", amp=1.0))
         assert "INVFISHER_1.0" in result.columns[0]
 
     def test_with_null_values(self, sample_data):
         data = sample_data.copy()
         data[10:15] = np.nan
         df = pl.DataFrame({"close": data})
-        result = df.select(pl_ifisher("close"))
+        result = df.select(ifisher("close"))
         assert result.height == 100
 
     def test_with_zeros(self, sample_data):
         data = sample_data.copy()
         data[20:25] = 0.0
         df = pl.DataFrame({"close": data})
-        result = df.select(pl_ifisher("close"))
+        result = df.select(ifisher("close"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame({"close": sample_data})
-        result = df.lazy().select(pl_ifisher("close")).collect()
+        result = df.lazy().select(ifisher("close")).collect()
         assert result.height == 100

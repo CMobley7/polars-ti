@@ -6,12 +6,12 @@ import polars as pl
 import pytest
 
 from polars_ti.utils._metrics import (
-    pl_log_return,
-    pl_percent_return,
-    pl_cumulative_return,
-    pl_rolling_volatility,
-    pl_drawdown,
-    pl_max_drawdown,
+    log_return,
+    percent_return,
+    cumulative_return,
+    rolling_volatility,
+    drawdown,
+    max_drawdown,
 )
 
 
@@ -21,7 +21,7 @@ class TestPlLogReturn:
     def test_basic_calculation(self):
         """Test basic log return calculation."""
         df = pl.DataFrame({"close": [100.0, 110.0, 121.0]})
-        result = df.select(pl_log_return("close"))["log_return"]
+        result = df.select(log_return("close"))["log_return"]
         # log(110/100) ≈ 0.0953, log(121/110) ≈ 0.0953
         values = result.to_numpy()
         assert np.isnan(values[0])  # First is NaN
@@ -35,7 +35,7 @@ class TestPlPercentReturn:
     def test_basic_calculation(self):
         """Test basic percent return calculation."""
         df = pl.DataFrame({"close": [100.0, 110.0, 99.0]})
-        result = df.select(pl_percent_return("close"))["pct_return"]
+        result = df.select(percent_return("close"))["pct_return"]
         values = result.to_numpy()
         assert np.isnan(values[0])  # First is NaN
         assert abs(values[1] - 0.10) < 1e-10  # 10% increase
@@ -48,7 +48,7 @@ class TestPlCumulativeReturn:
     def test_basic_calculation(self):
         """Test cumulative return from first value."""
         df = pl.DataFrame({"close": [100.0, 110.0, 121.0]})
-        result = df.select(pl_cumulative_return("close"))["cum_return"]
+        result = df.select(cumulative_return("close"))["cum_return"]
         values = result.to_numpy()
         assert values[0] == 0.0  # No return at start
         assert abs(values[1] - 0.10) < 1e-10  # 10%
@@ -61,7 +61,7 @@ class TestPlDrawdown:
     def test_basic_calculation(self):
         """Test drawdown from peak calculation."""
         df = pl.DataFrame({"close": [100.0, 110.0, 100.0, 90.0]})
-        result = df.select(pl_drawdown("close"))["drawdown"]
+        result = df.select(drawdown("close"))["drawdown"]
         values = result.to_numpy()
         assert values[0] == 0.0  # At peak
         assert values[1] == 0.0  # New peak
@@ -75,7 +75,7 @@ class TestPlMaxDrawdown:
     def test_basic_calculation(self):
         """Test max drawdown calculation."""
         df = pl.DataFrame({"close": [100.0, 110.0, 100.0, 90.0, 95.0]})
-        result = pl_max_drawdown(df, "close")
+        result = max_drawdown(df, "close")
         # Max drawdown is -18.18% (from 110 to 90)
         assert abs(result - (-0.1818)) < 0.01
 
@@ -88,7 +88,7 @@ class TestPlRollingVolatility:
         np.random.seed(42)
         close = np.random.randn(50).cumsum() + 100
         df = pl.DataFrame({"close": close.tolist()})
-        result = df.select(pl_rolling_volatility("close", length=10))["volatility_10"]
+        result = df.select(rolling_volatility("close", length=10))["volatility_10"]
         values = result.to_numpy()
         # First 9 should be null, rest should be positive
         assert np.isnan(values[:9]).all()

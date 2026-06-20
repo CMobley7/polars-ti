@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_vortex(
+def vortex(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -37,13 +37,13 @@ def pl_vortex(
     Returns:
         pl.Expr: Struct with VTXP and VTXM columns
     """
-    from polars_ti.volatility.true_range import pl_true_range
+    from polars_ti.volatility.true_range import true_range
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
-    tr = pl_true_range(high_expr, low_expr, close_expr)
+    tr = true_range(high_expr, low_expr, close_expr)
     tr_sum = tr.rolling_sum(window_size=length)
 
     vmp = (high_expr - low_expr.shift(drift)).abs()

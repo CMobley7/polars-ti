@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.ohlc4 import pl_ohlc4
+from polars_ti.overlap.ohlc4 import ohlc4
 
 
 class TestPlOhlc4:
@@ -44,16 +44,16 @@ class TestPlOhlc4:
         }
 
     def test_returns_correct_column(self, sample_df):
-        result = sample_df.select(pl_ohlc4("open", "high", "low", "close"))
+        result = sample_df.select(ohlc4("open", "high", "low", "close"))
         assert "OHLC4" in result.columns
 
     def test_formula_correct(self, sample_df):
-        result = sample_df.select(pl_ohlc4("open", "high", "low", "close"))
+        result = sample_df.select(ohlc4("open", "high", "low", "close"))
         expected = (sample_df["open"] + sample_df["high"] + sample_df["low"] + sample_df["close"]) / 4
         np.testing.assert_array_almost_equal(result["OHLC4"].to_numpy(), expected.to_numpy())
 
     def test_with_expressions(self, sample_df):
-        result = sample_df.select(pl_ohlc4(pl.col("open"), pl.col("high"), pl.col("low"), pl.col("close")))
+        result = sample_df.select(ohlc4(pl.col("open"), pl.col("high"), pl.col("low"), pl.col("close")))
         assert "OHLC4" in result.columns
 
     def test_with_null_values(self):
@@ -66,7 +66,7 @@ class TestPlOhlc4:
                 "close": [None] + [101.0] * 29,
             }
         )
-        result = df.select(pl_ohlc4("open", "high", "low", "close"))
+        result = df.select(ohlc4("open", "high", "low", "close"))
         assert result.height == 30
 
     def test_with_zeros(self):
@@ -79,11 +79,11 @@ class TestPlOhlc4:
                 "close": [0.0] * 5 + [101.0] * 25,
             }
         )
-        result = df.select(pl_ohlc4("open", "high", "low", "close"))
+        result = df.select(ohlc4("open", "high", "low", "close"))
         assert result.height == 30
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_ohlc4("open", "high", "low", "close")).collect()
+        result = lazy_df.select(ohlc4("open", "high", "low", "close")).collect()
         assert "OHLC4" in result.columns

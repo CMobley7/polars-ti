@@ -30,7 +30,7 @@ def _hwma_numba(close: np.ndarray, na: float, nb: float, nc: float) -> np.ndarra
     return result
 
 
-def pl_hwma(
+def hwma(
     close: IntoExpr,
     na: float = 0.2,
     nb: float = 0.1,

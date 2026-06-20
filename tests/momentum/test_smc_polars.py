@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.smc import pl_smc
+from polars_ti.momentum.smc import smc
 
 
 @pytest.fixture
@@ -46,13 +46,13 @@ class TestPlSmcBasic:
 
     def test_returns_expr(self, ohlcv_data):
         """Test that pl_smc returns a Polars expression."""
-        expr = pl_smc()
+        expr = smc()
         assert isinstance(expr, pl.Expr)
 
     def test_default_parameters(self, ohlcv_data):
         """Test pl_smc with default parameters."""
         pl_df = ohlcv_data["pl_df"]
-        result = pl_df.select(pl_smc()).unnest("SMC_14_50_20_5")
+        result = pl_df.select(smc()).unnest("SMC_14_50_20_5")
 
         # Should have 7 columns
         assert len(result.columns) == 7
@@ -68,7 +68,7 @@ class TestPlSmcBasic:
         """Test pl_smc with custom parameters."""
         pl_df = ohlcv_data["pl_df"]
         result = pl_df.select(
-            pl_smc(
+            smc(
                 abr_length=10,
                 close_length=30,
                 vol_length=15,
@@ -97,7 +97,7 @@ class TestPlSmcEdgeCases:
         )
 
         # Should not raise
-        result = pl_df_with_nulls.select(pl_smc()).unnest("SMC_14_50_20_5")
+        result = pl_df_with_nulls.select(smc()).unnest("SMC_14_50_20_5")
         assert len(result) == len(pl_df)
 
     def test_zeros_handling(self, ohlcv_data):
@@ -112,16 +112,16 @@ class TestPlSmcEdgeCases:
         )
 
         # Should not raise
-        result = pl_df.select(pl_smc()).unnest("SMC_14_50_20_5")
+        result = pl_df.select(smc()).unnest("SMC_14_50_20_5")
         assert len(result) == 100
 
     def test_lazy_evaluation(self, ohlcv_data):
         """Test that pl_smc works in lazy context."""
         pl_df = ohlcv_data["pl_df"]
 
-        lazy_result = pl_df.lazy().select(pl_smc()).unnest("SMC_14_50_20_5").collect()
+        lazy_result = pl_df.lazy().select(smc()).unnest("SMC_14_50_20_5").collect()
 
-        eager_result = pl_df.select(pl_smc()).unnest("SMC_14_50_20_5")
+        eager_result = pl_df.select(smc()).unnest("SMC_14_50_20_5")
 
         for col in lazy_result.columns:
             assert lazy_result[col].to_list() == eager_result[col].to_list()
@@ -134,9 +134,9 @@ class TestPlSmcFeatureParity:
         """Test offset parameter shifts results."""
         pl_df = ohlcv_data["pl_df"]
 
-        result_no_offset = pl_df.select(pl_smc(offset=0)).unnest("SMC_14_50_20_5")
+        result_no_offset = pl_df.select(smc(offset=0)).unnest("SMC_14_50_20_5")
 
-        result_offset = pl_df.select(pl_smc(offset=5)).unnest("SMC_14_50_20_5")
+        result_offset = pl_df.select(smc(offset=5)).unnest("SMC_14_50_20_5")
 
         # Values should be shifted
         col = "SMCbi_14_50_20_5"
@@ -150,7 +150,7 @@ class TestPlSmcFeatureParity:
         """Test asint=False returns boolean types."""
         pl_df = ohlcv_data["pl_df"]
 
-        result = pl_df.select(pl_smc(asint=False)).unnest("SMC_14_50_20_5")
+        result = pl_df.select(smc(asint=False)).unnest("SMC_14_50_20_5")
 
         # Flag columns should be bool when asint=False
         assert result["SMChv_14_50_20_5"].dtype == pl.Boolean
@@ -161,9 +161,9 @@ class TestPlSmcFeatureParity:
         """Test different volatility ratio values."""
         pl_df = ohlcv_data["pl_df"]
 
-        result_low = pl_df.select(pl_smc(vol_ratio=0.5)).unnest("SMC_14_50_20_5")
+        result_low = pl_df.select(smc(vol_ratio=0.5)).unnest("SMC_14_50_20_5")
 
-        result_high = pl_df.select(pl_smc(vol_ratio=3.0)).unnest("SMC_14_50_20_5")
+        result_high = pl_df.select(smc(vol_ratio=3.0)).unnest("SMC_14_50_20_5")
 
         # Higher vol_ratio should produce fewer high volatility flags
         hv_low = result_low["SMChv_14_50_20_5"].sum()
@@ -180,7 +180,7 @@ class TestPlSmcIntegration:
         pl_df = ohlcv_data["pl_df"]
 
         result = (
-            pl_df.select(pl_smc())
+            pl_df.select(smc())
             .unnest("SMC_14_50_20_5")
             .select(
                 [
@@ -201,6 +201,6 @@ class TestPlSmcIntegration:
         pl_df = pl_df.with_columns((pl.col("idx") % 2).alias("group"))
 
         # Apply SMC per group
-        result = pl_df.group_by("group").agg(pl_smc())
+        result = pl_df.group_by("group").agg(smc())
 
         assert len(result) == 2

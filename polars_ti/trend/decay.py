@@ -39,7 +39,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_decay(
+def decay(
     close: IntoExpr,
     length: int = 1,
     mode: str = "linear",

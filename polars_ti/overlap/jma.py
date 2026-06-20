@@ -100,7 +100,7 @@ def nb_jma(close: np.ndarray, length: int, phase: float) -> np.ndarray:
     return jma
 
 
-def pl_jma(
+def jma(
     close: IntoExpr,
     length: int = 7,
     phase: float = 0.0,

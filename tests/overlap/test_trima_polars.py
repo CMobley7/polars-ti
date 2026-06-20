@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.overlap.trima import pl_trima
+from polars_ti.overlap.trima import trima
 
 
 class TestPlTrima:
@@ -23,18 +23,18 @@ class TestPlTrima:
 
     def test_returns_expression(self):
         """Returns a Polars expression."""
-        result = pl_trima("close", length=10)
+        result = trima("close", length=10)
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         """Output column has correct alias."""
-        result = sample_data["pl_df"].select(pl_trima("close", length=10))
+        result = sample_data["pl_df"].select(trima("close", length=10))
         assert result.columns[0] == "TRIMA_10"
 
     def test_offset_shifts_result(self, sample_data):
         """Offset parameter shifts the result."""
-        no_offset = sample_data["pl_df"].select(pl_trima("close", length=10)).to_series()
-        with_offset = sample_data["pl_df"].select(pl_trima("close", length=10, offset=5)).to_series()
+        no_offset = sample_data["pl_df"].select(trima("close", length=10)).to_series()
+        with_offset = sample_data["pl_df"].select(trima("close", length=10, offset=5)).to_series()
 
         for i in range(15, 40):
             if not np.isnan(no_offset[i]):
@@ -43,17 +43,17 @@ class TestPlTrima:
     def test_with_null_values(self):
         """Handles null values gracefully."""
         df = pl.DataFrame({"close": [None] + [100.0] * 29})
-        result = df.select(pl_trima("close", length=10))
+        result = df.select(trima("close", length=10))
         assert result.height == 30
 
     def test_with_zeros(self):
         """Handles zero values."""
         df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 25})
-        result = df.select(pl_trima("close", length=10))
+        result = df.select(trima("close", length=10))
         assert result.height == 30
 
     def test_lazy_execution(self, sample_data):
         """Works with LazyFrame."""
         lazy_df = sample_data["pl_df"].lazy()
-        result = lazy_df.select(pl_trima("close", length=10)).collect()
+        result = lazy_df.select(trima("close", length=10)).collect()
         assert "TRIMA_10" in result.columns

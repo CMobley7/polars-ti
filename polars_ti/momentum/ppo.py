@@ -147,7 +147,7 @@ def _ema_ewm_style(values: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def pl_ppo(
+def ppo(
     close: IntoExpr,
     fast: int = 12,
     slow: int = 26,

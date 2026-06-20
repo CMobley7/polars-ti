@@ -6,10 +6,10 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
-def pl_rmi(
+def rmi(
     close: IntoExpr,
     length: int = 14,
     momentum: int = 5,
@@ -54,8 +54,8 @@ def pl_rmi(
     loss_expr = (-diff_expr).clip(lower_bound=0.0)
 
     # Smooth gains and losses using the specified MA
-    avg_gain_expr = pl_ma(mamode, gain_expr, length=length)
-    avg_loss_expr = pl_ma(mamode, loss_expr, length=length)
+    avg_gain_expr = ma(mamode, gain_expr, length=length)
+    avg_loss_expr = ma(mamode, loss_expr, length=length)
 
     # RMI = scalar - (scalar / (1 + avg_gain / avg_loss))
     rs_expr = avg_gain_expr / avg_loss_expr

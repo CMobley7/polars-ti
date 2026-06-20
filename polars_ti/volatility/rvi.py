@@ -6,7 +6,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 from polars_ti.utils._validate import v_expr
 
 
@@ -32,8 +32,8 @@ def _pl_rvi_single(arr: np.ndarray, length: int, scalar: float, mamode: str, dri
 
     # Smooth via pl_ma through temporary DataFrame
     tmp = pl.DataFrame({"_up": up_std.astype(np.float64), "_dn": dn_std.astype(np.float64)})
-    ma_expr_up = pl_ma(mamode, "_up", length=length)
-    ma_expr_dn = pl_ma(mamode, "_dn", length=length)
+    ma_expr_up = ma(mamode, "_up", length=length)
+    ma_expr_dn = ma(mamode, "_dn", length=length)
     up_smooth = tmp.select(ma_expr_up).to_series().to_numpy()
     dn_smooth = tmp.select(ma_expr_dn).to_series().to_numpy()
 
@@ -43,7 +43,7 @@ def _pl_rvi_single(arr: np.ndarray, length: int, scalar: float, mamode: str, dri
     return scalar * up_smooth / denom_safe
 
 
-def pl_rvi(
+def rvi(
     close: IntoExpr,
     high: IntoExpr | None = None,
     low: IntoExpr | None = None,

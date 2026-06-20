@@ -5,11 +5,11 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_vfi(
+def vfi(
     close: IntoExpr,
     volume: IntoExpr,
     length: int = 130,
@@ -34,7 +34,7 @@ def pl_vfi(
     Returns:
         pl.Expr: VFI expression
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -60,12 +60,12 @@ def pl_vfi(
     # VFI = sum(vcp, length) / rolling_mean(vave, length)
     vave_mean = vave.rolling_mean(window_size=length, min_samples=length)
     # Protect against division by zero using shared utility
-    vave_mean_safe = pl_non_zero_range(vave_mean, pl.lit(0.0))
+    vave_mean_safe = non_zero_range(vave_mean, pl.lit(0.0))
 
     vfi_expr = vcp.rolling_sum(window_size=length, min_samples=length) / vave_mean_safe
 
     # Smooth with EMA(3)
-    vfi_expr = pl_ma(name=mamode, source=vfi_expr, length=3)
+    vfi_expr = ma(name=mamode, source=vfi_expr, length=3)
 
     if offset != 0:
         vfi_expr = vfi_expr.shift(offset)

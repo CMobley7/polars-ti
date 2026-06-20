@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_cci(
+def cci(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -70,14 +70,14 @@ def pl_cci(
         ).map_batches(compute_cci_talib, return_dtype=pl.Float64)
     else:
         # Clean composition matching Pandas approach
-        from polars_ti.overlap.hlc3 import pl_hlc3
-        from polars_ti.overlap.sma import pl_sma
-        from polars_ti.statistics.mad import pl_mad
+        from polars_ti.overlap.hlc3 import hlc3
+        from polars_ti.overlap.sma import sma
+        from polars_ti.statistics.mad import mad
 
         # Typical Price, SMA, and MAD
-        tp = pl_hlc3(high_expr, low_expr, close_expr, talib=False, offset=0)
-        tp_sma = pl_sma(tp, length=length, talib=False, offset=0)
-        tp_mad = pl_mad(tp, length=length, offset=0)
+        tp = hlc3(high_expr, low_expr, close_expr, talib=False, offset=0)
+        tp_sma = sma(tp, length=length, talib=False, offset=0)
+        tp_mad = mad(tp, length=length, offset=0)
 
         # CCI = (TP - SMA(TP)) / (c * MAD(TP))
         # Protect against divide-by-zero when MAD is near zero

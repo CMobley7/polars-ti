@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_natr(
+def natr(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -40,7 +40,7 @@ def pl_natr(
     Returns:
         pl.Expr: NATR expression
     """
-    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -50,7 +50,7 @@ def pl_natr(
         return None
 
     # NATR = (scalar / close) * ATR (matches Pandas exactly)
-    atr_result = pl_atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
+    atr_result = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
     result = (pl.lit(scalar) / close_expr) * atr_result
 
     # Apply offset

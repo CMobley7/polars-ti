@@ -7,10 +7,10 @@ import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.overlap.sma import pl_sma
+from polars_ti.overlap.sma import sma
 
 
-def pl_rainbow(
+def rainbow(
     close: IntoExpr,
     length: int = 2,
     num_ribbons: int = 10,
@@ -40,7 +40,7 @@ def pl_rainbow(
 
     for i in range(1, num_ribbons + 1):
         # Each SMA is calculated on the previous SMA
-        sma_expr = pl_sma(prev_expr, length=length, talib=False)
+        sma_expr = sma(prev_expr, length=length, talib=False)
 
         # Apply offset if needed
         if offset != 0:

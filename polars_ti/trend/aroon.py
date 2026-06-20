@@ -44,7 +44,7 @@ def _nb_aroon(high: np.ndarray, low: np.ndarray, length: int, scalar: float):
     return aroon_up, aroon_down, aroon_osc
 
 
-def pl_aroon(
+def aroon(
     high: IntoExpr,
     low: IntoExpr,
     length: int = 14,

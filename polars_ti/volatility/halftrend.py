@@ -108,7 +108,7 @@ from polars_ti.utils._validate import v_expr
 # That kernel already takes pre-calculated ATR, MAs, and rolling max/min as inputs.
 
 
-def pl_halftrend(
+def halftrend(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -139,8 +139,8 @@ def pl_halftrend(
     Returns:
         pl.Expr: Struct with atr_high, atr_low, ht_close, direction, arr_up, arr_down
     """
-    from polars_ti.volatility.atr import pl_atr
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.volatility.atr import atr
+    from polars_ti.overlap.sma import sma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -155,9 +155,9 @@ def pl_halftrend(
     _offset = offset
 
     # Use composition for pre-calculations (just like Pandas!)
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
-    high_ma_expr = pl_sma(high_expr, length=amplitude)
-    low_ma_expr = pl_sma(low_expr, length=amplitude)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
+    high_ma_expr = sma(high_expr, length=amplitude)
+    low_ma_expr = sma(low_expr, length=amplitude)
     highest_expr = high_expr.rolling_max(window_size=amplitude, min_samples=1)
     lowest_expr = low_expr.rolling_min(window_size=amplitude, min_samples=1)
 

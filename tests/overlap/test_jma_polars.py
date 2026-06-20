@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.jma import pl_jma
+from polars_ti.overlap.jma import jma
 
 
 class TestPlJma:
@@ -27,38 +27,38 @@ class TestPlJma:
         }
 
     def test_returns_correct_column(self, sample_df):
-        result = sample_df.select(pl_jma("close"))
+        result = sample_df.select(jma("close"))
         assert "JMA_7_0.0" in result.columns
 
     def test_custom_parameters(self, sample_df):
-        result = sample_df.select(pl_jma("close", length=14, phase=50))
+        result = sample_df.select(jma("close", length=14, phase=50))
         assert "JMA_14_50" in result.columns
 
     def test_has_valid_values(self, sample_df):
-        result = sample_df.select(pl_jma("close"))
+        result = sample_df.select(jma("close"))
         arr = result["JMA_7_0.0"].to_numpy()
         mask = ~np.isnan(arr)
         assert mask.sum() > 80
 
     def test_offset(self, sample_df):
-        result = sample_df.select(pl_jma("close", offset=5))
+        result = sample_df.select(jma("close", offset=5))
         arr = result["JMA_7_0.0"].to_numpy()
         assert np.isnan(arr[:11]).all()
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
         df = pl.DataFrame({"close": [None] + [100.0] * 29})
-        result = df.select(pl_jma("close"))
+        result = df.select(jma("close"))
         assert result.height == 30
 
     def test_with_zeros(self):
         """Handles zero values."""
         df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 25})
-        result = df.select(pl_jma("close"))
+        result = df.select(jma("close"))
         assert result.height == 30
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_jma("close")).collect()
+        result = lazy_df.select(jma("close")).collect()
         assert "JMA_7_0.0" in result.columns

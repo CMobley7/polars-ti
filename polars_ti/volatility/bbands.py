@@ -11,7 +11,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.utils import v_talib
 
 
-def pl_bbands(
+def bbands(
     close: IntoExpr,
     length: int = 5,
     std: float = 2.0,
@@ -102,9 +102,9 @@ def pl_bbands(
         ).alias(f"BBANDS{_props}")
     else:
         # Pure Polars path with pl_sma composition
-        from polars_ti.overlap.sma import pl_sma
+        from polars_ti.overlap.sma import sma
 
-        mid = pl_sma(close_expr, length=length)
+        mid = sma(close_expr, length=length)
         std_dev = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
 
         deviations = pl.lit(std) * std_dev

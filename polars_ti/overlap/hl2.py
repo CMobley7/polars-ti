@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_hl2(high: IntoExpr, low: IntoExpr) -> PlExpr:
+def hl2(high: IntoExpr, low: IntoExpr) -> PlExpr:
     """Polars: HL2 - Midpoint of High and Low
 
     Args:

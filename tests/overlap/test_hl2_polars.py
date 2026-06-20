@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.hl2 import pl_hl2
+from polars_ti.overlap.hl2 import hl2
 
 
 class TestPlHl2:
@@ -32,16 +32,16 @@ class TestPlHl2:
         }
 
     def test_returns_correct_column(self, sample_df):
-        result = sample_df.select(pl_hl2("high", "low"))
+        result = sample_df.select(hl2("high", "low"))
         assert "HL2" in result.columns
 
     def test_formula_correct(self, sample_df):
-        result = sample_df.select(pl_hl2("high", "low"))
+        result = sample_df.select(hl2("high", "low"))
         expected = (sample_df["high"] + sample_df["low"]) / 2
         np.testing.assert_array_almost_equal(result["HL2"].to_numpy(), expected.to_numpy())
 
     def test_with_expressions(self, sample_df):
-        result = sample_df.select(pl_hl2(pl.col("high"), pl.col("low")))
+        result = sample_df.select(hl2(pl.col("high"), pl.col("low")))
         assert "HL2" in result.columns
 
     def test_with_null_values(self):
@@ -52,7 +52,7 @@ class TestPlHl2:
                 "low": [None] + [98.0] * 29,
             }
         )
-        result = df.select(pl_hl2("high", "low"))
+        result = df.select(hl2("high", "low"))
         assert result.height == 30
 
     def test_with_zeros(self):
@@ -63,11 +63,11 @@ class TestPlHl2:
                 "low": [0.0] * 5 + [98.0] * 25,
             }
         )
-        result = df.select(pl_hl2("high", "low"))
+        result = df.select(hl2("high", "low"))
         assert result.height == 30
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_hl2("high", "low")).collect()
+        result = lazy_df.select(hl2("high", "low")).collect()
         assert "HL2" in result.columns

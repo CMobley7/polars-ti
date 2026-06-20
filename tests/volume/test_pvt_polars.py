@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volume.pvt import pl_pvt
+from polars_ti.volume.pvt import pvt
 
 
 class TestPlPvt:
@@ -17,30 +17,30 @@ class TestPlPvt:
         return pl.DataFrame({"close": close, "volume": volume})
 
     def test_returns_expression(self, sample_df):
-        result = sample_df.select(pl_pvt("close", "volume"))
+        result = sample_df.select(pvt("close", "volume"))
         assert result.height == 100
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_pvt("close", "volume"))
+        result = sample_df.select(pvt("close", "volume"))
         assert "PVT" in result.columns
 
     def test_offset_shifts_result(self, sample_df):
-        result = sample_df.select(pl_pvt("close", "volume", offset=5))
+        result = sample_df.select(pvt("close", "volume", offset=5))
         arr = result["PVT"].to_numpy()
         assert all(np.isnan(arr[:5]))
 
     def test_with_null_values(self):
         df = pl.DataFrame({"close": [None] + [100.0] * 49, "volume": [None] + [1000.0] * 49})
-        result = df.select(pl_pvt("close", "volume"))
+        result = df.select(pvt("close", "volume"))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_pvt("close", "volume")).collect()
+        result = lazy_df.select(pvt("close", "volume")).collect()
         assert "PVT" in result.columns
 
     def test_drift_parameter(self, sample_df):
-        result = sample_df.select(pl_pvt("close", "volume", drift=2))
+        result = sample_df.select(pvt("close", "volume", drift=2))
         arr = result["PVT"].to_numpy()
         valid = ~np.isnan(arr)
         assert valid.sum() > 50

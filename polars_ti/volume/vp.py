@@ -5,7 +5,7 @@
 import polars as pl
 
 
-def pl_vp(
+def vp(
     df: pl.DataFrame,
     close: str = "close",
     volume: str = "volume",

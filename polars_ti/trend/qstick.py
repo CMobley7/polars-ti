@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_qstick(
+def qstick(
     open_: IntoExpr,
     close: IntoExpr,
     length: int = 10,
@@ -32,13 +32,13 @@ def pl_qstick(
     Returns:
         pl.Expr: QStick expression
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     open_expr = v_expr(open_)
     close_expr = v_expr(close)
 
     diff_expr = close_expr - open_expr
-    result = pl_ma(mamode, diff_expr, length=length, talib=False)
+    result = ma(mamode, diff_expr, length=length, talib=False)
 
     if offset != 0:
         result = result.shift(offset)

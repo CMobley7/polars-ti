@@ -54,7 +54,7 @@ def nb_percent_rank(close: np.ndarray, lookback: int) -> np.ndarray:
     return result
 
 
-def pl_crsi(
+def crsi(
     close: IntoExpr,
     length_rsi: int = 3,
     length_streak: int = 2,
@@ -81,7 +81,7 @@ def pl_crsi(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    from polars_ti.momentum.rsi import pl_rsi
+    from polars_ti.momentum.rsi import rsi
 
     close_expr = v_expr(close)
     _use_talib = Imports["talib"] and v_talib(talib)
@@ -105,8 +105,8 @@ def pl_crsi(
     pr_expr = close_expr.map_batches(compute_pr, return_dtype=pl.Float64)
 
     # Use pl_rsi for both RSI calculations (reuses existing RSI implementation)
-    close_rsi_expr = pl_rsi(close_expr, length=length_rsi, talib=talib, offset=0)
-    streak_rsi_expr = pl_rsi(streak_expr, length=length_streak, talib=talib, offset=0)
+    close_rsi_expr = rsi(close_expr, length=length_rsi, talib=talib, offset=0)
+    streak_rsi_expr = rsi(streak_expr, length=length_streak, talib=talib, offset=0)
 
     # CRSI = (close_rsi + streak_rsi + percent_rank) / 3
     crsi_expr = (close_rsi_expr + streak_rsi_expr + pr_expr) / 3.0

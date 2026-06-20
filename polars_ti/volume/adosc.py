@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_adosc(
+def adosc(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -75,15 +75,15 @@ def pl_adosc(
     else:
         # Compose using pl_ad and pl_ma for code reuse
         # Forward talib param for consistent behavior
-        from polars_ti.volume.ad import pl_ad
-        from polars_ti.ma import pl_ma
+        from polars_ti.volume.ad import ad
+        from polars_ti.ma import ma
 
         # Build AD expression (without offset) - use talib if available for AD
-        ad_expr = pl_ad(high_expr, low_expr, close_expr, volume_expr, talib=talib, offset=0)
+        ad_expr = ad(high_expr, low_expr, close_expr, volume_expr, talib=talib, offset=0)
 
         # Apply EMA to AD for fast and slow - forward talib for TA-Lib EMA behavior
-        fast_ma = pl_ma(name="ema", source=ad_expr, length=fast, talib=talib)
-        slow_ma = pl_ma(name="ema", source=ad_expr, length=slow, talib=talib)
+        fast_ma = ma(name="ema", source=ad_expr, length=fast, talib=talib)
+        slow_ma = ma(name="ema", source=ad_expr, length=slow, talib=talib)
 
         # ADOSC = FastEMA(AD) - SlowEMA(AD)
         adosc_expr = fast_ma - slow_ma

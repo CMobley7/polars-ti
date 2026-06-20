@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_smi(
+def smi(
     close: IntoExpr = "close",
     fast: int = 5,
     slow: int = 20,
@@ -38,7 +38,7 @@ def pl_smi(
     Returns:
         pl.Expr: Struct expression with columns: SMI, SMIs (signal), SMIo (oscillator)
     """
-    from polars_ti.momentum.tsi import pl_tsi
+    from polars_ti.momentum.tsi import tsi
 
     close_expr = v_expr(close)
     if close_expr is None:
@@ -50,7 +50,7 @@ def pl_smi(
     _props = f"_{fast}_{slow}_{signal}_{scalar}"
 
     # Get TSI expressions (SMI is TSI with different defaults + oscillator)
-    tsi_exprs = pl_tsi(
+    tsi_exprs = tsi(
         close=close_expr,
         fast=fast,
         slow=slow,

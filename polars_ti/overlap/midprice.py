@@ -10,7 +10,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.maps import Imports
 
 
-def pl_midprice(
+def midprice(
     high: IntoExpr,
     low: IntoExpr,
     length: int = 2,

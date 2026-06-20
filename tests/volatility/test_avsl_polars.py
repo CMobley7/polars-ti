@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volatility.avsl import pl_avsl
+from polars_ti.volatility.avsl import avsl
 
 
 class TestPlAvsl:
@@ -19,12 +19,12 @@ class TestPlAvsl:
         return {"close": close, "low": low, "volume": volume}
 
     def test_returns_expression(self, sample_data):
-        result = pl_avsl("close", "low", "volume")
+        result = avsl("close", "low", "volume")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_avsl("close", "low", "volume", fast_period=12, slow_period=26))
+        result = df.select(avsl("close", "low", "volume", fast_period=12, slow_period=26))
         assert "AVSL" in result.columns[0]
 
     def test_with_null_values(self, sample_data):
@@ -32,7 +32,7 @@ class TestPlAvsl:
         data["close"] = data["close"].copy()
         data["close"][10:15] = np.nan
         df = pl.DataFrame(data)
-        result = df.select(pl_avsl("close", "low", "volume"))
+        result = df.select(avsl("close", "low", "volume"))
         assert result.height == 150
 
     def test_with_zeros(self, sample_data):
@@ -40,10 +40,10 @@ class TestPlAvsl:
         data["low"] = data["low"].copy()
         data["low"][50:55] = 50.0
         df = pl.DataFrame(data)
-        result = df.select(pl_avsl("close", "low", "volume"))
+        result = df.select(avsl("close", "low", "volume"))
         assert result.height == 150
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.lazy().select(pl_avsl("close", "low", "volume")).collect()
+        result = df.lazy().select(avsl("close", "low", "volume")).collect()
         assert result.height == 150

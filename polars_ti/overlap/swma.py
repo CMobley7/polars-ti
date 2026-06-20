@@ -9,7 +9,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.utils._math import symmetric_triangle
 
 
-def pl_swma(
+def swma(
     close: IntoExpr,
     length: int = 10,
     offset: int = 0,

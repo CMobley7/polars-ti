@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_efi(
+def efi(
     close: IntoExpr,
     volume: IntoExpr,
     length: int = 13,
@@ -33,7 +33,7 @@ def pl_efi(
     Returns:
         pl.Expr: EFI expression
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -43,7 +43,7 @@ def pl_efi(
 
     # EFI = MA(close.diff(drift) * volume, length)
     pv_diff = close_expr.diff(drift) * volume_expr
-    efi_expr = pl_ma(name=mamode, source=pv_diff, length=length)
+    efi_expr = ma(name=mamode, source=pv_diff, length=length)
 
     if offset != 0:
         efi_expr = efi_expr.shift(offset)

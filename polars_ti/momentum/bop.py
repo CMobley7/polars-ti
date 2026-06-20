@@ -5,11 +5,11 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_bop(
+def bop(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,
@@ -68,8 +68,8 @@ def pl_bop(
         ).map_batches(lambda s: compute_bop(s.struct.unnest()), return_dtype=pl.Float64)
     else:
         # Use shared utility for zero-protected ranges (matches pandas-ta)
-        high_low_safe = pl_non_zero_range(high_expr, low_expr)
-        close_open_safe = pl_non_zero_range(close_expr, open_expr)
+        high_low_safe = non_zero_range(high_expr, low_expr)
+        close_open_safe = non_zero_range(close_expr, open_expr)
         bop_expr = scalar * close_open_safe / high_low_safe
 
     if offset != 0:

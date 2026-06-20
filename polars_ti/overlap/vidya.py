@@ -29,7 +29,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_vidya(
+def vidya(
     close: IntoExpr,
     length: int = 14,
     drift: int = 1,
@@ -79,10 +79,10 @@ def pl_vidya(
 
             cmo_vals = CMO(arr, _length) / 100.0  # Scale to 0-1
         else:
-            from polars_ti.momentum.cmo import pl_cmo
+            from polars_ti.momentum.cmo import cmo
 
             tmp = pl.DataFrame({"_close": arr})
-            cmo_col = tmp.select(pl_cmo("_close", length=_length, drift=_drift)).to_series().to_numpy()
+            cmo_col = tmp.select(cmo("_close", length=_length, drift=_drift)).to_series().to_numpy()
             cmo_vals = cmo_col / 100.0  # Scale to 0-1
 
         abs_cmo = np.abs(cmo_vals).astype(np.float64)

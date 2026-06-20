@@ -7,10 +7,10 @@ import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.overlap.ema import pl_ema
+from polars_ti.overlap.ema import ema
 
 
-def pl_mmar(
+def mmar(
     close: IntoExpr,
     length: int = 10,
     step: int = 5,
@@ -35,7 +35,7 @@ def pl_mmar(
     ema_exprs = []
     for i in range(num_ribbons):
         period = length + (i * step)
-        ema_expr = pl_ema(close, length=period, offset=offset, talib=False).alias(f"MMAR_{period}")
+        ema_expr = ema(close, length=period, offset=offset, talib=False).alias(f"MMAR_{period}")
         ema_exprs.append(ema_expr)
 
     return pl.struct(ema_exprs).alias(f"MMAR_{length}_{step}_{num_ribbons}")

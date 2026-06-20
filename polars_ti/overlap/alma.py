@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_alma(
+def alma(
     close: IntoExpr,
     length: int = 9,
     sigma: float = 6.0,

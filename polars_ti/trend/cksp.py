@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_cksp(
+def cksp(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -39,13 +39,13 @@ def pl_cksp(
     Returns:
         pl.Expr: Struct with CKSPl and CKSPs columns
     """
-    from polars_ti.volatility.atr import pl_atr
+    from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=p, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=p, talib=False)
 
     long_stop_ = high_expr.rolling_max(window_size=p) - x * atr_expr
     long_stop = long_stop_.rolling_max(window_size=q)

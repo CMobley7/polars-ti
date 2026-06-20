@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.statistics.median import pl_median
+from polars_ti.statistics.median import median
 
 
 class TestPlMedian:
@@ -20,16 +20,16 @@ class TestPlMedian:
         return {"pd_close": close, "pl_df": pl.DataFrame({"close": close})}
 
     def test_returns_expression(self):
-        assert isinstance(pl_median("close"), pl.Expr)
+        assert isinstance(median("close"), pl.Expr)
 
     def test_output_has_correct_alias(self, sample_df):
-        assert "MEDIAN_30" in sample_df.select(pl_median("close", length=30)).columns
+        assert "MEDIAN_30" in sample_df.select(median("close", length=30)).columns
 
     def test_with_null_values(self):
-        assert pl.DataFrame({"close": [None] + [100.0] * 49}).select(pl_median("close")).height == 50
+        assert pl.DataFrame({"close": [None] + [100.0] * 49}).select(median("close")).height == 50
 
     def test_with_zeros(self):
-        assert pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45}).select(pl_median("close")).height == 50
+        assert pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45}).select(median("close")).height == 50
 
     def test_lazy_execution(self, sample_df):
-        assert "MEDIAN_30" in sample_df.lazy().select(pl_median("close")).collect().columns
+        assert "MEDIAN_30" in sample_df.lazy().select(median("close")).collect().columns

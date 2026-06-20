@@ -62,7 +62,7 @@ def _nb_psar(high, low, af0, max_af):
     return long_arr, short_arr, af_arr, reversal
 
 
-def pl_psar(
+def psar(
     high: IntoExpr,
     low: IntoExpr,
     af0: float = 0.02,

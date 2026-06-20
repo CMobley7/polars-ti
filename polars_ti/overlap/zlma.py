@@ -6,10 +6,10 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.ma import pl_ma
+from polars_ti.ma import ma
 
 
-def pl_zlma(
+def zlma(
     close: IntoExpr,
     length: int = 10,
     mamode: str = "ema",
@@ -67,7 +67,7 @@ def pl_zlma(
     close_zl = 2 * close_expr - close_expr.shift(lag)
 
     # Apply MA using pl_ma - handles ALL mamodes!
-    result = pl_ma(name=_mamode, source=close_zl, length=length, talib=talib)
+    result = ma(name=_mamode, source=close_zl, length=length, talib=talib)
 
     if offset != 0:
         result = result.shift(offset)

@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_trixh(
+def trixh(
     close: IntoExpr,
     length: int = 18,
     signal: int = 9,
@@ -44,7 +44,7 @@ def pl_trixh(
     Returns:
         list[pl.Expr]: [TRIX, TRIX_signal, TRIX_histogram]
     """
-    from polars_ti.momentum.trix import pl_trix
+    from polars_ti.momentum.trix import trix
 
     close_expr = v_expr(close)
     if close_expr is None:
@@ -58,7 +58,7 @@ def pl_trixh(
 
     # Get TRIX and Signal from pl_trix
     # Note: pl_trix default length is 30, we use 18 for trixh
-    trix_exprs = pl_trix(
+    trix_exprs = trix(
         close_expr,
         length=length,
         signal=signal,
@@ -78,7 +78,7 @@ def pl_trixh(
     # Rebuild TRIX calculation to get the raw expressions for histogram computation
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    from polars_ti.overlap.ema import pl_ema
+    from polars_ti.overlap.ema import ema
     import numpy as np
 
     _use_talib = Imports["talib"] and v_talib(talib)
@@ -96,9 +96,9 @@ def pl_trixh(
         trix_expr = close_expr.map_batches(compute_trix, return_dtype=pl.Float64)
     else:
         # Use pl_ema composition: triple EMA
-        ema1 = pl_ema(close_expr, length=length)
-        ema2 = pl_ema(ema1, length=length)
-        ema3 = pl_ema(ema2, length=length)
+        ema1 = ema(close_expr, length=length)
+        ema2 = ema(ema1, length=length)
+        ema3 = ema(ema2, length=length)
 
         # TRIX = scalar * pct_change(ema3, drift)
         ema3_shifted = ema3.shift(drift)

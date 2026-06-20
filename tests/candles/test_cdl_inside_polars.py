@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.candles.cdl_inside import pl_cdl_inside
+from polars_ti.candles.cdl_inside import cdl_inside
 
 
 class TestPlCdlInside:
@@ -21,7 +21,7 @@ class TestPlCdlInside:
                 "close": [105.0, 102.0, 99.0],
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close"))["CDL_INSIDE"]
+        result = df.select(cdl_inside("open", "high", "low", "close"))["CDL_INSIDE"]
         # Index 1 and 2 should be inside bars
         assert result.to_list()[1] == 100  # First inside bar
         assert result.to_list()[2] == 100  # Second inside bar
@@ -36,7 +36,7 @@ class TestPlCdlInside:
                 "close": [98.0, 105.0, 115.0],
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close"))["CDL_INSIDE"]
+        result = df.select(cdl_inside("open", "high", "low", "close"))["CDL_INSIDE"]
         # Should not detect inside bar when high increases
         assert result.to_list()[1] == 0
         assert result.to_list()[2] == 0
@@ -51,7 +51,7 @@ class TestPlCdlInside:
                 "close": [105.0, 102.0],
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close", scalar=50.0))["CDL_INSIDE"]
+        result = df.select(cdl_inside("open", "high", "low", "close", scalar=50.0))["CDL_INSIDE"]
         assert result.to_list()[1] == 50
 
     def test_first_value_is_zero(self):
@@ -64,7 +64,7 @@ class TestPlCdlInside:
                 "close": [105.0, 102.0, 99.0],
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close"))["CDL_INSIDE"]
+        result = df.select(cdl_inside("open", "high", "low", "close"))["CDL_INSIDE"]
         assert result.to_list()[0] == 0
 
     def test_asbool_returns_boolean(self):
@@ -77,7 +77,7 @@ class TestPlCdlInside:
                 "close": [105.0, 102.0],
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close", asbool=True))["CDL_INSIDE"]
+        result = df.select(cdl_inside("open", "high", "low", "close", asbool=True))["CDL_INSIDE"]
         assert result.dtype == pl.Boolean
         assert result.to_list()[1] is True
 
@@ -91,7 +91,7 @@ class TestPlCdlInside:
                 "close": [105.0, 102.0, 99.0],
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close", offset=1))["CDL_INSIDE"]
+        result = df.select(cdl_inside("open", "high", "low", "close", offset=1))["CDL_INSIDE"]
         # With offset=1, values should be shifted forward
         assert result.to_list()[0] is None  # First value becomes null
         assert result.to_list()[2] == 100  # Inside bar shifted from index 1 to 2
@@ -106,7 +106,7 @@ class TestPlCdlInside:
                 "close": [105.0] * 10,
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close"))
+        result = df.select(cdl_inside("open", "high", "low", "close"))
         assert result.height == 10
 
     def test_with_zeros(self):
@@ -119,7 +119,7 @@ class TestPlCdlInside:
                 "close": [0.0] * 5 + [105.0] * 5,
             }
         )
-        result = df.select(pl_cdl_inside("open", "high", "low", "close"))
+        result = df.select(cdl_inside("open", "high", "low", "close"))
         assert result.height == 10
 
     def test_lazy_execution(self):
@@ -133,5 +133,5 @@ class TestPlCdlInside:
             }
         )
         lazy_df = df.lazy()
-        result = lazy_df.select(pl_cdl_inside("open", "high", "low", "close")).collect()
+        result = lazy_df.select(cdl_inside("open", "high", "low", "close")).collect()
         assert "CDL_INSIDE" in result.columns

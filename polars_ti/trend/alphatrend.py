@@ -92,7 +92,7 @@ def _nb_rsi_raw(close, length):
     return rsi
 
 
-def pl_alphatrend(
+def alphatrend(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

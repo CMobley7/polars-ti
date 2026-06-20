@@ -33,7 +33,7 @@ def nb_fisher(hl2_arr: np.ndarray, lowest: np.ndarray, hlr: np.ndarray, length: 
     return result
 
 
-def pl_fisher(
+def fisher(
     high: IntoExpr,
     low: IntoExpr,
     length: int = 9,
@@ -54,7 +54,7 @@ def pl_fisher(
     Returns:
         list[pl.Expr]: [FISHERT, FISHERTs] expressions
     """
-    from polars_ti.overlap.hl2 import pl_hl2
+    from polars_ti.overlap.hl2 import hl2
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)

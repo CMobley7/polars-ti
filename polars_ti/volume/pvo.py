@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_pvo(
+def pvo(
     volume: IntoExpr,
     fast: int = 12,
     slow: int = 26,
@@ -31,7 +31,7 @@ def pl_pvo(
     Returns:
         list[pl.Expr]: List of expressions [PVO, histogram, signal]
     """
-    from polars_ti.overlap.ema import pl_ema
+    from polars_ti.overlap.ema import ema
 
     volume_expr = v_expr(volume)
 
@@ -44,12 +44,12 @@ def pl_pvo(
     _props = f"_{fast}_{slow}_{signal}"
 
     # PVO = scalar * (fastEMA - slowEMA) / slowEMA
-    fast_ema = pl_ema(volume_expr, length=fast)
-    slow_ema = pl_ema(volume_expr, length=slow)
+    fast_ema = ema(volume_expr, length=fast)
+    slow_ema = ema(volume_expr, length=slow)
     pvo_expr = scalar * (fast_ema - slow_ema) / slow_ema
 
     # Signal = EMA(PVO, signal)
-    signal_ema = pl_ema(pvo_expr, length=signal)
+    signal_ema = ema(pvo_expr, length=signal)
 
     # Histogram = PVO - Signal
     histogram_expr = pvo_expr - signal_ema

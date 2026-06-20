@@ -8,7 +8,7 @@ Eliminate **every** remaining `pandas` dependency from the `polars-ti` library a
 
 ## Context & Current State
 
-Phase 4 migrated all **indicator** modules (`pl_sma`, `pl_rsi`, etc.) to pure Polars + Numba. However, pandas vestiges remain in five areas:
+Phase 4 migrated all **indicator** modules (`sma`, `rsi`, etc.) to pure Polars + Numba. However, pandas vestiges remain in five areas:
 
 | Area | Files | Severity |
 |------|-------|----------|
@@ -230,7 +230,7 @@ These files are the deepest pandas entanglement. Not every function in these fil
   4. Remove `rma_pandas` from `polars_ti/utils/__init__.py` if exported
 
 #### `polars_ti/utils/_math.py` (389 lines, 2 pandas refs)
-- **Live functions:** `fibonacci`, `pascals_triangle`, `symmetric_triangle`, `pl_non_zero_range` — all already pandas-free
+- **Live functions:** `fibonacci`, `pascals_triangle`, `symmetric_triangle`, `non_zero_range` — all already pandas-free
 - **Note:** The only `pd.Series` reference is inside a **docstring example** in `hpoly()` (line 117: `coeffs_2 = pd.Series(coeffs_0).values`). This is documentation, not executable code.
 - **Action:**
   1. Remove `from pandas import DataFrame, Series` (line 28)
@@ -242,7 +242,7 @@ These files are the deepest pandas entanglement. Not every function in these fil
 - **Action:** After Step 5 updates `_typing.py`, update imports here. Change `v_dataframe` to accept `pl.DataFrame` only.
 
 #### `polars_ti/utils/_candles.py` (60 lines, 1 pandas ref)
-- **Live functions:** `pl_high_low_range`, `pl_real_body` — already Polars-native
+- **Live functions:** `high_low_range`, `real_body` — already Polars-native
 - **Action:** Remove `from pandas import Series`. Remove any `Series` type hints.
 
 #### `polars_ti/utils/_metrics.py` (357 lines, 13 pandas refs)
@@ -256,8 +256,8 @@ These files are the deepest pandas entanglement. Not every function in these fil
 - `pure_profit_score`, `sharpe_ratio`, `sortino_ratio`, `volatility`
 
 **Live functions** (already pandas-free):
-- `pl_log_return`, `pl_percent_return`, `pl_cumulative_return`
-- `pl_rolling_volatility`, `pl_drawdown`, `pl_max_drawdown`
+- `log_return`, `percent_return`, `cumulative_return`
+- `rolling_volatility`, `drawdown`, `max_drawdown`
 
 **Action:**
 1. Delete all 11 dead functions listed above

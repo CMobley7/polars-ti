@@ -91,7 +91,7 @@ def _rsx_numba(close: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def pl_rsx(
+def rsx(
     close: IntoExpr,
     length: int = 14,
     offset: int = 0,

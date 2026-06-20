@@ -9,7 +9,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_squeeze_pro(
+def squeeze_pro(
     high: IntoExpr = "high",
     low: IntoExpr = "low",
     close: IntoExpr = "close",
@@ -56,10 +56,10 @@ def pl_squeeze_pro(
         pl.Expr: Struct with SQZPRO, SQZPRO_ON_WIDE, SQZPRO_ON_NORMAL,
             SQZPRO_ON_NARROW, SQZPRO_OFF, SQZPRO_NO columns
     """
-    from polars_ti.volatility.bbands import pl_bbands
-    from polars_ti.volatility.kc import pl_kc
-    from polars_ti.momentum.mom import pl_mom
-    from polars_ti.ma import pl_ma
+    from polars_ti.volatility.bbands import bbands
+    from polars_ti.volatility.kc import kc
+    from polars_ti.momentum.mom import mom
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -76,12 +76,12 @@ def pl_squeeze_pro(
     _props += f"_{bb_length}_{bb_std}_{kc_length}_{kc_scalar_wide}_{kc_scalar_normal}_{kc_scalar_narrow}"
 
     # Calculate Bollinger Bands
-    bb_struct = pl_bbands(close_expr, length=bb_length, std=bb_std, talib=False, offset=0)
+    bb_struct = bbands(close_expr, length=bb_length, std=bb_std, talib=False, offset=0)
     bb_lower_name = f"BBL_{bb_length}_{bb_std}"
     bb_upper_name = f"BBU_{bb_length}_{bb_std}"
 
     # Calculate three Keltner Channels
-    kc_wide = pl_kc(
+    kc_wide = kc(
         high_expr,
         low_expr,
         close_expr,
@@ -91,7 +91,7 @@ def pl_squeeze_pro(
         tr=use_tr,
         offset=0,
     )
-    kc_normal = pl_kc(
+    kc_normal = kc(
         high_expr,
         low_expr,
         close_expr,
@@ -101,7 +101,7 @@ def pl_squeeze_pro(
         tr=use_tr,
         offset=0,
     )
-    kc_narrow = pl_kc(
+    kc_narrow = kc(
         high_expr,
         low_expr,
         close_expr,
@@ -113,8 +113,8 @@ def pl_squeeze_pro(
     )
 
     # Calculate momentum component
-    momo = pl_mom(close_expr, length=mom_length, talib=False, offset=0)
-    sqz_val = pl_ma(name=mamode, source=momo, length=mom_smooth, talib=False)
+    momo = mom(close_expr, length=mom_length, talib=False, offset=0)
+    sqz_val = ma(name=mamode, source=momo, length=mom_smooth, talib=False)
 
     def compute_squeeze_pro(df_struct: pl.DataFrame) -> pl.Series:
         """Compute squeeze pro using struct fields."""

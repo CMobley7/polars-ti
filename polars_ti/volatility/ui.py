@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ui(
+def ui(
     close: IntoExpr,
     length: int = 14,
     scalar: float = 100.0,
@@ -35,7 +35,7 @@ def pl_ui(
     Returns:
         pl.Expr: UI expression
     """
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.overlap.sma import sma
 
     close_expr = v_expr(close)
 
@@ -51,7 +51,7 @@ def pl_ui(
 
     # Everget uses SMA instead of SUM
     if everget:
-        _ui = pl_sma(d2, length=length)
+        _ui = sma(d2, length=length)
     else:
         _ui = d2.rolling_sum(window_size=length, min_samples=length)
 

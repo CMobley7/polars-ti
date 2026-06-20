@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.statistics.skew import pl_skew
+from polars_ti.statistics.skew import skew
 
 
 class TestPlSkew:
@@ -20,16 +20,16 @@ class TestPlSkew:
         return {"pd_close": close, "pl_df": pl.DataFrame({"close": close})}
 
     def test_returns_expression(self):
-        assert isinstance(pl_skew("close"), pl.Expr)
+        assert isinstance(skew("close"), pl.Expr)
 
     def test_output_has_correct_alias(self, sample_df):
-        assert "SKEW_30" in sample_df.select(pl_skew("close", length=30)).columns
+        assert "SKEW_30" in sample_df.select(skew("close", length=30)).columns
 
     def test_with_null_values(self):
-        assert pl.DataFrame({"close": [None] + [100.0] * 49}).select(pl_skew("close")).height == 50
+        assert pl.DataFrame({"close": [None] + [100.0] * 49}).select(skew("close")).height == 50
 
     def test_with_zeros(self):
-        assert pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45}).select(pl_skew("close")).height == 50
+        assert pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45}).select(skew("close")).height == 50
 
     def test_lazy_execution(self, sample_df):
-        assert "SKEW_30" in sample_df.lazy().select(pl_skew("close")).collect().columns
+        assert "SKEW_30" in sample_df.lazy().select(skew("close")).collect().columns

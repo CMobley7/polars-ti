@@ -57,7 +57,7 @@ def nb_kurtosis(close: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def pl_kurtosis(
+def kurtosis(
     close: IntoExpr,
     length: int = 30,
     offset: int = 0,

@@ -7,12 +7,12 @@ import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.maps import Imports
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 from polars_ti.utils import v_talib
 
 
-def pl_accbands(
+def accbands(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -108,10 +108,10 @@ def pl_accbands(
         )
     else:
         # Polars composition path using pl_ma
-        from polars_ti.ma import pl_ma
+        from polars_ti.ma import ma
 
         # High-Low range with non-zero protection
-        hl_range = pl_non_zero_range(high_expr, low_expr)
+        hl_range = non_zero_range(high_expr, low_expr)
 
         # hl_ratio = c * hl_range / (high + low)
         hl_ratio = (pl.lit(c) * hl_range) / (high_expr + low_expr)
@@ -121,9 +121,9 @@ def pl_accbands(
         upper_raw = high_expr * (pl.lit(1.0) + hl_ratio)
 
         # Apply MA to each using pl_ma dispatcher
-        lower = pl_ma(name=mamode, source=lower_raw, length=length, talib=False)
-        mid = pl_ma(name=mamode, source=close_expr, length=length, talib=False)
-        upper = pl_ma(name=mamode, source=upper_raw, length=length, talib=False)
+        lower = ma(name=mamode, source=lower_raw, length=length, talib=False)
+        mid = ma(name=mamode, source=close_expr, length=length, talib=False)
+        upper = ma(name=mamode, source=upper_raw, length=length, talib=False)
 
         if offset != 0:
             lower = lower.shift(offset)

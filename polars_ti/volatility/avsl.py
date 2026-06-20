@@ -77,7 +77,7 @@ def nb_avsl_core_logic(
     return avsl
 
 
-def pl_avsl(
+def avsl(
     close: IntoExpr,
     low: IntoExpr,
     volume: IntoExpr,
@@ -107,8 +107,8 @@ def pl_avsl(
     Returns:
         pl.Expr: AVSL stop-loss expression
     """
-    from polars_ti.volume.vwma import pl_vwma
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.volume.vwma import vwma
+    from polars_ti.overlap.sma import sma
 
     close_expr = v_expr(close)
     low_expr = v_expr(low)
@@ -123,10 +123,10 @@ def pl_avsl(
     _offset = offset
 
     # Use composition for VWMA and SMA (just like Pandas!)
-    vwma_fast = pl_vwma(close_expr, volume_expr, length=fast_period)
-    vwma_slow = pl_vwma(close_expr, volume_expr, length=slow_period)
-    sma_fast = pl_sma(close_expr, length=fast_period)
-    sma_slow = pl_sma(close_expr, length=slow_period)
+    vwma_fast = vwma(close_expr, volume_expr, length=fast_period)
+    vwma_slow = vwma(close_expr, volume_expr, length=slow_period)
+    sma_fast = sma(close_expr, length=fast_period)
+    sma_slow = sma(close_expr, length=slow_period)
 
     # VPC = vwma_slow - sma_slow
     vpc = vwma_slow - sma_slow
@@ -135,8 +135,8 @@ def pl_avsl(
     vpr = vwma_fast / sma_fast
 
     # VM = avg_vol_fast / avg_vol_slow
-    vol_fast = pl_sma(volume_expr, length=fast_period)
-    vol_slow = pl_sma(volume_expr, length=slow_period)
+    vol_fast = sma(volume_expr, length=fast_period)
+    vol_slow = sma(volume_expr, length=slow_period)
     vm = vol_fast / vol_slow
 
     def compute_avsl_final(struct: pl.Series) -> pl.Series:

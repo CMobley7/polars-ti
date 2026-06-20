@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_increasing(
+def increasing(
     close: IntoExpr,
     length: int = 1,
     strict: bool = False,

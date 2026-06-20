@@ -33,7 +33,7 @@ def nb_mcgd(close: np.ndarray, length: int, c: float) -> np.ndarray:
     return result
 
 
-def pl_mcgd(
+def mcgd(
     close: IntoExpr,
     length: int = 10,
     c: float = 1.0,

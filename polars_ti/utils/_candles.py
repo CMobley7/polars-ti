@@ -35,22 +35,22 @@ def real_body(open_, close):
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import pl_non_zero_range
+from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
-def pl_candle_color(open_: IntoExpr, close: IntoExpr) -> PlExpr:
+def candle_color(open_: IntoExpr, close: IntoExpr) -> PlExpr:
     """Polars: Candle Change - Returns 1 (bullish) or -1 (bearish)."""
     open_expr = v_expr(open_)
     close_expr = v_expr(close)
     return pl.when(close_expr >= open_expr).then(1).otherwise(-1).alias("candle_color")
 
 
-def pl_high_low_range(high: IntoExpr, low: IntoExpr) -> PlExpr:
+def high_low_range(high: IntoExpr, low: IntoExpr) -> PlExpr:
     """Polars: High-Low Range with epsilon for zero values."""
-    return pl_non_zero_range(high, low).alias("hl_range")
+    return non_zero_range(high, low).alias("hl_range")
 
 
-def pl_real_body(open_: IntoExpr, close: IntoExpr) -> PlExpr:
+def real_body(open_: IntoExpr, close: IntoExpr) -> PlExpr:
     """Polars: Real Body (close - open) with epsilon for zero values."""
-    return pl_non_zero_range(close, open_).alias("real_body")
+    return non_zero_range(close, open_).alias("real_body")

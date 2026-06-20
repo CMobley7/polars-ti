@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.statistics.entropy import pl_entropy
+from polars_ti.statistics.entropy import entropy
 
 
 class TestPlEntropy:
@@ -23,27 +23,27 @@ class TestPlEntropy:
         }
 
     def test_returns_expression(self):
-        result = pl_entropy("close")
+        result = entropy("close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_entropy("close", length=10))
+        result = sample_df.select(entropy("close", length=10))
         assert "ENTP_10" in result.columns
 
     def test_with_null_values(self):
         """Handles null values gracefully."""
         df = pl.DataFrame({"close": [None] + [100.0] * 49})
-        result = df.select(pl_entropy("close"))
+        result = df.select(entropy("close"))
         assert result.height == 50
 
     def test_with_zeros(self):
         """Handles zero values."""
         df = pl.DataFrame({"close": [0.0] * 5 + [100.0] * 45})
-        result = df.select(pl_entropy("close"))
+        result = df.select(entropy("close"))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_entropy("close")).collect()
+        result = lazy_df.select(entropy("close")).collect()
         assert "ENTP_10" in result.columns

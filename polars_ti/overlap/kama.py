@@ -11,7 +11,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.maps import Imports
 
 
-def pl_kama(
+def kama(
     close: IntoExpr,
     length: int = 10,
     fast: int = 2,

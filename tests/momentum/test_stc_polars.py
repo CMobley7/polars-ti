@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.stc import pl_stc
+from polars_ti.momentum.stc import stc
 
 
 @pytest.fixture
@@ -25,13 +25,13 @@ class TestPlStcBasic:
 
     def test_returns_expr(self, close_data):
         """Test that pl_stc returns a Polars expression."""
-        expr = pl_stc()
+        expr = stc()
         assert isinstance(expr, pl.Expr)
 
     def test_default_parameters(self, close_data):
         """Test pl_stc with default parameters."""
         pl_df = close_data["pl_df"]
-        result = pl_df.select(pl_stc()).unnest("STC_10_12_26_0.5")
+        result = pl_df.select(stc()).unnest("STC_10_12_26_0.5")
 
         assert len(result.columns) == 3
         assert "STC_10_12_26_0.5" in result.columns
@@ -41,7 +41,7 @@ class TestPlStcBasic:
     def test_custom_parameters(self, close_data):
         """Test pl_stc with custom parameters."""
         pl_df = close_data["pl_df"]
-        result = pl_df.select(pl_stc(tclength=15, fast=10, slow=20, factor=0.6)).unnest("STC_15_10_20_0.6")
+        result = pl_df.select(stc(tclength=15, fast=10, slow=20, factor=0.6)).unnest("STC_15_10_20_0.6")
 
         assert "STC_15_10_20_0.6" in result.columns
         assert len(result) == len(pl_df)
@@ -62,16 +62,16 @@ class TestPlStcEdgeCases:
             [pl.when(pl.col("close").is_first_distinct()).then(None).otherwise(pl.col("close")).alias("close")]
         )
 
-        result = pl_df_with_nulls.select(pl_stc()).unnest("STC_10_12_26_0.5")
+        result = pl_df_with_nulls.select(stc()).unnest("STC_10_12_26_0.5")
         assert len(result) == len(pl_df)
 
     def test_lazy_evaluation(self, close_data):
         """Test that pl_stc works in lazy context."""
         pl_df = close_data["pl_df"]
 
-        lazy_result = pl_df.lazy().select(pl_stc()).unnest("STC_10_12_26_0.5").collect()
+        lazy_result = pl_df.lazy().select(stc()).unnest("STC_10_12_26_0.5").collect()
 
-        eager_result = pl_df.select(pl_stc()).unnest("STC_10_12_26_0.5")
+        eager_result = pl_df.select(stc()).unnest("STC_10_12_26_0.5")
 
         # Compare non-NaN values
         for col in lazy_result.columns:
@@ -92,7 +92,7 @@ class TestPlStcFeatureParity:
 
         # Pass fast > slow - should be swapped internally
         result = pl_df.select(
-            pl_stc(fast=26, slow=12)  # Swapped
+            stc(fast=26, slow=12)  # Swapped
         ).unnest("STC_10_12_26_0.5")  # Result should use swapped values
 
         assert "STC_10_12_26_0.5" in result.columns
@@ -101,8 +101,8 @@ class TestPlStcFeatureParity:
         """Test different smoothing factors."""
         pl_df = close_data["pl_df"]
 
-        result_low = pl_df.select(pl_stc(factor=0.25)).unnest("STC_10_12_26_0.25")
-        result_high = pl_df.select(pl_stc(factor=0.75)).unnest("STC_10_12_26_0.75")
+        result_low = pl_df.select(stc(factor=0.25)).unnest("STC_10_12_26_0.25")
+        result_high = pl_df.select(stc(factor=0.75)).unnest("STC_10_12_26_0.75")
 
         # Different factors should produce different results
         assert "STC_10_12_26_0.25" in result_low.columns
@@ -117,7 +117,7 @@ class TestPlStcIntegration:
         pl_df = close_data["pl_df"]
 
         result = (
-            pl_df.select(pl_stc())
+            pl_df.select(stc())
             .unnest("STC_10_12_26_0.5")
             .select(
                 [

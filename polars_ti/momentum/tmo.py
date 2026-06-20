@@ -116,7 +116,7 @@ def _tmo_core(
     return main, smooth, mom_main, mom_smooth
 
 
-def pl_tmo(
+def tmo(
     open_: IntoExpr,
     close: IntoExpr,
     tmo_length: int = 14,

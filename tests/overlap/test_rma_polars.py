@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.rma import pl_rma
+from polars_ti.overlap.rma import rma
 
 
 class TestPlRma:
@@ -16,18 +16,18 @@ class TestPlRma:
         return {"close": close}
 
     def test_returns_expression(self, sample_data):
-        result = pl_rma("close")
+        result = rma("close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_rma("close", length=14))
+        result = df.select(rma("close", length=14))
         assert result.columns[0] == "RMA_14"
 
     def test_presma_true_mode(self, sample_data):
         """Test that presma=True mode starts at index length-1."""
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_rma("close", length=14, presma=True))
+        result = df.select(rma("close", length=14, presma=True))
         vals = result[result.columns[0]].to_numpy()
         # First 13 values should be NaN
         assert np.all(np.isnan(vals[:13]))
@@ -39,7 +39,7 @@ class TestPlRma:
         data["close"] = data["close"].copy()
         data["close"][10:15] = np.nan
         df = pl.DataFrame(data)
-        result = df.select(pl_rma("close"))
+        result = df.select(rma("close"))
         assert result.height == 100
 
     def test_with_zeros(self, sample_data):
@@ -47,10 +47,10 @@ class TestPlRma:
         data["close"] = data["close"].copy()
         data["close"][50:55] = 0.0
         df = pl.DataFrame(data)
-        result = df.select(pl_rma("close"))
+        result = df.select(rma("close"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.lazy().select(pl_rma("close")).collect()
+        result = df.lazy().select(rma("close")).collect()
         assert result.height == 100

@@ -51,7 +51,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_exhc(
+def exhc(
     close: IntoExpr,
     length: int = 4,
     cap: int = 13,

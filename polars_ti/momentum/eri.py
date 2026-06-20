@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_eri(
+def eri(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -30,14 +30,14 @@ def pl_eri(
     Returns:
         list[pl.Expr]: [BULLP_13, BEARP_13] expressions
     """
-    from polars_ti.overlap.ema import pl_ema
+    from polars_ti.overlap.ema import ema
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
     # EMA of close
-    ema_expr = pl_ema(close_expr, length=length, offset=0)
+    ema_expr = ema(close_expr, length=length, offset=0)
 
     # Bull Power = High - EMA, Bear Power = Low - EMA
     bull_expr = high_expr - ema_expr

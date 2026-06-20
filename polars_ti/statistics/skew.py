@@ -57,7 +57,7 @@ def nb_skew(close: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def pl_skew(
+def skew(
     close: IntoExpr,
     length: int = 30,
     offset: int = 0,

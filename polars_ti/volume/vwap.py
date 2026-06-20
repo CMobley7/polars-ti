@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_vwap(
+def vwap(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -39,7 +39,7 @@ def pl_vwap(
     Returns:
         list[pl.Expr]: [VWAP] or [VWAP, VWAP_L_1, VWAP_U_1, ...] if bands provided
     """
-    from polars_ti.overlap.hlc3 import pl_hlc3
+    from polars_ti.overlap.hlc3 import hlc3
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -50,7 +50,7 @@ def pl_vwap(
         return None
 
     # Typical price = HLC3
-    tp = pl_hlc3(high_expr, low_expr, close_expr)
+    tp = hlc3(high_expr, low_expr, close_expr)
     tp_vol = tp * volume_expr
 
     _anchor = anchor.upper() if anchor else "D"

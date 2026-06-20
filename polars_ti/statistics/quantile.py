@@ -45,7 +45,7 @@ def nb_quantile(close: np.ndarray, length: int, q: float) -> np.ndarray:
     return result
 
 
-def pl_quantile(
+def quantile(
     close: IntoExpr,
     length: int = 30,
     q: float = 0.5,

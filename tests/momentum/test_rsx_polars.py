@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.rsx import pl_rsx
+from polars_ti.momentum.rsx import rsx
 
 
 class TestPlRsx:
@@ -21,13 +21,13 @@ class TestPlRsx:
 
     def test_returns_expression(self, sample_data):
         """pl_rsx should return a Polars expression."""
-        result = pl_rsx("close")
+        result = rsx("close")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         """Output column should have correct RSX_<length> alias."""
         pl_df, _ = sample_data
-        result = pl_df.select(pl_rsx("close", length=14))
+        result = pl_df.select(rsx("close", length=14))
         assert "RSX_14" in result.columns
 
     def test_offset_shifts_result(self, sample_data):
@@ -35,8 +35,8 @@ class TestPlRsx:
         pl_df, _ = sample_data
         offset = 5
 
-        result_no_offset = pl_df.select(pl_rsx("close", offset=0))
-        result_with_offset = pl_df.select(pl_rsx("close", offset=offset))
+        result_no_offset = pl_df.select(rsx("close", offset=0))
+        result_with_offset = pl_df.select(rsx("close", offset=offset))
 
         # Values should be shifted
         no_offset_vals = result_no_offset[result_no_offset.columns[0]].to_numpy()
@@ -55,7 +55,7 @@ class TestPlRsx:
             pl.when(pl.col("close").is_between(50, 60)).then(None).otherwise(pl.col("close")).alias("close")
         )
 
-        result = df_with_nulls.select(pl_rsx("close"))
+        result = df_with_nulls.select(rsx("close"))
         assert result.height == pl_df.height
 
     def test_lazy_execution(self, sample_data):
@@ -63,14 +63,14 @@ class TestPlRsx:
         pl_df, _ = sample_data
         lazy_df = pl_df.lazy()
 
-        result = lazy_df.select(pl_rsx("close", length=14)).collect()
+        result = lazy_df.select(rsx("close", length=14)).collect()
         assert result.height == pl_df.height
         assert "RSX_14" in result.columns
 
     def test_rsx_bounds(self, sample_data):
         """RSX values should be bounded between 0 and 100."""
         pl_df, _ = sample_data
-        result = pl_df.select(pl_rsx("close", length=14))
+        result = pl_df.select(rsx("close", length=14))
         values = result[result.columns[0]].to_numpy()
 
         valid_vals = values[~np.isnan(values)]
@@ -82,6 +82,6 @@ class TestPlRsx:
         pl_df, _ = sample_data
 
         for length in [7, 14, 21]:
-            result = pl_df.select(pl_rsx("close", length=length))
+            result = pl_df.select(rsx("close", length=length))
             assert f"RSX_{length}" in result.columns
             assert result.height == pl_df.height

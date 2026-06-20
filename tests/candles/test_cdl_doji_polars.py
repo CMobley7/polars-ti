@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.candles.cdl_doji import pl_cdl_doji
+from polars_ti.candles.cdl_doji import cdl_doji
 
 
 class TestPlCdlDoji:
@@ -21,7 +21,7 @@ class TestPlCdlDoji:
                 "close": [100.01, 100.01, 100.01] * 5,  # Very small body
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=3))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=3))
         # After warmup (first 3), should detect doji
         assert result.to_numpy().flatten()[3:].sum() > 0
 
@@ -35,7 +35,7 @@ class TestPlCdlDoji:
                 "close": [105.0] * 15,  # Large body (15 points)
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=10))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=10))
         # Should NOT detect doji - large body
         assert result.to_numpy().flatten()[10:].sum() == 0
 
@@ -49,7 +49,7 @@ class TestPlCdlDoji:
                 "close": [100.5] * 15,
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=10, factor=10.0))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=10, factor=10.0))
         assert result.columns[0] == "CDL_DOJI_10_0.1"
 
     def test_custom_scalar(self):
@@ -62,7 +62,7 @@ class TestPlCdlDoji:
                 "close": [100.001] * 15,  # Tiny body
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=10, scalar=50.0))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=10, scalar=50.0))
         # If doji detected, should be 50 not 100
         detected = result.to_numpy().flatten()[10:]
         if any(detected > 0):
@@ -78,7 +78,7 @@ class TestPlCdlDoji:
                 "close": [100.01] * 20,
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=10))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=10))
         assert result.height == 20
 
     def test_with_zeros(self):
@@ -91,7 +91,7 @@ class TestPlCdlDoji:
                 "close": [0.0] * 5 + [100.01] * 15,
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=10))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=10))
         assert result.height == 20
 
     def test_lazy_execution(self):
@@ -105,7 +105,7 @@ class TestPlCdlDoji:
             }
         )
         lazy_df = df.lazy()
-        result = lazy_df.select(pl_cdl_doji("open", "high", "low", "close", length=10)).collect()
+        result = lazy_df.select(cdl_doji("open", "high", "low", "close", length=10)).collect()
         assert "CDL_DOJI_10_0.1" in result.columns
 
     def test_offset_parameter(self):
@@ -118,7 +118,7 @@ class TestPlCdlDoji:
                 "close": [100.01] * 15,
             }
         )
-        result = df.select(pl_cdl_doji("open", "high", "low", "close", length=10, offset=2))
+        result = df.select(cdl_doji("open", "high", "low", "close", length=10, offset=2))
         arr = result.to_numpy().flatten()
         # First 2 values should be null due to offset
         assert arr[0] is None or np.isnan(float(arr[0])) if arr[0] is not None else True

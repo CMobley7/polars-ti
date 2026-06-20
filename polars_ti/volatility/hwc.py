@@ -49,7 +49,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_hwc(
+def hwc(
     close: IntoExpr,
     scalar: float = 1.0,
     na: float = 0.2,

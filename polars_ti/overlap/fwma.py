@@ -9,7 +9,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.utils._math import fibonacci
 
 
-def pl_fwma(
+def fwma(
     close: IntoExpr,
     length: int = 10,
     asc: bool = True,

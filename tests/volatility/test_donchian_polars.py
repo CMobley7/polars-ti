@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volatility.donchian import pl_donchian
+from polars_ti.volatility.donchian import donchian
 
 
 class TestPlDonchian:
@@ -17,12 +17,12 @@ class TestPlDonchian:
         return {"high": high, "low": low}
 
     def test_returns_expression(self, sample_data):
-        result = pl_donchian("high", "low")
+        result = donchian("high", "low")
         assert isinstance(result, pl.Expr)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.select(pl_donchian("high", "low"))
+        result = df.select(donchian("high", "low"))
         assert "DC" in result.columns[0]
 
     def test_with_null_values(self, sample_data):
@@ -30,7 +30,7 @@ class TestPlDonchian:
         data["high"] = data["high"].copy()
         data["high"][10:15] = np.nan
         df = pl.DataFrame(data)
-        result = df.select(pl_donchian("high", "low"))
+        result = df.select(donchian("high", "low"))
         assert result.height == 100
 
     def test_with_zeros(self, sample_data):
@@ -38,10 +38,10 @@ class TestPlDonchian:
         data["low"] = data["low"].copy()
         data["low"][50:55] = 50.0
         df = pl.DataFrame(data)
-        result = df.select(pl_donchian("high", "low"))
+        result = df.select(donchian("high", "low"))
         assert result.height == 100
 
     def test_lazy_execution(self, sample_data):
         df = pl.DataFrame(sample_data)
-        result = df.lazy().select(pl_donchian("high", "low")).collect()
+        result = df.lazy().select(donchian("high", "low")).collect()
         assert result.height == 100

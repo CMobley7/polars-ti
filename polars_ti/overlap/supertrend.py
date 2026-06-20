@@ -8,8 +8,8 @@ from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
-from polars_ti.overlap.hl2 import pl_hl2
-from polars_ti.volatility.atr import pl_atr
+from polars_ti.overlap.hl2 import hl2
+from polars_ti.volatility.atr import atr
 
 
 @njit(cache=True)
@@ -53,7 +53,7 @@ def nb_supertrend_bands(close: np.ndarray, lb: np.ndarray, ub: np.ndarray, lengt
     return trend, dir_, long, short
 
 
-def pl_supertrend(
+def supertrend(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -88,8 +88,8 @@ def pl_supertrend(
     close_expr = v_expr(close)
 
     # Use pl_hl2 and pl_atr composition!
-    hl2_expr = pl_hl2(high_expr, low_expr)
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=True)
+    hl2_expr = hl2(high_expr, low_expr)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=True)
 
     def compute_supertrend(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()

@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_apo(
+def apo(
     close: IntoExpr,
     fast: int = 12,
     slow: int = 26,
@@ -34,7 +34,7 @@ def pl_apo(
     """
     import numpy as np
     from polars_ti.maps import Imports
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
     from polars_ti.utils import v_talib, tal_ma
 
     if slow < fast:
@@ -58,8 +58,8 @@ def pl_apo(
         apo_expr = close_expr.map_batches(compute_apo, return_dtype=pl.Float64)
     else:
         # Use pl_ma for code reuse
-        fast_ma = pl_ma(name=mamode, source=close_expr, length=fast, talib=False)
-        slow_ma = pl_ma(name=mamode, source=close_expr, length=slow, talib=False)
+        fast_ma = ma(name=mamode, source=close_expr, length=fast, talib=False)
+        slow_ma = ma(name=mamode, source=close_expr, length=slow, talib=False)
         apo_expr = fast_ma - slow_ma
 
     if offset != 0:

@@ -53,7 +53,7 @@ def _nb_avwap(close: np.ndarray, volume: np.ndarray, pivots: np.ndarray) -> np.n
     return result
 
 
-def pl_avwap(
+def avwap(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

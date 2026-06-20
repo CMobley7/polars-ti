@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.ichimoku import pl_ichimoku
+from polars_ti.overlap.ichimoku import ichimoku
 
 
 class TestPlIchimoku:
@@ -35,12 +35,12 @@ class TestPlIchimoku:
         }
 
     def test_returns_two_dataframes(self, sample_df):
-        main_df, span_df = pl_ichimoku(sample_df)
+        main_df, span_df = ichimoku(sample_df)
         assert isinstance(main_df, pl.DataFrame)
         assert isinstance(span_df, pl.DataFrame)
 
     def test_main_df_columns(self, sample_df):
-        main_df, _ = pl_ichimoku(sample_df)
+        main_df, _ = ichimoku(sample_df)
         assert "ISA_9" in main_df.columns
         assert "ISB_26" in main_df.columns
         assert "ITS_9" in main_df.columns
@@ -48,17 +48,17 @@ class TestPlIchimoku:
         assert "ICS_26" in main_df.columns
 
     def test_exclude_chikou(self, sample_df):
-        main_df, _ = pl_ichimoku(sample_df, include_chikou=False)
+        main_df, _ = ichimoku(sample_df, include_chikou=False)
         assert "ICS_26" not in main_df.columns
         assert len(main_df.columns) == 4
 
     def test_span_df_columns(self, sample_df):
-        _, span_df = pl_ichimoku(sample_df)
+        _, span_df = ichimoku(sample_df)
         assert "ISA_9" in span_df.columns
         assert "ISB_26" in span_df.columns
 
     def test_custom_periods(self, sample_df):
-        main_df, _ = pl_ichimoku(sample_df, tenkan=7, kijun=22, senkou=44)
+        main_df, _ = ichimoku(sample_df, tenkan=7, kijun=22, senkou=44)
         assert "ISA_7" in main_df.columns
         assert "ISB_22" in main_df.columns
         assert "ITS_7" in main_df.columns
@@ -73,7 +73,7 @@ class TestPlIchimoku:
                 "close": [None] + [100.0] * 79,
             }
         )
-        main_df, span_df = pl_ichimoku(df)
+        main_df, span_df = ichimoku(df)
         assert main_df.height == 80
 
     def test_with_zeros(self):
@@ -85,5 +85,5 @@ class TestPlIchimoku:
                 "close": [0.0] * 5 + [100.0] * 75,
             }
         )
-        main_df, span_df = pl_ichimoku(df)
+        main_df, span_df = ichimoku(df)
         assert main_df.height == 80

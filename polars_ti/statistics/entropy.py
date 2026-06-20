@@ -54,7 +54,7 @@ def nb_entropy(close: np.ndarray, length: int, base: float) -> np.ndarray:
     return result
 
 
-def pl_entropy(
+def entropy(
     close: IntoExpr,
     length: int = 10,
     base: float = 2.0,

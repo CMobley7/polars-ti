@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.mama import pl_mama
+from polars_ti.overlap.mama import mama
 
 
 class TestPlMama:
@@ -18,23 +18,23 @@ class TestPlMama:
         )
 
     def test_returns_dataframe(self, sample_df):
-        result = pl_mama(sample_df)
+        result = mama(sample_df)
         assert isinstance(result, pl.DataFrame)
 
     def test_columns_present(self, sample_df):
-        result = pl_mama(sample_df)
+        result = mama(sample_df)
         assert "MAMA_0.5_0.05" in result.columns
         assert "FAMA_0.5_0.05" in result.columns
 
     def test_talib_version(self, sample_df):
-        result = pl_mama(sample_df, talib=True)
+        result = mama(sample_df, talib=True)
         assert "MAMA_0.5_0.05" in result.columns
 
     def test_pure_version(self, sample_df):
-        result = pl_mama(sample_df, talib=False)
+        result = mama(sample_df, talib=False)
         assert "MAMA_0.5_0.05" in result.columns
 
     def test_custom_limits(self, sample_df):
-        result = pl_mama(sample_df, fastlimit=0.4, slowlimit=0.1)
+        result = mama(sample_df, fastlimit=0.4, slowlimit=0.1)
         assert "MAMA_0.4_0.1" in result.columns
         assert "FAMA_0.4_0.1" in result.columns

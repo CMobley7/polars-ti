@@ -35,7 +35,7 @@ def _nb_rma(x: np.ndarray, n: int) -> np.ndarray:
     return result
 
 
-def pl_kdj(
+def kdj(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,

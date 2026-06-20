@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.candles.cdl_z import pl_cdl_z, pl_zscore
+from polars_ti.candles.cdl_z import cdl_z, zscore
 
 
 class TestPlZscore:
@@ -15,7 +15,7 @@ class TestPlZscore:
         """Test basic z-score calculation."""
         data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
         df = pl.DataFrame({"close": data})
-        result = df.select(pl_zscore("close", length=5, ddof=1).alias("z"))
+        result = df.select(zscore("close", length=5, ddof=1).alias("z"))
         # After warmup period, z-scores should be calculated
         assert result["z"].to_numpy()[4] is not None
 
@@ -25,7 +25,7 @@ class TestPlCdlZ:
 
     def test_returns_four_columns(self):
         """Test that pl_cdl_z returns four Z-score expressions."""
-        result = pl_cdl_z("open", "high", "low", "close", length=10)
+        result = cdl_z("open", "high", "low", "close", length=10)
         assert len(result) == 4
 
     def test_column_aliases(self):
@@ -33,7 +33,7 @@ class TestPlCdlZ:
         np.random.seed(42)
         close = np.random.randn(20).cumsum() + 100
         df = pl.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close})
-        exprs = pl_cdl_z("open", "high", "low", "close", length=10, ddof=1)
+        exprs = cdl_z("open", "high", "low", "close", length=10, ddof=1)
         result = df.with_columns(exprs)
 
         assert "open_Z_10_1" in result.columns
@@ -46,7 +46,7 @@ class TestPlCdlZ:
         np.random.seed(42)
         close = np.random.randn(50).cumsum() + 100
         df = pl.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close})
-        exprs = pl_cdl_z("open", "high", "low", "close", length=30)
+        exprs = cdl_z("open", "high", "low", "close", length=30)
         result = df.with_columns(exprs)
 
         # Z-scores should typically be between -3 and 3 for normal data
@@ -63,7 +63,7 @@ class TestPlCdlZ:
                 "close": [105.0] * 40,
             }
         )
-        exprs = pl_cdl_z("open", "high", "low", "close", length=30)
+        exprs = cdl_z("open", "high", "low", "close", length=30)
         result = df.select(exprs)
         assert result.height == 40
 
@@ -77,7 +77,7 @@ class TestPlCdlZ:
                 "close": [0.0] * 10 + [105.0] * 30,
             }
         )
-        exprs = pl_cdl_z("open", "high", "low", "close", length=30)
+        exprs = cdl_z("open", "high", "low", "close", length=30)
         result = df.select(exprs)
         assert result.height == 40
 
@@ -87,6 +87,6 @@ class TestPlCdlZ:
         close = np.random.randn(40).cumsum() + 100
         df = pl.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close})
         lazy_df = df.lazy()
-        exprs = pl_cdl_z("open", "high", "low", "close", length=30)
+        exprs = cdl_z("open", "high", "low", "close", length=30)
         result = lazy_df.select(exprs).collect()
         assert "close_Z_30_1" in result.columns

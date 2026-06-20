@@ -85,7 +85,7 @@ def _macd_calc(
     return np.column_stack([macd, signal_ema, histogram])
 
 
-def pl_macd(
+def macd(
     close: IntoExpr,
     fast: int = 12,
     slow: int = 26,

@@ -32,7 +32,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ssf3(
+def ssf3(
     close: IntoExpr,
     length: int = 20,
     pi: float = 3.14159,

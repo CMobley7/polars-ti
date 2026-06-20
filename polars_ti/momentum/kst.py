@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_kst(
+def kst(
     close: IntoExpr,
     signal: int = 9,
     roc1: int = 10,
@@ -40,14 +40,14 @@ def pl_kst(
     Returns:
         pl.Expr: Struct with KST and KSTs columns
     """
-    from polars_ti.momentum.roc import pl_roc
+    from polars_ti.momentum.roc import roc
 
     close_expr = v_expr(close)
 
-    rocma1 = pl_roc(close_expr, length=roc1).rolling_mean(window_size=sma1)
-    rocma2 = pl_roc(close_expr, length=roc2).rolling_mean(window_size=sma2)
-    rocma3 = pl_roc(close_expr, length=roc3).rolling_mean(window_size=sma3)
-    rocma4 = pl_roc(close_expr, length=roc4).rolling_mean(window_size=sma4)
+    rocma1 = roc(close_expr, length=roc1).rolling_mean(window_size=sma1)
+    rocma2 = roc(close_expr, length=roc2).rolling_mean(window_size=sma2)
+    rocma3 = roc(close_expr, length=roc3).rolling_mean(window_size=sma3)
+    rocma4 = roc(close_expr, length=roc4).rolling_mean(window_size=sma4)
 
     kst_expr = 100.0 * (rocma1 + 2 * rocma2 + 3 * rocma3 + 4 * rocma4)
     kst_signal_expr = kst_expr.rolling_mean(window_size=signal)

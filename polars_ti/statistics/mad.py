@@ -39,7 +39,7 @@ def nb_mad(close: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def pl_mad(
+def mad(
     close: IntoExpr,
     length: int = 30,
     offset: int = 0,

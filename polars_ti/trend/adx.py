@@ -100,7 +100,7 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
     return adx_out, adxr_out, dmp_out, dmn_out
 
 
-def pl_adx(
+def adx(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -108,6 +108,7 @@ def pl_adx(
     lensig: int = 14,
     adxr_length: int = 2,
     scalar: float = 100.0,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Average Directional Index (ADX)
@@ -122,6 +123,7 @@ def pl_adx(
         lensig: Signal period. Default: 14
         adxr_length: ADXR lookback. Default: 2
         scalar: Magnification. Default: 100
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result. Default: 0
 
     Returns:
@@ -131,13 +133,25 @@ def pl_adx(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+
     def _compute(s: pl.Series) -> pl.Series:
         data = s.struct.unnest()
         h = data["_h"].to_numpy().astype(np.float64)
         l_ = data["_l"].to_numpy().astype(np.float64)
         c = data["_c"].to_numpy().astype(np.float64)
 
-        adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, lensig, adxr_length, scalar)
+        if Imports["talib"] and v_talib(talib) and length > 1 and lensig == length:
+            from talib import ADX, MINUS_DM, PLUS_DM
+
+            adx_arr = ADX(h, l_, c, timeperiod=length)
+            dmp_arr = PLUS_DM(h, l_, timeperiod=length)
+            dmn_arr = MINUS_DM(h, l_, timeperiod=length)
+            adxr_arr = 0.5 * (adx_arr + np.roll(adx_arr, adxr_length))
+            adxr_arr[:adxr_length] = np.nan
+        else:
+            adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, lensig, adxr_length, scalar)
 
         if offset != 0:
             for arr in [adx_arr, adxr_arr, dmp_arr, dmn_arr]:

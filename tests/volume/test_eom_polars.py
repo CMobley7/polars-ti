@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.volume.eom import pl_eom
+from polars_ti.volume.eom import eom
 
 
 class TestPlEom:
@@ -26,15 +26,15 @@ class TestPlEom:
         )
 
     def test_returns_expression(self, sample_df):
-        result = sample_df.select(pl_eom("high", "low", "close", "volume"))
+        result = sample_df.select(eom("high", "low", "close", "volume"))
         assert result.height == 100
 
     def test_output_has_correct_alias(self, sample_df):
-        result = sample_df.select(pl_eom("high", "low", "close", "volume", length=10))
+        result = sample_df.select(eom("high", "low", "close", "volume", length=10))
         assert "EOM_10_100000000" in result.columns
 
     def test_offset_shifts_result(self, sample_df):
-        result = sample_df.select(pl_eom("high", "low", "close", "volume", offset=5))
+        result = sample_df.select(eom("high", "low", "close", "volume", offset=5))
         arr = result[result.columns[0]].to_numpy()
         assert all(np.isnan(arr[:5]))
 
@@ -47,10 +47,10 @@ class TestPlEom:
                 "volume": [None] + [1000000.0] * 49,
             }
         )
-        result = df.select(pl_eom("high", "low", "close", "volume", length=10))
+        result = df.select(eom("high", "low", "close", "volume", length=10))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_eom("high", "low", "close", "volume")).collect()
+        result = lazy_df.select(eom("high", "low", "close", "volume")).collect()
         assert "EOM_14_100000000" in result.columns

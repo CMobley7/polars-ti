@@ -10,7 +10,7 @@ from polars_ti.utils._validate import v_expr
 from polars_ti.overlap.wma import nb_wma
 
 
-def pl_hma(
+def hma(
     close: IntoExpr,
     length: int = 10,
     offset: int = 0,

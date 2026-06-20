@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 import pytest
-from polars_ti.overlap.wcp import pl_wcp
+from polars_ti.overlap.wcp import wcp
 
 
 class TestPlWcp:
@@ -20,21 +20,21 @@ class TestPlWcp:
         )
 
     def test_returns_correct_column(self, sample_df):
-        result = sample_df.select(pl_wcp("high", "low", "close"))
+        result = sample_df.select(wcp("high", "low", "close"))
         assert "WCP" in result.columns
 
     def test_formula_correct_pure(self, sample_df):
-        result = sample_df.select(pl_wcp("high", "low", "close", talib=False))
+        result = sample_df.select(wcp("high", "low", "close", talib=False))
         expected = (sample_df["high"] + sample_df["low"] + 2 * sample_df["close"]) / 4
         np.testing.assert_array_almost_equal(result["WCP"].to_numpy(), expected.to_numpy())
 
     def test_talib_matches_pure(self, sample_df):
-        r_pure = sample_df.select(pl_wcp("high", "low", "close", talib=False))
-        r_talib = sample_df.select(pl_wcp("high", "low", "close", talib=True))
+        r_pure = sample_df.select(wcp("high", "low", "close", talib=False))
+        r_talib = sample_df.select(wcp("high", "low", "close", talib=True))
         np.testing.assert_array_almost_equal(r_pure["WCP"].to_numpy(), r_talib["WCP"].to_numpy())
 
     def test_offset(self, sample_df):
-        result = sample_df.select(pl_wcp("high", "low", "close", offset=5, talib=False))
+        result = sample_df.select(wcp("high", "low", "close", offset=5, talib=False))
         arr = result["WCP"].to_numpy()
         assert np.isnan(arr[:5]).all()
 
@@ -47,7 +47,7 @@ class TestPlWcp:
                 "close": [None] + [100.0] * 49,
             }
         )
-        result = df.select(pl_wcp("high", "low", "close"))
+        result = df.select(wcp("high", "low", "close"))
         assert result.height == 50
 
     def test_with_zeros(self):
@@ -59,11 +59,11 @@ class TestPlWcp:
                 "close": [0.0] * 5 + [100.0] * 45,
             }
         )
-        result = df.select(pl_wcp("high", "low", "close"))
+        result = df.select(wcp("high", "low", "close"))
         assert result.height == 50
 
     def test_lazy_execution(self, sample_df):
         """Works with LazyFrame."""
         lazy_df = sample_df.lazy()
-        result = lazy_df.select(pl_wcp("high", "low", "close")).collect()
+        result = lazy_df.select(wcp("high", "low", "close")).collect()
         assert "WCP" in result.columns

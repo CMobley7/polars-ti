@@ -5,11 +5,11 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._candles import pl_high_low_range, pl_real_body
+from polars_ti.utils._candles import high_low_range, real_body
 from polars_ti.utils._validate import v_expr
 
 
-def pl_cdl_doji(
+def cdl_doji(
     open_: IntoExpr,
     high: IntoExpr,
     low: IntoExpr,

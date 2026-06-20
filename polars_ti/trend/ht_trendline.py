@@ -82,9 +82,10 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_ht_trendline(
+def ht_trendline(
     close: IntoExpr,
     prenan: int = 63,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Hilbert Transform TrendLine (HT_TL)
@@ -95,17 +96,25 @@ def pl_ht_trendline(
     Args:
         close: Column name or pl.Expr for input values
         prenan: Prenans to apply. Default: 63
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result. Default: 0
 
     Returns:
         pl.Expr: HT_TL expression
     """
     close_expr = v_expr(close)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
     def _compute(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        result = nb_ht_trendline(arr)
-        if prenan > 0:
+        if Imports["talib"] and v_talib(talib):
+            from talib import HT_TRENDLINE
+
+            result = HT_TRENDLINE(arr)
+        else:
+            result = nb_ht_trendline(arr)
+        if prenan > 0 and not (Imports["talib"] and v_talib(talib)):
             result[:prenan] = np.nan
         return pl.Series(values=result, name=s.name)
 

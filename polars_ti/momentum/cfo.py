@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_cfo(
+def cfo(
     close: IntoExpr,
     length: int = 9,
     scalar: float = 100.0,
@@ -33,13 +33,13 @@ def pl_cfo(
     Returns:
         pl.Expr: CFO expression
     """
-    from polars_ti.overlap.linreg import pl_linreg
+    from polars_ti.overlap.linreg import linreg
 
     close_expr = v_expr(close)
 
     # TSF = Time Series Forecast from linear regression
     # Match Pandas default: talib=True
-    tsf = pl_linreg(close_expr, length=length, tsf=True, offset=0)
+    tsf = linreg(close_expr, length=length, tsf=True, offset=0)
 
     # CFO = scalar * (close - TSF) / close
     # Protect against divide-by-zero

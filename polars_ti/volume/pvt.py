@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_pvt(
+def pvt(
     close: IntoExpr,
     volume: IntoExpr,
     drift: int = 1,
@@ -27,7 +27,7 @@ def pl_pvt(
     Returns:
         pl.Expr: PVT expression
     """
-    from polars_ti.momentum.roc import pl_roc
+    from polars_ti.momentum.roc import roc
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -37,7 +37,7 @@ def pl_pvt(
 
     # PVT = cumsum(ROC * volume)
     # Use pl_roc for code reuse
-    roc_expr = pl_roc(close_expr, length=drift, scalar=100.0, talib=False, offset=0)
+    roc_expr = roc(close_expr, length=drift, scalar=100.0, talib=False, offset=0)
 
     pv = roc_expr * volume_expr
     pvt_expr = pv.cum_sum()

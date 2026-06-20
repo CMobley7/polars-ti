@@ -8,7 +8,7 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def pl_aberration(
+def aberration(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr,
@@ -36,9 +36,9 @@ def pl_aberration(
     Returns:
         pl.Expr: Struct with ZG, SG, XG, ATR columns
     """
-    from polars_ti.volatility.atr import pl_atr
-    from polars_ti.overlap.hlc3 import pl_hlc3
-    from polars_ti.overlap.sma import pl_sma
+    from polars_ti.volatility.atr import atr
+    from polars_ti.overlap.hlc3 import hlc3
+    from polars_ti.overlap.sma import sma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -48,13 +48,13 @@ def pl_aberration(
         return None
 
     # HLC3 using pl_hlc3 composition
-    hlc3_expr = pl_hlc3(high_expr, low_expr, close_expr)
+    hlc3_expr = hlc3(high_expr, low_expr, close_expr)
 
     # ZG = SMA(HLC3, length) using pl_sma composition
-    zg = pl_sma(hlc3_expr, length=length)
+    zg = sma(hlc3_expr, length=length)
 
     # ATR using pl_atr composition
-    atr_expr = pl_atr(high_expr, low_expr, close_expr, length=atr_length, talib=talib)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, talib=talib)
 
     # SG = ZG + ATR, XG = ZG - ATR
     sg = zg + atr_expr

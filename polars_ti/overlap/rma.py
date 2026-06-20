@@ -69,7 +69,7 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
     return result
 
 
-def pl_rma(
+def rma(
     close: IntoExpr,
     length: int = 10,
     presma: bool = False,

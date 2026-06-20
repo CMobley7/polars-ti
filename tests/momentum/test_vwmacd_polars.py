@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.vwmacd import pl_vwmacd
+from polars_ti.momentum.vwmacd import vwmacd as vwmacd_indicator
 
 
 class TestPlVwmacd:
@@ -22,7 +22,7 @@ class TestPlVwmacd:
 
     def test_basic_output(self, sample_data: pl.DataFrame) -> None:
         """Test that pl_vwmacd returns correct number of expressions."""
-        result = sample_data.select(pl_vwmacd("close", "volume"))
+        result = sample_data.select(vwmacd_indicator("close", "volume"))
 
         assert result.shape[1] == 3, "Should return 3 columns"
         assert "VWMACD_12_26_9" in result.columns
@@ -31,7 +31,7 @@ class TestPlVwmacd:
 
     def test_custom_parameters(self, sample_data: pl.DataFrame) -> None:
         """Test pl_vwmacd with custom fast/slow/signal parameters."""
-        result = sample_data.select(pl_vwmacd("close", "volume", fast=10, slow=20, signal=5))
+        result = sample_data.select(vwmacd_indicator("close", "volume", fast=10, slow=20, signal=5))
 
         assert "VWMACD_10_20_5" in result.columns
         assert "VWMACDh_10_20_5" in result.columns
@@ -39,13 +39,13 @@ class TestPlVwmacd:
 
     def test_fast_slow_swap(self, sample_data: pl.DataFrame) -> None:
         """Test that fast > slow causes them to swap."""
-        result = sample_data.select(pl_vwmacd("close", "volume", fast=30, slow=20, signal=9))
+        result = sample_data.select(vwmacd_indicator("close", "volume", fast=30, slow=20, signal=9))
 
         assert "VWMACD_20_30_9" in result.columns
 
     def test_histogram_is_difference(self, sample_data: pl.DataFrame) -> None:
         """Test that histogram = VWMACD - Signal."""
-        result = sample_data.select(pl_vwmacd("close", "volume"))
+        result = sample_data.select(vwmacd_indicator("close", "volume"))
 
         vwmacd = result["VWMACD_12_26_9"].to_numpy()
         signal = result["VWMACDs_12_26_9"].to_numpy()
@@ -56,8 +56,8 @@ class TestPlVwmacd:
 
     def test_offset_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test offset shifts all outputs."""
-        result_no_offset = sample_data.select(pl_vwmacd("close", "volume", offset=0))
-        result_with_offset = sample_data.select(pl_vwmacd("close", "volume", offset=5))
+        result_no_offset = sample_data.select(vwmacd_indicator("close", "volume", offset=0))
+        result_with_offset = sample_data.select(vwmacd_indicator("close", "volume", offset=5))
 
         vwmacd_no = result_no_offset["VWMACD_12_26_9"].to_numpy()
         vwmacd_with = result_with_offset["VWMACD_12_26_9"].to_numpy()
@@ -71,7 +71,7 @@ class TestPlVwmacd:
     def test_lazy_evaluation(self, sample_data: pl.DataFrame) -> None:
         """Test that pl_vwmacd works in lazy context."""
         lazy_df = sample_data.lazy()
-        result = lazy_df.select(pl_vwmacd("close", "volume")).collect()
+        result = lazy_df.select(vwmacd_indicator("close", "volume")).collect()
 
         assert result.shape[1] == 3
         assert not result["VWMACD_12_26_9"].is_empty()
@@ -89,7 +89,7 @@ class TestPlVwmacd:
             }
         )
 
-        result = df.select(pl_vwmacd("close", "volume"))
+        result = df.select(vwmacd_indicator("close", "volume"))
 
         assert result.shape[0] == n
         # First value should be NaN due to warmup
@@ -98,13 +98,13 @@ class TestPlVwmacd:
 
     def test_expr_input(self, sample_data: pl.DataFrame) -> None:
         """Test pl_vwmacd accepts pl.Expr as input."""
-        result = sample_data.select(pl_vwmacd(pl.col("close"), pl.col("volume")))
+        result = sample_data.select(vwmacd_indicator(pl.col("close"), pl.col("volume")))
 
         assert result.shape[1] == 3
 
     def test_column_order(self, sample_data: pl.DataFrame) -> None:
         """Test that column order matches Pandas (VWMACD, Histogram, Signal)."""
-        result = sample_data.select(pl_vwmacd("close", "volume"))
+        result = sample_data.select(vwmacd_indicator("close", "volume"))
 
         # Pandas order: VWMACD, VWMACDh, VWMACDs
         assert result.columns[0] == "VWMACD_12_26_9"

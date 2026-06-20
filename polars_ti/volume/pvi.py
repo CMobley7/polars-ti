@@ -32,7 +32,7 @@ from polars_ti.utils._validate import v_expr
 # Reuse existing Numba kernel nb_pvi from above
 
 
-def pl_pvi(
+def pvi(
     close: IntoExpr,
     volume: IntoExpr,
     length: int = 255,
@@ -56,7 +56,7 @@ def pl_pvi(
     Returns:
         list[pl.Expr]: List of expressions [PVI, PVI_signal]
     """
-    from polars_ti.ma import pl_ma
+    from polars_ti.ma import ma
 
     close_expr = v_expr(close)
     volume_expr = v_expr(volume)
@@ -80,7 +80,7 @@ def pl_pvi(
     )
 
     # Signal = MA(PVI, length)
-    pvi_signal_expr = pl_ma(name=mamode, source=pvi_expr, length=length)
+    pvi_signal_expr = ma(name=mamode, source=pvi_expr, length=length)
 
     if offset != 0:
         pvi_expr = pvi_expr.shift(offset)

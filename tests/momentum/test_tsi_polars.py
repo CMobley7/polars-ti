@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polars_ti.momentum.tsi import pl_tsi
+from polars_ti.momentum.tsi import tsi as tsi_indicator
 
 
 class TestPlTsi:
@@ -21,7 +21,7 @@ class TestPlTsi:
 
     def test_basic_output(self, sample_data: pl.DataFrame) -> None:
         """Test that pl_tsi returns correct number of expressions."""
-        result = sample_data.select(pl_tsi("close"))
+        result = sample_data.select(tsi_indicator("close"))
 
         assert result.shape[1] == 2, "Should return 2 columns"
         assert "TSI_13_25_13" in result.columns
@@ -29,7 +29,7 @@ class TestPlTsi:
 
     def test_custom_parameters(self, sample_data: pl.DataFrame) -> None:
         """Test pl_tsi with custom fast/slow/signal parameters."""
-        result = sample_data.select(pl_tsi("close", fast=10, slow=20, signal=10))
+        result = sample_data.select(tsi_indicator("close", fast=10, slow=20, signal=10))
 
         assert "TSI_10_20_10" in result.columns
         assert "TSIs_10_20_10" in result.columns
@@ -37,14 +37,14 @@ class TestPlTsi:
     def test_fast_slow_swap(self, sample_data: pl.DataFrame) -> None:
         """Test that fast > slow causes them to swap (matching pandas)."""
         # fast=30 > slow=20 should swap to fast=20, slow=30
-        result = sample_data.select(pl_tsi("close", fast=30, slow=20, signal=10))
+        result = sample_data.select(tsi_indicator("close", fast=30, slow=20, signal=10))
 
         assert "TSI_20_30_10" in result.columns
         assert "TSIs_20_30_10" in result.columns
 
     def test_tsi_range(self, sample_data: pl.DataFrame) -> None:
         """Test that TSI values are typically within -100 to +100."""
-        result = sample_data.select(pl_tsi("close"))
+        result = sample_data.select(tsi_indicator("close"))
 
         tsi = result["TSI_13_25_13"].to_numpy()
         valid = ~np.isnan(tsi)
@@ -55,8 +55,8 @@ class TestPlTsi:
 
     def test_offset_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test offset shifts all outputs."""
-        result_no_offset = sample_data.select(pl_tsi("close", offset=0))
-        result_with_offset = sample_data.select(pl_tsi("close", offset=5))
+        result_no_offset = sample_data.select(tsi_indicator("close", offset=0))
+        result_with_offset = sample_data.select(tsi_indicator("close", offset=5))
 
         tsi_no = result_no_offset["TSI_13_25_13"].to_numpy()
         tsi_with = result_with_offset["TSI_13_25_13"].to_numpy()
@@ -69,8 +69,8 @@ class TestPlTsi:
 
     def test_scalar_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that scalar multiplier affects output magnitude."""
-        result_100 = sample_data.select(pl_tsi("close", scalar=100.0))
-        result_1 = sample_data.select(pl_tsi("close", scalar=1.0))
+        result_100 = sample_data.select(tsi_indicator("close", scalar=100.0))
+        result_1 = sample_data.select(tsi_indicator("close", scalar=1.0))
 
         tsi_100 = result_100["TSI_13_25_13"].to_numpy()
         tsi_1 = result_1["TSI_13_25_13"].to_numpy()
@@ -84,7 +84,7 @@ class TestPlTsi:
     def test_lazy_evaluation(self, sample_data: pl.DataFrame) -> None:
         """Test that pl_tsi works in lazy context."""
         lazy_df = sample_data.lazy()
-        result = lazy_df.select(pl_tsi("close")).collect()
+        result = lazy_df.select(tsi_indicator("close")).collect()
 
         assert result.shape[1] == 2
         assert not result["TSI_13_25_13"].is_empty()
@@ -95,7 +95,7 @@ class TestPlTsi:
         n = 200
         df = pl.DataFrame({"close": [100.0, None, 102.0] + [100.0 + i * 0.1 for i in range(n - 3)]})
 
-        result = df.select(pl_tsi("close"))
+        result = df.select(tsi_indicator("close"))
 
         # Should not raise, and should have proper structure
         assert result.shape[0] == n
@@ -105,14 +105,14 @@ class TestPlTsi:
 
     def test_expr_input(self, sample_data: pl.DataFrame) -> None:
         """Test pl_tsi accepts pl.Expr as input."""
-        result = sample_data.select(pl_tsi(pl.col("close")))
+        result = sample_data.select(tsi_indicator(pl.col("close")))
 
         assert result.shape[1] == 2
 
     def test_mamode_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that different mamode values work."""
-        result_ema = sample_data.select(pl_tsi("close", mamode="ema"))
-        result_sma = sample_data.select(pl_tsi("close", mamode="sma"))
+        result_ema = sample_data.select(tsi_indicator("close", mamode="ema"))
+        result_sma = sample_data.select(tsi_indicator("close", mamode="sma"))
 
         assert result_ema.shape[1] == 2
         assert result_sma.shape[1] == 2
@@ -126,8 +126,8 @@ class TestPlTsi:
 
     def test_drift_parameter(self, sample_data: pl.DataFrame) -> None:
         """Test that drift parameter affects calculation."""
-        result_drift1 = sample_data.select(pl_tsi("close", drift=1))
-        result_drift2 = sample_data.select(pl_tsi("close", drift=2))
+        result_drift1 = sample_data.select(tsi_indicator("close", drift=1))
+        result_drift2 = sample_data.select(tsi_indicator("close", drift=2))
 
         tsi1 = result_drift1["TSI_13_25_13"].to_numpy()
         tsi2 = result_drift2["TSI_13_25_13"].to_numpy()
