@@ -51,8 +51,11 @@ def decreasing(
             result = result & (close_expr.shift(x - (drift + 1)) < close_adj.shift(x - drift))
         result = result.fill_null(False)
     else:
-        # Non-strict: just check if diff over length is negative
-        result = close_adj.diff(length) < 0
+        # Non-strict: just check if diff over length is negative.
+        # Guard against Polars treating ``NaN < 0`` / warmup nulls as a real
+        # comparison: a NaN/null diff is "not decreasing" -> False/0, like pandas.
+        diff = close_adj.diff(length)
+        result = (diff < 0) & diff.is_not_nan() & diff.is_not_null()
 
     if asint:
         result = result.cast(pl.Int64)

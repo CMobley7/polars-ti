@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import arctan, isnan, nan, zeros_like
+from numpy import arctan, nan, zeros_like
 from numba import njit
 
 
@@ -96,55 +96,66 @@ def nb_mama(x, fastlimit, slowlimit, prenan):
 import polars as pl
 import numpy as np
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
 from polars_ti.maps import Imports
-from polars_ti.utils import v_talib
 from polars_ti.utils._validate import v_expr
 
 
 def mama(
-    df: pl.DataFrame,
-    close: str = "close",
+    close: IntoExpr,
     fastlimit: float = 0.5,
     slowlimit: float = 0.05,
     prenan: int = 3,
     talib: bool = True,
     offset: int = 0,
-) -> pl.DataFrame:
+) -> pl.Expr:
     """Polars: Ehler's MESA Adaptive Moving Average (MAMA)
 
     Args:
-        df: Polars DataFrame with price columns
-        close: Column name for 'close' prices. Default: "close"
+        close: Column name or pl.Expr for 'close' prices
         fastlimit: Fast limit. Default: 0.5
         slowlimit: Slow limit. Default: 0.05
-        prenan: Prenans to apply. Default: 3
+        prenan: Prenans to apply. TV-LB 3, Ehler's 6, TALib 32. Default: 3
         talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        pl.DataFrame: DataFrame with MAMA and FAMA columns
+        pl.Expr: Struct expression with MAMA and FAMA columns
     """
-    np_close = df.get_column(close).to_numpy().astype(np.float64)
+    close_expr = v_expr(close)
     _props = f"_{fastlimit}_{slowlimit}"
-
-    if Imports["talib"] and talib:
-        from talib import MAMA as talib_mama
-
-        mama_arr, fama_arr = talib_mama(np_close, fastlimit, slowlimit)
-    else:
-        mama_arr, fama_arr = nb_mama(np_close, fastlimit, slowlimit, prenan)
-
-    if offset != 0:
-        mama_arr = np.roll(mama_arr, offset)
-        fama_arr = np.roll(fama_arr, offset)
-        if offset > 0:
-            mama_arr[:offset] = np.nan
-            fama_arr[:offset] = np.nan
-
-    return pl.DataFrame(
-        {
-            f"MAMA{_props}": mama_arr,
-            f"FAMA{_props}": fama_arr,
-        }
+    _fastlimit, _slowlimit, _prenan, _talib, _offset = (
+        fastlimit,
+        slowlimit,
+        prenan,
+        talib,
+        offset,
     )
+    mama_name, fama_name = f"MAMA{_props}", f"FAMA{_props}"
+
+    def compute_mama(s: pl.Series) -> pl.Series:
+        np_close = s.to_numpy().astype(np.float64)
+
+        if Imports["talib"] and _talib:
+            from talib import MAMA as talib_mama
+
+            mama_arr, fama_arr = talib_mama(np_close, _fastlimit, _slowlimit)
+        else:
+            mama_arr, fama_arr = nb_mama(np_close, _fastlimit, _slowlimit, _prenan)
+
+        if _offset != 0:
+            mama_arr = np.roll(mama_arr, _offset)
+            fama_arr = np.roll(fama_arr, _offset)
+            if _offset > 0:
+                mama_arr[:_offset] = np.nan
+                fama_arr[:_offset] = np.nan
+            else:
+                mama_arr[_offset:] = np.nan
+                fama_arr[_offset:] = np.nan
+
+        n = len(np_close)
+        return pl.Series([{mama_name: mama_arr[i], fama_name: fama_arr[i]} for i in range(n)])
+
+    fields = [pl.Field(mama_name, pl.Float64), pl.Field(fama_name, pl.Float64)]
+
+    return close_expr.map_batches(compute_mama, return_dtype=pl.Struct(fields)).alias("MAMA")

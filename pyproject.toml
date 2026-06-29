@@ -34,7 +34,11 @@ keywords = [
 dependencies = [
     "numba~=0.63.1",
     "numpy~=2.3.5",
-    "polars>=1.0.0",
+    "polars>=1.41",
+    # Hard runtime dependency: Numba's BLAS / np.convolve in nb_sma (and other
+    # kernels) aborts the interpreter with "Specified LAPACK function could not
+    # be found" when SciPy's LAPACK is absent. See tests/test_numba_blas.py.
+    "scipy>=1.11",
 ]
 
 [project.urls]

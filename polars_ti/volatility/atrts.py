@@ -52,6 +52,7 @@ def atrts(
     ma_length: int = 20,
     multiplier: float = 3.0,
     mamode: str = "ema",
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: ATR Trailing Stop (ATRTS)
@@ -70,6 +71,7 @@ def atrts(
         ma_length: MA length. Default: 20
         multiplier: ATR multiplier. Default: 3.0
         mamode: MA type ('ema', 'sma', 'rma'). Default: 'ema'
+        talib: If True and TA-Lib installed, use TA-Lib for ATR. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -105,8 +107,10 @@ def atrts(
         return pl.Series(result)
 
     # Use composition: pl_atr for ATR, pl_ma for MA (just like Pandas!)
-    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode="ema", talib=False)
-    ma_expr = ma(name=_mamode, source=close_expr, length=ma_length, talib=False)
+    # OLD: ATR uses TA-Lib when talib=True, else native (mamode); MA tracks the
+    # native/TA-Lib choice the same way.
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=_mamode, talib=talib)
+    ma_expr = ma(name=_mamode, source=close_expr, length=ma_length, talib=talib)
 
     return (
         pl.struct(

@@ -90,7 +90,9 @@ def atr(
         )
     else:
         # Simple composition: TR → MA (just like Pandas!)
-        tr_expr = true_range(high_expr, low_expr, close_expr)
+        # Native path must use the native (NaN-skipping) true_range, NOT TA-Lib's
+        # TRANGE (which nulls index 0) — otherwise the leading null poisons the MA.
+        tr_expr = true_range(high_expr, low_expr, close_expr, talib=False)
         atr_expr = ma(name=_mamode, source=tr_expr, length=length, talib=False, presma=True)
 
         if offset != 0:

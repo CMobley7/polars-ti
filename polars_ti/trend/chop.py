@@ -17,6 +17,7 @@ def chop(
     ln: bool = False,
     scalar: float = 100.0,
     drift: int = 1,
+    talib: bool = False,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Choppiness Index (CHOP)
@@ -47,7 +48,7 @@ def chop(
     close_expr = v_expr(close)
 
     diff = high_expr.rolling_max(window_size=length) - low_expr.rolling_min(window_size=length)
-    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, talib=talib)
     atr_sum = atr_expr.rolling_sum(window_size=length)
 
     if ln:
@@ -62,5 +63,5 @@ def chop(
     if offset != 0:
         chop_expr = chop_expr.shift(offset)
 
-    _label = f"CHOP{'ln' if ln else ''}_{length}_{atr_length}_{int(scalar)}"
+    _label = f"CHOP{'ln' if ln else ''}_{length}_{atr_length}_{scalar}"
     return chop_expr.alias(_label)

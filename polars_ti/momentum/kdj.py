@@ -12,26 +12,33 @@ from polars_ti.utils._validate import v_expr
 
 @njit(cache=True)
 def _nb_rma(x: np.ndarray, n: int) -> np.ndarray:
-    """Numba-accelerated Wilder's Recursive Moving Average (RMA/SMMA)."""
+    """RMA matching OLD pandas-ta ``rma_pandas``.
+
+    OLD: ``series.ewm(alpha=1/length, min_periods=length).mean()`` — i.e. an
+    *adjusted* EWM (``adjust=True``, the pandas default), NOT the recursive
+    ``adjust=False`` form. Output is null until ``length`` valid observations
+    have been seen. We reproduce it with a running weighted numerator/denominator
+    (``ignore_na=False`` ages the weights across internal NaNs).
+    """
     m = len(x)
     result = np.full(m, np.nan, dtype=np.float64)
     alpha = 1.0 / n
+    decay = 1.0 - alpha
 
-    # Find first non-nan entry and seed from there
-    seed = -1
+    num = 0.0
+    den = 0.0
+    count = 0
     for i in range(m):
-        if not np.isnan(x[i]):
-            seed = i
-            break
-    if seed < 0:
-        return result
-
-    result[seed] = x[seed]
-    for i in range(seed + 1, m):
         if np.isnan(x[i]):
-            result[i] = result[i - 1]
-        else:
-            result[i] = alpha * x[i] + (1.0 - alpha) * result[i - 1]
+            # ignore_na=False: weights still age through a missing observation.
+            num *= decay
+            den *= decay
+            continue
+        num = num * decay + x[i]
+        den = den * decay + 1.0
+        count += 1
+        if count >= n:
+            result[i] = num / den
     return result
 
 
@@ -88,11 +95,13 @@ def kdj(
             if not np.any(np.isnan(window_l)):
                 lowest_low[i] = np.min(window_l)
 
-        # Fast %K
+        # Fast %K — OLD uses non_zero_range(highest_high, lowest_low): the raw
+        # range, with sys.float_info.epsilon added to EVERY element only if any
+        # element is exactly zero (common in crypto where high == low).
         denom = highest_high - lowest_low
-        # Avoid divide-by-zero
-        denom_safe = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
-        fastk = 100.0 * (c_arr - lowest_low) / denom_safe
+        if np.any(denom == 0.0):
+            denom = denom + np.finfo(np.float64).eps
+        fastk = 100.0 * (c_arr - lowest_low) / denom
 
         # Smooth with RMA
         k_arr = _nb_rma(fastk, _signal)

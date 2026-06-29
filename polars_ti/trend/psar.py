@@ -11,7 +11,7 @@ from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
-def _nb_psar(high, low, af0, max_af):
+def _nb_psar(high, low, sar0, has_close, af0, max_af):
     """Numba kernel for Parabolic SAR."""
     n = len(high)
     sar = np.zeros(n)
@@ -27,7 +27,10 @@ def _nb_psar(high, low, af0, max_af):
     # Determine initial direction
     falling = (low[0] - low[1]) > (high[1] - high[0]) and (low[0] - low[1]) > 0
     ep = low[0] if falling else high[0]
-    sar[0] = high[0] if falling else low[0]
+    if has_close:
+        sar[0] = sar0
+    else:
+        sar[0] = high[0] if falling else low[0]
 
     for i in range(1, n):
         sar[i] = sar[i - 1] + af * (ep - sar[i - 1])
@@ -65,9 +68,11 @@ def _nb_psar(high, low, af0, max_af):
 def psar(
     high: IntoExpr,
     low: IntoExpr,
+    close: IntoExpr | None = None,
     af0: float = 0.02,
     af: float = 0.02,
     max_af: float = 0.2,
+    talib: bool = False,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Parabolic Stop and Reverse (PSAR)
@@ -88,13 +93,16 @@ def psar(
     """
     high_expr = v_expr(high)
     low_expr = v_expr(low)
+    _has_close = close is not None
+    close_expr = v_expr(close) if _has_close else low_expr
     _af0 = af0 if af0 and af0 > 0 else af if af and af > 0 else 0.02
 
     def _compute(s: pl.Series) -> pl.Series:
         data = s.struct.unnest()
         h = data["_h"].to_numpy().astype(np.float64)
         l_ = data["_l"].to_numpy().astype(np.float64)
-        long_a, short_a, af_a, rev_a = _nb_psar(h, l_, _af0, max_af)
+        sar0 = float(data["_c"].to_numpy().astype(np.float64)[0]) if _has_close else 0.0
+        long_a, short_a, af_a, rev_a = _nb_psar(h, l_, sar0, _has_close, _af0, max_af)
 
         if offset != 0:
             for a in [long_a, short_a, af_a]:
@@ -130,6 +138,7 @@ def psar(
         pl.struct(
             high_expr.alias("_h"),
             low_expr.alias("_l"),
+            close_expr.alias("_c"),
         )
         .map_batches(_compute, return_dtype=pl.Struct(fields))
         .alias(f"PSAR{_props}")

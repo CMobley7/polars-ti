@@ -40,35 +40,46 @@ def _signed_rolling_deltas_numba(
 
 @njit(cache=True)
 def _ema_numba(values: np.ndarray, length: int) -> np.ndarray:
-    """Numba EMA with presma initialization."""
+    """Numba EMA with NaN-tolerant pandas-ta presma seed.
+
+    Mirrors ``polars_ti.overlap.ema._ema_numba`` (presma=True): build the seeded
+    series (NaN-skipping SMA at index length-1) then run ewm(adjust=False),
+    re-seeding from the first finite value so a leading-NaN run longer than
+    ``length`` (cascaded EMA warmup) does not poison the whole column.
+    """
     n = len(values)
     result = np.full(n, np.nan, dtype=np.float64)
 
     if n < length:
         return result
 
-    # Find first valid index
+    alpha = 2.0 / (length + 1)
+
+    seeded = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        seeded[i] = values[i]
+    sma_sum = 0.0
+    valid_count = 0
+    for i in range(length):
+        if not np.isnan(values[i]):
+            sma_sum += values[i]
+            valid_count += 1
+    for i in range(length - 1):
+        seeded[i] = np.nan
+    seeded[length - 1] = (sma_sum / valid_count) if valid_count > 0 else np.nan
+
     first_valid = -1
     for i in range(n):
-        if not np.isnan(values[i]):
+        if not np.isnan(seeded[i]):
             first_valid = i
             break
-
-    if first_valid == -1 or n - first_valid < length:
+    if first_valid < 0:
         return result
 
-    # Calculate initial SMA for EMA seed
-    sma_sum = 0.0
-    for i in range(first_valid, first_valid + length):
-        sma_sum += values[i]
-    sma_val = sma_sum / length
-
-    result[first_valid + length - 1] = sma_val
-
-    alpha = 2.0 / (length + 1)
-    for i in range(first_valid + length, n):
-        if not np.isnan(values[i]):
-            result[i] = alpha * values[i] + (1 - alpha) * result[i - 1]
+    result[first_valid] = seeded[first_valid]
+    for i in range(first_valid + 1, n):
+        if not np.isnan(seeded[i]):
+            result[i] = alpha * seeded[i] + (1 - alpha) * result[i - 1]
         else:
             result[i] = result[i - 1]
 

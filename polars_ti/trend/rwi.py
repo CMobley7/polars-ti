@@ -13,6 +13,9 @@ def rwi(
     low: IntoExpr,
     close: IntoExpr,
     length: int = 14,
+    mamode: str = "rma",
+    talib: bool = False,
+    drift: int = 1,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Random Walk Index (RWI)
@@ -39,7 +42,7 @@ def rwi(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
-    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=False)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
     denom = atr_expr * (length**0.5)
 
     rwi_high = (high_expr - low_expr.shift(length)) / denom

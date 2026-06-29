@@ -13,11 +13,15 @@ def ifisher(
     amp: float = 1.0,
     signal_offset: int = -1,
     offset: int = 0,
-) -> pl.Expr:
+) -> list[pl.Expr]:
     """Polars: Inverse Fisher Transform
 
     Changes the Probability Distribution Function for normalized oscillators
-    to receive clearer signals. Input should be in range -1 to 1.
+    to receive clearer signals. The transform requires its input to lie in the
+    range [-1, 1]; when any value falls outside that range the whole series is
+    first linearly remapped to [-1, 1] using its fixed full-series min/max
+    (matching pandas-ta's ``ifisher``/``remap``), otherwise raw prices would
+    saturate ``exp(amp*x)`` to ≈1 for every bar.
 
     Uses pure native Polars expressions.
 
@@ -34,21 +38,36 @@ def ifisher(
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        pl.Expr: Inverse Fisher Transform expression
+        list[pl.Expr]: ``[INVFISHER_{amp}, INVFISHERs_{amp}]`` expressions.
     """
     close_expr = v_expr(close)
     if close_expr is None:
         return None
 
-    # Pure native Polars: Inverse Fisher Transform
-    # y = (exp(amp*x) - 1) / (exp(amp*x) + 1)
-    amped = (close_expr * amp).exp()
+    # Remap the input to [-1, 1] when any value falls outside it, using the
+    # fixed full-series min/max (pandas-ta remap: -1 + 2*(x-min)/(max-min)).
+    mn = close_expr.min()
+    mx = close_expr.max()
+    all_in_range = close_expr.is_between(-1, 1).all()
+    remapped = -1.0 + (2.0 / (mx - mn)) * (close_expr - mn)
+    x = pl.when(all_in_range).then(close_expr).otherwise(remapped)
+
+    # Inverse Fisher Transform: y = (exp(amp*x) - 1) / (exp(amp*x) + 1)
+    amped = (x * amp).exp()
     result = (amped - 1) / (amped + 1)
 
-    # Apply offsets
+    # OLD applies BOTH offset and signal_offset to BOTH lines, so the main and
+    # signal series are identical (preserved for parity).
+    inv_fisher = result
+    signal = result
     if offset != 0:
-        result = result.shift(offset)
+        inv_fisher = inv_fisher.shift(offset)
+        signal = signal.shift(offset)
     if signal_offset != 0:
-        result = result.shift(signal_offset)
+        inv_fisher = inv_fisher.shift(signal_offset)
+        signal = signal.shift(signal_offset)
 
-    return result.alias(f"INVFISHER_{amp}")
+    return [
+        inv_fisher.alias(f"INVFISHER_{amp}"),
+        signal.alias(f"INVFISHERs_{amp}"),
+    ]

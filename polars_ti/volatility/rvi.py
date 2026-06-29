@@ -6,41 +6,89 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr
-from polars_ti.ma import ma
 from polars_ti.utils._validate import v_expr
 
 
-def _pl_rvi_single(arr: np.ndarray, length: int, scalar: float, mamode: str, drift: int) -> np.ndarray:
-    """Core RVI computation on a NumPy array.
-
-    Computes RVI using rolling std split by up/down direction, then
-    EMA-smooths both sides and calculates the RSI-style ratio.
-    """
+def _rolling_std(arr: np.ndarray, length: int, ddof: int) -> np.ndarray:
+    """Rolling standard deviation (pandas ``Series.rolling(length).std()``)."""
     n = len(arr)
-    diff = np.diff(arr, prepend=np.nan)
-
-    # Rolling STD with window = length
-    std_arr = np.full(n, np.nan)
+    out = np.full(n, np.nan, dtype=np.float64)
     for i in range(length - 1, n):
         window = arr[i - length + 1 : i + 1]
         if not np.any(np.isnan(window)):
-            std_arr[i] = np.std(window, ddof=0)
+            out[i] = np.std(window, ddof=ddof)
+    return out
 
-    # Separate up/down std
-    up_std = np.where(diff > 0, std_arr, 0.0)
-    dn_std = np.where(diff <= 0, std_arr, 0.0)
 
-    # Smooth via pl_ma through temporary DataFrame
-    tmp = pl.DataFrame({"_up": up_std.astype(np.float64), "_dn": dn_std.astype(np.float64)})
-    ma_expr_up = ma(mamode, "_up", length=length)
-    ma_expr_dn = ma(mamode, "_dn", length=length)
-    up_smooth = tmp.select(ma_expr_up).to_series().to_numpy()
-    dn_smooth = tmp.select(ma_expr_dn).to_series().to_numpy()
+def _pl_rvi_single(
+    arr: np.ndarray,
+    length: int,
+    scalar: float,
+    mamode: str,
+    drift: int,
+    talib: bool = True,
+) -> np.ndarray:
+    """Core RVI computation on a NumPy array.
 
-    # RVI = scalar * up / (up + dn)
-    denom = up_smooth + dn_smooth
-    denom_safe = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
-    return scalar * up_smooth / denom_safe
+    Mirrors OLD pandas-ta ``_rvi``:
+        std = stdev(source, length)
+        pos, neg = unsigned_differences(source, drift)
+        pos_avg = ma(mode, pos * std, length)
+        neg_avg = ma(mode, neg * std, length)
+        rvi = scalar * pos_avg / (pos_avg + neg_avg)
+
+    Honours ``talib`` (Decision 4): with TA-Lib available and ``talib=True``,
+    ``stdev`` is TA-Lib ``STDDEV`` (population, ddof=0) and the averaging MA is
+    the TA-Lib EMA/SMA — matching the OLD library's talib-mode output. Native
+    mode uses ddof=1 std and the pandas ``ewm`` EMA seed.
+    """
+    from polars_ti.overlap.ema import _ema_numba
+    from polars_ti.maps import Imports
+
+    n = len(arr)
+    use_talib = bool(talib) and Imports["talib"]
+
+    if use_talib:
+        from talib import STDDEV
+
+        std_arr = STDDEV(arr, length)  # population std (ddof=0)
+    else:
+        std_arr = _rolling_std(arr, length, ddof=1)
+
+    # unsigned_differences: diff is NaN-filled to 0 at the first bar.
+    diff = np.empty(n, dtype=np.float64)
+    diff[0] = 0.0
+    if drift < n:
+        diff[drift:] = arr[drift:] - arr[:-drift]
+        diff[:drift] = 0.0
+    pos = (diff > 0).astype(np.float64)
+    neg = (diff < 0).astype(np.float64)
+
+    pos_std = pos * std_arr
+    neg_std = neg * std_arr
+
+    _mamode = (mamode or "ema").lower()
+    if use_talib:
+        from talib import EMA, SMA
+
+        if _mamode == "sma":
+            pos_avg, neg_avg = SMA(pos_std, length), SMA(neg_std, length)
+        else:
+            pos_avg, neg_avg = EMA(pos_std, length), EMA(neg_std, length)
+    elif _mamode == "sma":
+        from polars_ti.momentum.ppo import _sma_numba_ppo
+
+        pos_avg = _sma_numba_ppo(pos_std, length)
+        neg_avg = _sma_numba_ppo(neg_std, length)
+    else:
+        # Native EMA seeded from the first valid value (pandas ewm).
+        pos_avg = _ema_numba(pos_std, length, False, False)
+        neg_avg = _ema_numba(neg_std, length, False, False)
+
+    denom = pos_avg + neg_avg
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(denom != 0, scalar * pos_avg / denom, np.nan)
+    return result
 
 
 def rvi(
@@ -53,12 +101,16 @@ def rvi(
     thirds: bool = False,
     mamode: str = "ema",
     drift: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Relative Volatility Index (RVI)
 
     RVI adds up standard deviations based on price direction (unlike RSI
     which adds up price changes).
+
+    Sources:
+        https://www.tradingview.com/support/solutions/43000594684-relative-volatility-index/
 
     Args:
         close: Column name or pl.Expr for 'close'
@@ -70,18 +122,24 @@ def rvi(
         thirds: Average of high, low, and close. Default: False
         mamode: MA type. Default: 'ema'
         drift: The diff period. Default: 1
+        talib: Use TA-Lib STDDEV/EMA (matches OLD talib mode) when available.
+            Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
         pl.Expr: RVI expression
     """
     close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+
     _length = length
     _scalar = scalar
     _drift = drift
     _mamode = mamode
     _refined = refined
     _thirds = thirds
+    _talib = talib
 
     if refined or thirds:
         high_expr = v_expr(high)
@@ -93,11 +151,11 @@ def rvi(
             h_arr = df["high"].to_numpy().astype(np.float64)
             l_arr = df["low"].to_numpy().astype(np.float64)
 
-            high_rvi = _pl_rvi_single(h_arr, _length, _scalar, _mamode, _drift)
-            low_rvi = _pl_rvi_single(l_arr, _length, _scalar, _mamode, _drift)
+            high_rvi = _pl_rvi_single(h_arr, _length, _scalar, _mamode, _drift, _talib)
+            low_rvi = _pl_rvi_single(l_arr, _length, _scalar, _mamode, _drift, _talib)
 
             if _thirds:
-                close_rvi = _pl_rvi_single(c_arr, _length, _scalar, _mamode, _drift)
+                close_rvi = _pl_rvi_single(c_arr, _length, _scalar, _mamode, _drift, _talib)
                 result = (high_rvi + low_rvi + close_rvi) / 3.0
             else:
                 result = 0.5 * (high_rvi + low_rvi)
@@ -111,7 +169,7 @@ def rvi(
 
         def compute_simple(s: pl.Series) -> pl.Series:
             arr = s.to_numpy().astype(np.float64)
-            return pl.Series(_pl_rvi_single(arr, _length, _scalar, _mamode, _drift))
+            return pl.Series(_pl_rvi_single(arr, _length, _scalar, _mamode, _drift, _talib))
 
         result = close_expr.map_batches(compute_simple, return_dtype=pl.Float64)
         _mode = ""

@@ -49,12 +49,19 @@ jobs:
           ! grep -R -n -E "import pandas|from pandas|\bpd\." tests/conftest.py
 
   test:
-    name: Test (Python ${{ matrix.python-version }})
+    # Matrix over {oldest-supported, latest} Polars AND {TA-Lib installed,
+    # TA-Lib absent}. The no-TA-Lib leg exercises the native (Numba) code paths
+    # that previously shipped broken because CI only ever ran with TA-Lib.
+    name: Test (py${{ matrix.python-version }}, polars ${{ matrix.polars }}, talib=${{ matrix.talib }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
+        # "lock" = whatever uv.lock pins (latest, currently polars 1.41.x).
+        # "1.41" = the declared oldest-supported floor.
+        polars: ["lock", "1.41"]
+        talib: ["on", "off"]
 
     steps:
       - uses: actions/checkout@v4
@@ -69,11 +76,40 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install dependencies (with TA-Lib)
+        if: matrix.talib == 'on'
         run: uv sync --extra test --dev
 
-      - name: Run tests
+      - name: Install dependencies (without TA-Lib)
+        if: matrix.talib == 'off'
+        # Sync only the runtime + test deps, omitting the TA-Lib extra, so the
+        # native (no-TA-Lib) code paths are exercised. scipy is a hard runtime
+        # dep and is installed here too (guards the Numba BLAS regression).
+        run: |
+          uv sync --dev --no-default-groups
+          uv pip install pytest pytest-cov pandas yfinance
+
+      - name: Pin oldest-supported Polars
+        if: matrix.polars == '1.41'
+        run: uv pip install "polars==1.41.*"
+
+      # TA-Lib present: full suite with coverage gate.
+      - name: Run tests (with TA-Lib)
+        if: matrix.talib == 'on'
         run: uv run pytest tests/ -q --tb=short --cov=polars_ti --cov-report=term-missing --cov-fail-under=90
+
+      # TA-Lib absent: the native paths still have known-broken indicators
+      # (COMPARISON_REPORT §3/§5/§6). Those parity cases are already xfail-gated
+      # (tests/parity_exceptions.py + test_parity_smoke.py), but a handful of
+      # legacy per-indicator tests may still fail until WS2-WS4 land. Keep the
+      # job present and visible but non-blocking for now.
+      # TODO(WS2-WS4): remove continue-on-error once native indicators are fixed
+      #   (restore broken indicators, fix the presma seeding bug, fix the value
+      #   bugs) so the no-TA-Lib leg is fully green and becomes a hard gate.
+      - name: Run tests (without TA-Lib)
+        if: matrix.talib == 'off'
+        continue-on-error: true
+        run: uv run pytest tests/ -q --tb=short
 
   security:
     name: Runtime Dependency Audit

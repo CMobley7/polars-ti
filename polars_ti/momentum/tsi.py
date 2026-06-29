@@ -17,6 +17,7 @@ def tsi(
     scalar: float = 100.0,
     mamode: str = "ema",
     drift: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> list[PlExpr]:
     """Polars: True Strength Index (TSI)
@@ -32,6 +33,7 @@ def tsi(
         scalar: Multiplication factor. Default: 100
         mamode: MA type for signal line. Default: 'ema'
         drift: Periods for diff. Default: 1
+        talib: If True and TA-Lib installed, use TA-Lib for the EMAs. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -52,20 +54,20 @@ def tsi(
     # TSI = scalar * double_smooth(diff) / double_smooth(abs(diff))
     diff = close_expr.diff(drift)
 
-    # Double smooth the diff
-    diff_slow = ema(diff, length=slow)
-    diff_fast_slow = ema(diff_slow, length=fast)
+    # Double smooth the diff (honor talib mode so native uses the native EMA seed)
+    diff_slow = ema(diff, length=slow, talib=talib)
+    diff_fast_slow = ema(diff_slow, length=fast, talib=talib)
 
     # Double smooth the abs(diff)
     abs_diff = diff.abs()
-    abs_slow = ema(abs_diff, length=slow)
-    abs_fast_slow = ema(abs_slow, length=fast)
+    abs_slow = ema(abs_diff, length=slow, talib=talib)
+    abs_fast_slow = ema(abs_slow, length=fast, talib=talib)
 
     # TSI = scalar * double_smooth(diff) / double_smooth(|diff|)
     tsi_expr = scalar * diff_fast_slow / abs_fast_slow
 
     # Signal = MA(TSI, signal)
-    tsi_signal_expr = ma(name=mamode, source=tsi_expr, length=signal)
+    tsi_signal_expr = ma(name=mamode, source=tsi_expr, length=signal, talib=talib)
 
     if offset != 0:
         tsi_expr = tsi_expr.shift(offset)

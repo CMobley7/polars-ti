@@ -35,33 +35,32 @@ def np_reflex(x, n, k, alpha, pi, sqrt2):
 # =============================================================================
 # Polars REFLEX Implementation
 # =============================================================================
+import numpy as np
 import polars as pl
-from numpy import nan
 
-from polars_ti._typing import IntoExpr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def reflex(
-    close: str = "close",
+    close: IntoExpr,
     length: int = 20,
     smooth: int = 20,
     alpha: float = 0.04,
     pi: float = 3.14159,
     sqrt2: float = 1.414,
     offset: int = 0,
-) -> callable:
+) -> PlExpr:
     """Polars: Reflex Indicator
 
     John F. Ehlers' lag-reduced cycle indicator from TASC Feb 2020.
     Oscillator focused on cycle detection.
 
-    This function returns a compute function due to the recursive nature.
-
     Sources:
         http://traders.com/Documentation/FEEDbk_docs/2020/02/TradersTips.html
 
     Args:
-        close: Column name for 'close' prices. Default: "close"
+        close: Column name or pl.Expr for 'close' prices.
         length: Period. Default: 20
         smooth: Period of internal SuperSmoother. Default: 20
         alpha: Alpha weight. Default: 0.04
@@ -70,42 +69,25 @@ def reflex(
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        callable: Function to apply to DataFrame
+        pl.Expr: REFLEX expression.
     """
-    _offset = offset  # Capture for closure
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    def compute_reflex(df: pl.DataFrame) -> pl.DataFrame:
-        np_close = df[close].to_numpy()
-        result = np_reflex(np_close, length, smooth, alpha, pi, sqrt2)
-        result[:length] = nan
-        result_df = pl.DataFrame({f"REFLEX_{length}_{smooth}_{alpha}": result})
+    _length, _smooth, _alpha = length, smooth, alpha
+    _pi, _sqrt2, _offset = pi, sqrt2, offset
 
-        # Apply offset if needed
+    def compute_reflex(s: pl.Series) -> pl.Series:
+        np_close = s.to_numpy().astype(np.float64)
+        result = np_reflex(np_close, _length, _smooth, _alpha, _pi, _sqrt2)
+        result[:_length] = np.nan
         if _offset != 0:
-            result_df = result_df.select([pl.all().shift(_offset)])
+            result = np.roll(result, _offset)
+            if _offset > 0:
+                result[:_offset] = np.nan
+            else:
+                result[_offset:] = np.nan
+        return pl.Series(result)
 
-        return result_df
-
-    return compute_reflex
-
-
-def reflex_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
-    """Apply Reflex to a DataFrame.
-
-    Args:
-        df: Polars DataFrame with close column
-        **kwargs: Parameters (close, length, smooth, alpha, pi, sqrt2)
-
-    Returns:
-        pl.DataFrame: Original DataFrame with REFLEX column added
-    """
-    close = kwargs.get("close", "close")
-    length = kwargs.get("length", 20)
-    smooth = kwargs.get("smooth", 20)
-    alpha = kwargs.get("alpha", 0.04)
-    pi_val = kwargs.get("pi", 3.14159)
-    sqrt2 = kwargs.get("sqrt2", 1.414)
-
-    compute_fn = reflex(close, length, smooth, alpha, pi_val, sqrt2)
-    reflex_df = compute_fn(df)
-    return df.hstack(reflex_df)
+    return close_expr.map_batches(compute_reflex, return_dtype=pl.Float64).alias(f"REFLEX_{length}_{smooth}_{alpha}")

@@ -113,107 +113,79 @@ def pivot_woodie(open_, high, low):
 import polars as pl
 import numpy as np
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 
 
-# Anchor frequency mapping to Polars duration
-_anchor_to_duration = {
-    "D": "1d",
-    "W": "1w",
-    "M": "1mo",
-    "ME": "1mo",
-    "Y": "1y",
-    "YE": "1y",
-}
-
-
 def pivots(
-    df: pl.DataFrame,
-    open_col: str = "open",
-    high_col: str = "high",
-    low_col: str = "low",
-    close_col: str = "close",
-    date_col: str = "date",
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    open_: IntoExpr | None = None,
     method: str = "traditional",
     anchor: str = "D",
-) -> pl.DataFrame:
+) -> pl.Expr:
     """Polars: Pivot Points (Pure Polars + Numba)
 
     Calculates support and resistance levels from previous price action.
-    Uses Polars group_by_dynamic for resampling and Numba kernels for calculation.
+    Each bar's pivot is computed from that bar's OHLC and then shifted forward
+    by one period (the pivot applies to the *next* period), matching the old
+    pandas-ti behaviour on a daily anchor.
 
     Args:
-        df: Polars DataFrame with OHLC and datetime column
-        open_col: Column name for 'open'. Default: "open"
-        high_col: Column name for 'high'. Default: "high"
-        low_col: Column name for 'low'. Default: "low"
-        close_col: Column name for 'close'. Default: "close"
-        date_col: Column name for datetime. Default: "date"
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        open_: Column name or pl.Expr for 'open' (required for woodie/demark).
         method: Pivot calculation method. Default: "traditional"
             Options: traditional, fibonacci, woodie, classic, demark, camarilla
-        anchor: Anchor frequency (D, W, M, Y). Default: "D"
+        anchor: Anchor frequency. Only the per-bar daily anchor ("D") is
+            supported through the expression API. Default: "D"
 
     Returns:
-        pl.DataFrame: Pivot point columns (P, S1-S4, R1-R4)
+        pl.Expr: Struct expression with pivot columns (P, S1-S4, R1-R4)
     """
     method = method.lower()
     anchor = anchor.upper()
     _props = f"PIVOTS_{method[:4].upper()}_{anchor}"
 
-    duration = _anchor_to_duration.get(anchor, "1d")
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    if open_ is not None:
+        open_expr = v_expr(open_)
+    elif method in ("woodie", "demark"):
+        raise ValueError(f"pivots(method={method!r}) requires an 'open_' series")
+    else:
+        # Placeholder; unused for methods that don't need open.
+        open_expr = close_expr
 
-    # Resample OHLC to anchor period
-    resampled = (
-        df.sort(date_col)
-        .group_by_dynamic(date_col, every=duration)
-        .agg(
-            [
-                pl.col(open_col).first().alias("_open"),
-                pl.col(high_col).max().alias("_high"),
-                pl.col(low_col).min().alias("_low"),
-                pl.col(close_col).last().alias("_close"),
-            ]
-        )
-        .drop_nulls()
-    )
+    def compute_pivots(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        np_open = df["_open"].to_numpy().astype(np.float64)
+        np_high = df["_high"].to_numpy().astype(np.float64)
+        np_low = df["_low"].to_numpy().astype(np.float64)
+        np_close = df["_close"].to_numpy().astype(np.float64)
 
-    # Extract arrays for Numba
-    np_open = resampled["_open"].to_numpy().astype(np.float64)
-    np_high = resampled["_high"].to_numpy().astype(np.float64)
-    np_low = resampled["_low"].to_numpy().astype(np.float64)
-    np_close = resampled["_close"].to_numpy().astype(np.float64)
+        n = len(np_close)
+        nan_array = np.full(n, np.nan)
 
-    # Calculate pivots using existing Numba kernels
-    n = len(np_close)
-    nan_array = np.full(n, np.nan)
+        if method == "camarilla":
+            tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_camarilla(np_high, np_low, np_close)
+        elif method == "classic":
+            tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_classic(np_high, np_low, np_close)
+        elif method == "demark":
+            tp, s1, r1 = pivot_demark(np_open, np_high, np_low, np_close)
+            s2 = s3 = s4 = r2 = r3 = r4 = nan_array
+        elif method == "fibonacci":
+            tp, s1, s2, s3, r1, r2, r3 = pivot_fibonacci(np_high, np_low, np_close)
+            s4, r4 = nan_array, nan_array
+        elif method == "woodie":
+            tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_woodie(np_open, np_high, np_low)
+        else:  # Traditional
+            tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_traditional(np_high, np_low, np_close)
 
-    if method == "camarilla":
-        tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_camarilla(np_high, np_low, np_close)
-    elif method == "classic":
-        tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_classic(np_high, np_low, np_close)
-    elif method == "demark":
-        tp, s1, r1 = pivot_demark(np_open, np_high, np_low, np_close)
-        s2, s3, s4, r2, r3, r4 = (
-            nan_array,
-            nan_array,
-            nan_array,
-            nan_array,
-            nan_array,
-            nan_array,
-        )
-    elif method == "fibonacci":
-        tp, s1, s2, s3, r1, r2, r3 = pivot_fibonacci(np_high, np_low, np_close)
-        s4, r4 = nan_array, nan_array
-    elif method == "woodie":
-        tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_woodie(np_open, np_high, np_low)
-    else:  # Traditional
-        tp, s1, s2, s3, s4, r1, r2, r3, r4 = pivot_traditional(np_high, np_low, np_close)
-
-    # Build result DataFrame with pivot values
-    pivot_df = pl.DataFrame(
-        {
-            date_col: resampled[date_col],
+        cols = {
             f"{_props}_P": tp,
             f"{_props}_S1": s1,
             f"{_props}_S2": s2,
@@ -224,24 +196,28 @@ def pivots(
             f"{_props}_R3": r3,
             f"{_props}_R4": r4,
         }
+
+        # The pivot applies to the *next* period: shift each column forward by 1.
+        shifted = {}
+        for name, arr in cols.items():
+            out = np.full(n, np.nan)
+            out[1:] = arr[:-1]
+            shifted[name] = out
+
+        return pl.Series([{name: shifted[name][i] for name in shifted} for i in range(n)])
+
+    names = ["P", "S1", "S2", "S3", "S4", "R1", "R2", "R3", "R4"]
+    fields = [pl.Field(f"{_props}_{n}", pl.Float64) for n in names]
+
+    return (
+        pl.struct(
+            [
+                open_expr.alias("_open"),
+                high_expr.alias("_high"),
+                low_expr.alias("_low"),
+                close_expr.alias("_close"),
+            ]
+        )
+        .map_batches(compute_pivots, return_dtype=pl.Struct(fields))
+        .alias(_props)
     )
-
-    # Shift pivot dates forward by one period (pivots apply to next period)
-    offset_map = {"D": "1d", "W": "1w", "M": "1mo", "ME": "1mo", "Y": "1y", "YE": "1y"}
-    if anchor in offset_map:
-        pivot_df = pivot_df.with_columns(pl.col(date_col).dt.offset_by(offset_map[anchor]))
-
-    # Join back to original DataFrame and forward-fill
-    result = (
-        df.select(date_col)
-        .join(pivot_df, on=date_col, how="left")
-        .select(pl.exclude(date_col))
-        .fill_null(strategy="forward")
-    )
-
-    # Drop all-NaN columns for demark and fibonacci
-    if method in ["demark", "fibonacci"]:
-        cols_to_keep = [c for c in result.columns if not (result[c].is_null().all() or result[c].is_nan().all())]
-        result = result.select(cols_to_keep)
-
-    return result

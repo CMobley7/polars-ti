@@ -14,14 +14,17 @@ class TestPlIfisher:
         close = np.random.randn(100) * 0.5
         return np.clip(close, -1, 1)
 
-    def test_returns_expression(self, sample_data):
+    def test_returns_expressions(self, sample_data):
         result = ifisher("close")
-        assert isinstance(result, pl.Expr)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(e, pl.Expr) for e in result)
 
     def test_output_has_correct_alias(self, sample_data):
         df = pl.DataFrame({"close": sample_data})
         result = df.select(ifisher("close", amp=1.0))
-        assert "INVFISHER_1.0" in result.columns[0]
+        assert "INVFISHER_1.0" in result.columns
+        assert "INVFISHERs_1.0" in result.columns
 
     def test_with_null_values(self, sample_data):
         data = sample_data.copy()

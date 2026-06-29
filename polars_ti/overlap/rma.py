@@ -31,40 +31,40 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
 
     alpha = 1.0 / length
 
-    if presma:
-        # Calculate SMA for initial value (first 'length' values)
+    if presma and n >= length:
+        # Build the seeded series like OLD pandas-ta (NaN-skipping SMA seed at
+        # index length-1) then run ewm(adjust=False). A leading null/NaN in the
+        # input (e.g. true_range[0]) must NOT poison the whole column; if the
+        # leading-NaN run exceeds ``length`` the SMA seed is dropped and the
+        # recursion re-seeds from the first finite raw value (pandas semantics).
+        seeded = np.empty(n, dtype=np.float64)
+        for i in range(n):
+            seeded[i] = close[i]
         sma_sum = 0.0
         valid_count = 0
         for i in range(length):
-            if i < n and not np.isnan(close[i]):
+            if not np.isnan(close[i]):
                 sma_sum += close[i]
                 valid_count += 1
+        for i in range(length - 1):
+            seeded[i] = np.nan
+        seeded[length - 1] = (sma_sum / valid_count) if valid_count > 0 else np.nan
+        close = seeded
 
-        if valid_count == length:
-            sma_val = sma_sum / length
-            result[length - 1] = sma_val
+    # ewm(alpha, adjust=False): seed from first finite value, carry forward on NaN.
+    first_valid = -1
+    for i in range(n):
+        if not np.isnan(close[i]):
+            first_valid = i
+            break
 
-            # Continue with RMA from there
-            for i in range(length, n):
-                if not np.isnan(close[i]):
-                    result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
-                else:
-                    result[i] = result[i - 1]
-    else:
-        # Standard RMA without SMA initialization
-        first_valid = -1
-        for i in range(n):
+    if first_valid >= 0:
+        result[first_valid] = close[first_valid]
+        for i in range(first_valid + 1, n):
             if not np.isnan(close[i]):
-                first_valid = i
-                break
-
-        if first_valid >= 0:
-            result[first_valid] = close[first_valid]
-            for i in range(first_valid + 1, n):
-                if not np.isnan(close[i]):
-                    result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
-                else:
-                    result[i] = result[i - 1]
+                result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]
 
     return result
 

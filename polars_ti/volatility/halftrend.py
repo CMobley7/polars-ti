@@ -116,6 +116,7 @@ def halftrend(
     amplitude: int = 2,
     channel_deviation: int = 2,
     smoothing: float = 0.3,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: HalfTrend Indicator
@@ -155,11 +156,25 @@ def halftrend(
     _offset = offset
 
     # Use composition for pre-calculations (just like Pandas!)
-    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
+    # OLD halftrend never propagated talib to its internal atr(), so the golden
+    # used TA-Lib ATR in both modes; honour talib here (default True).
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=talib)
     high_ma_expr = sma(high_expr, length=amplitude)
     low_ma_expr = sma(low_expr, length=amplitude)
     highest_expr = high_expr.rolling_max(window_size=amplitude, min_samples=1)
     lowest_expr = low_expr.rolling_min(window_size=amplitude, min_samples=1)
+
+    _props = f"_{atr_length}_{amplitude}_{channel_deviation}"
+    # Field names match the OLD pandas-ta flat columns (folded by the parity
+    # engine): HT_atr_high_14_2_2, HT_close_14_2_2, etc.
+    _fields = {
+        "atr_high": f"HT_atr_high{_props}",
+        "atr_low": f"HT_atr_low{_props}",
+        "ht_close": f"HT_close{_props}",
+        "direction": f"HT_direction{_props}",
+        "arr_up": f"HT_arr_up{_props}",
+        "arr_down": f"HT_arr_down{_props}",
+    }
 
     def compute_halftrend(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()
@@ -203,18 +218,20 @@ def halftrend(
                 arr_up[:_offset] = np.nan
                 arr_down[:_offset] = np.nan
 
+        # Direction is emitted as string labels ("long"/"short"/None), matching
+        # the OLD pandas-ta halftrend output.
+        direction_labels = ["long" if d == 0 else "short" if d == 1 else None for d in direction]
+
         return pl.DataFrame(
             {
-                "atr_high": atr_high,
-                "atr_low": atr_low,
-                "ht_close": ht_close,
-                "direction": direction,
-                "arr_up": arr_up,
-                "arr_down": arr_down,
+                _fields["atr_high"]: atr_high,
+                _fields["atr_low"]: atr_low,
+                _fields["ht_close"]: ht_close,
+                _fields["direction"]: pl.Series(direction_labels, dtype=pl.Utf8),
+                _fields["arr_up"]: arr_up,
+                _fields["arr_down"]: arr_down,
             }
         ).to_struct("halftrend")
-
-    _props = f"_{atr_length}_{amplitude}_{channel_deviation}"
 
     return (
         pl.struct(
@@ -233,12 +250,12 @@ def halftrend(
             compute_halftrend,
             return_dtype=pl.Struct(
                 {
-                    "atr_high": pl.Float64,
-                    "atr_low": pl.Float64,
-                    "ht_close": pl.Float64,
-                    "direction": pl.Float64,
-                    "arr_up": pl.Float64,
-                    "arr_down": pl.Float64,
+                    _fields["atr_high"]: pl.Float64,
+                    _fields["atr_low"]: pl.Float64,
+                    _fields["ht_close"]: pl.Float64,
+                    _fields["direction"]: pl.Utf8,
+                    _fields["arr_up"]: pl.Float64,
+                    _fields["arr_down"]: pl.Float64,
                 }
             ),
         )

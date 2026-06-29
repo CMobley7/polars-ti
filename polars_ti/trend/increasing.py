@@ -52,8 +52,11 @@ def increasing(
             result = result & (close_expr.shift(x - (drift + 1)) > close_adj.shift(x - drift))
         result = result.fill_null(False)
     else:
-        # Non-strict: just check if diff over length is positive
-        result = close_adj.diff(length) > 0
+        # Non-strict: just check if diff over length is positive.
+        # Guard against Polars treating ``NaN > 0`` as True (and warmup nulls):
+        # a NaN/null diff is "not increasing" -> False/0, matching pandas.
+        diff = close_adj.diff(length)
+        result = (diff > 0) & diff.is_not_nan() & diff.is_not_null()
 
     if asint:
         result = result.cast(pl.Int64)

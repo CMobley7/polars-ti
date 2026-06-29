@@ -22,10 +22,10 @@ class TestPlHa:
         close = low + np.random.rand(n) * (high - low)
         return pl.DataFrame({"open": open_, "high": high, "low": low, "close": close})
 
-    def test_pl_ha_returns_function(self):
-        """Test that pl_ha returns a callable."""
-        compute_fn = ha()
-        assert callable(compute_fn)
+    def test_ha_returns_expression(self):
+        """Test that ha() returns a Polars expression."""
+        expr = ha("open", "high", "low", "close")
+        assert isinstance(expr, pl.Expr)
 
     def test_pl_ha_apply_adds_columns(self, sample_df):
         """Test that pl_ha_apply adds HA columns."""

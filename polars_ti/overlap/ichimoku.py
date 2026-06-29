@@ -3,25 +3,23 @@
 # Polars ICHIMOKU Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
 from polars_ti.utils._validate import v_expr
 from polars_ti.overlap.midprice import midprice
 
 
 def ichimoku(
-    df: pl.DataFrame,
-    high: str = "high",
-    low: str = "low",
-    close: str = "close",
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
     tenkan: int = 9,
     kijun: int = 26,
     senkou: int = 52,
     include_chikou: bool = True,
     lookahead: bool = True,
     offset: int = 0,
-) -> tuple[pl.DataFrame, pl.DataFrame]:
+) -> pl.Expr:
     """Polars: Ichimoku Kinkō Hyō
 
     Developed Pre WWII as a forecasting model for financial markets.
@@ -30,10 +28,9 @@ def ichimoku(
         if lookahead=True (default). Set lookahead=False to avoid data leakage.
 
     Args:
-        df: Polars DataFrame with price columns
-        high: Column name for 'high' prices. Default: "high"
-        low: Column name for 'low' prices. Default: "low"
-        close: Column name for 'close' prices. Default: "close"
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
         tenkan: Tenkan period. Default: 9
         kijun: Kijun period. Default: 26
         senkou: Senkou period. Default: 52
@@ -42,35 +39,30 @@ def ichimoku(
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        tuple[pl.DataFrame, pl.DataFrame]:
-            - Main DataFrame with ISA, ISB, ITS, IKS, and optionally ICS columns
-            - Span DataFrame with future ISA and ISB values
+        pl.Expr: Struct expression with ISA, ISB, ITS, IKS, and optionally ICS
     """
-    # Handle lookahead parameter
     if not lookahead:
         include_chikou = False
 
-    # Calculate the components using pl_midprice
-    tenkan_sen = df.select(midprice(high, low, length=tenkan, talib=False)).get_column(f"MIDPRICE_{tenkan}")
-    kijun_sen = df.select(midprice(high, low, length=kijun, talib=False)).get_column(f"MIDPRICE_{kijun}")
-    senkou_b = df.select(midprice(high, low, length=senkou, talib=False)).get_column(f"MIDPRICE_{senkou}")
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    # Span A = (tenkan_sen + kijun_sen) / 2
-    span_a = (tenkan_sen + kijun_sen) / 2
+    # Tenkan-sen, Kijun-sen, Senkou Span B from midprice (native, like old)
+    tenkan_sen = midprice(high_expr, low_expr, length=tenkan, talib=False)
+    kijun_sen = midprice(high_expr, low_expr, length=kijun, talib=False)
+    senkou_b = midprice(high_expr, low_expr, length=senkou, talib=False)
 
-    # Copy values before shift for future span
-    span_a_future = span_a[-kijun:].shift(-1)
-    span_b_future = senkou_b[-kijun:].shift(-1)
+    # Span A = (tenkan + kijun) / 2
+    span_a = 0.5 * (tenkan_sen + kijun_sen)
 
-    # Shift spans forward by kijun - 1
+    # Spans shifted forward by kijun - 1 (Polars shift moves later rows down)
     span_a_shifted = span_a.shift(kijun - 1)
     span_b_shifted = senkou_b.shift(kijun - 1)
 
     # Chikou span = close shifted backward
-    close_col = df.get_column(close)
-    chikou_span = close_col.shift(-kijun + 1)
+    chikou_span = close_expr.shift(-kijun + 1)
 
-    # Apply offset if needed
     if offset != 0:
         tenkan_sen = tenkan_sen.shift(offset)
         kijun_sen = kijun_sen.shift(offset)
@@ -78,24 +70,19 @@ def ichimoku(
         span_b_shifted = span_b_shifted.shift(offset)
         chikou_span = chikou_span.shift(offset)
 
-    # Build main DataFrame
-    data = {
-        f"ISA_{tenkan}": span_a_shifted,
-        f"ISB_{kijun}": span_b_shifted,
-        f"ITS_{tenkan}": tenkan_sen,
-        f"IKS_{kijun}": kijun_sen,
-    }
+    isa_name = f"ISA_{tenkan}"
+    isb_name = f"ISB_{kijun}"
+    its_name = f"ITS_{tenkan}"
+    iks_name = f"IKS_{kijun}"
+    ics_name = f"ICS_{kijun}"
+
+    struct_fields = [
+        span_a_shifted.alias(isa_name),
+        span_b_shifted.alias(isb_name),
+        tenkan_sen.alias(its_name),
+        kijun_sen.alias(iks_name),
+    ]
     if include_chikou:
-        data[f"ICS_{kijun}"] = chikou_span
+        struct_fields.append(chikou_span.alias(ics_name))
 
-    ichimoku_df = pl.DataFrame(data)
-
-    # Build future span DataFrame
-    span_df = pl.DataFrame(
-        {
-            f"ISA_{tenkan}": span_a_future.to_list(),
-            f"ISB_{kijun}": span_b_future.to_list(),
-        }
-    )
-
-    return ichimoku_df, span_df
+    return pl.struct(struct_fields).alias(f"ICHIMOKU_{tenkan}_{kijun}_{senkou}")

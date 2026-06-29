@@ -20,40 +20,46 @@ def _ema_numba(close, length, presma=True, adjust=False):
 
     alpha = 2.0 / (length + 1)
 
-    if presma:
-        # Calculate SMA for initial value
+    if presma and n >= length:
+        # Build the seeded series exactly like OLD pandas-ta:
+        #   seeded[:length-1] = NaN
+        #   seeded[length-1]  = close[0:length].mean()  (NaN-skipping)
+        #   seeded[length:]   = close[length:]
+        # then run ewm(adjust=False) over it. Crucially, pandas ewm seeds from
+        # the FIRST finite value of this seeded series: if the leading-NaN run is
+        # longer than ``length`` (e.g. a cascaded EMA whose warmup exceeds the
+        # window), the SMA seed window is all-NaN, the seed is dropped, and the
+        # recursion re-seeds from the first finite raw value — a leading null
+        # must never poison the whole column.
+        seeded = empty(n)
+        for i in range(n):
+            seeded[i] = close[i]
         sma_sum = 0.0
         valid_count = 0
         for i in range(length):
             if not isnan(close[i]):
                 sma_sum += close[i]
                 valid_count += 1
+        for i in range(length - 1):
+            seeded[i] = nan
+        seeded[length - 1] = (sma_sum / valid_count) if valid_count > 0 else nan
+        close = seeded
 
-        if valid_count == length:
-            sma_val = sma_sum / length
-            result[length - 1] = sma_val
+    # ewm(adjust=False): seed from the first finite value, recurse, carrying the
+    # previous value forward across internal NaNs (pandas ewm semantics).
+    first_valid = -1
+    for i in range(n):
+        if not isnan(close[i]):
+            first_valid = i
+            break
 
-            # Continue with EMA from there
-            for i in range(length, n):
-                if not isnan(close[i]):
-                    result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
-                else:
-                    result[i] = result[i - 1]
-    else:
-        # Standard EMA without SMA initialization
-        first_valid = -1
-        for i in range(n):
+    if first_valid >= 0:
+        result[first_valid] = close[first_valid]
+        for i in range(first_valid + 1, n):
             if not isnan(close[i]):
-                first_valid = i
-                break
-
-        if first_valid >= 0:
-            result[first_valid] = close[first_valid]
-            for i in range(first_valid + 1, n):
-                if not isnan(close[i]):
-                    result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
-                else:
-                    result[i] = result[i - 1]
+                result[i] = alpha * close[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]
 
     return result
 

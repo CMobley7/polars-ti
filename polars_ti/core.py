@@ -391,7 +391,7 @@ class TechnicalIndicators:
         """Return the DataFrame in reverse row order."""
         return self._df.reverse()
 
-    def study(self, study, cores: int = 0, talib: bool = False, **kwargs) -> pl.DataFrame:
+    def study(self, study, cores: int = 0, talib: bool = False, errors: str = "warn", **kwargs) -> pl.DataFrame:
         """Run a :class:`~polars_ti.Study` against this DataFrame.
 
         Mirrors the original pandas-ti ``df.ti.study()`` API. Each indicator
@@ -406,13 +406,37 @@ class TechnicalIndicators:
             cores (int): Reserved for future multiprocessing support.
                 Currently ignored; all indicators run sequentially.
             talib (bool): Pass ``talib=True`` to each indicator call.
+            errors (str): How to surface indicators that fail during the study.
+
+                * ``"warn"`` (default): collect every failing indicator + its
+                  exception and emit a single ``warnings.warn`` summary at the
+                  end, while still completing the rest of the study.
+                * ``"raise"``: re-raise the first indicator failure immediately.
+                * ``"ignore"``: silently skip failing indicators (the historical
+                  behaviour).
             **kwargs: Additional keyword arguments forwarded to every indicator.
 
         Returns:
             The DataFrame with all study columns appended.
         """
+        import warnings
+
         from polars_ti.utils._study import Study
         from polars_ti.maps import Category
+
+        if errors not in ("warn", "raise", "ignore"):
+            raise ValueError(f"errors must be one of 'warn'|'raise'|'ignore', got {errors!r}")
+
+        # Collected (indicator, exception) pairs for the "warn" summary.
+        failures: list[tuple[str, BaseException]] = []
+
+        def _handle_failure(kind: str, exc: BaseException) -> None:
+            """Apply the configured error policy to a failed indicator."""
+            if errors == "raise":
+                raise exc
+            if errors == "warn":
+                failures.append((kind, exc))
+            # "ignore" -> do nothing
 
         def _run(kind: str, kw: dict) -> None:
             """Dispatch one indicator and hstack new columns onto self._df."""
@@ -423,13 +447,16 @@ class TechnicalIndicators:
                 result = fn(**kw)
             except TypeError as exc:
                 if "talib" not in kw or "unexpected keyword argument" not in str(exc):
+                    _handle_failure(kind, exc)
                     return
                 kw = {k: v for k, v in kw.items() if k != "talib"}
                 try:
                     result = fn(**kw)
-                except Exception:
+                except Exception as exc2:
+                    _handle_failure(kind, exc2)
                     return
-            except Exception:
+            except Exception as exc:
+                _handle_failure(kind, exc)
                 return  # Skip indicators that fail (e.g. missing required columns)
 
             try:
@@ -437,8 +464,21 @@ class TechnicalIndicators:
                     new_cols = [c for c in result.columns if c not in self._df.columns]
                     if new_cols:
                         self._df = self._df.hstack(result.select(new_cols))
-            except Exception:
+            except Exception as exc:
+                _handle_failure(kind, exc)
                 return
+
+        def _finalize() -> pl.DataFrame:
+            """Emit the collected-failure summary (warn mode) and return df."""
+            if errors == "warn" and failures:
+                names = ", ".join(sorted({k for k, _ in failures}))
+                detail = "; ".join(f"{k}: {type(e).__name__}: {e}" for k, e in failures)
+                warnings.warn(
+                    f"study(): {len(failures)} indicator(s) failed and were skipped [{names}]. Details — {detail}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            return self._df
 
         # Accept a Study class/instance, a category string, or AllStudy sentinel
         if isinstance(study, type) and issubclass(study, Study):
@@ -453,7 +493,7 @@ class TechnicalIndicators:
                 kw = dict(kwargs)
                 kw["talib"] = talib
                 _run(kind, kw)
-            return self._df
+            return _finalize()
 
         # AllStudy (ti is None) -> run every indicator in every category
         if not isinstance(study, Study) or study.ti is None:
@@ -462,7 +502,7 @@ class TechnicalIndicators:
                     kw = dict(kwargs)
                     kw["talib"] = talib
                     _run(kind, kw)
-            return self._df
+            return _finalize()
 
         # Custom Study: study.ti is a list of indicator dicts
         for ind_spec in study.ti:
@@ -474,7 +514,7 @@ class TechnicalIndicators:
             kw["talib"] = talib
             _run(ind_spec["kind"], kw)
 
-        return self._df
+        return _finalize()
 
     # Alias for backwards-compatibility with the original pandas-ti API
     strategy = study
@@ -750,10 +790,11 @@ class TechnicalIndicators:
         return self._post_process(trix(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def trixh(self, high=None, low=None, close=None, **kw):
-        h = self._col(high or kw.pop("high", "high"))
-        lo = self._col(low or kw.pop("low", "low"))
+        # trixh() signature is trixh(close, ...); high/low are unused.
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(trixh(h, lo, c, **kw), **kw)
+        kw.pop("high", None)
+        kw.pop("low", None)
+        return self._post_process(trixh(c, **kw), **kw)
 
     def tsi(self, close=None, **kw):
         return self._post_process(tsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -997,11 +1038,12 @@ class TechnicalIndicators:
         return self._post_process(adx(h, lo, c, **kw), **kw)
 
     def alphatrend(self, high=None, low=None, close=None, volume=None, **kw):
+        # alphatrend() signature is alphatrend(high, low, close, ...); volume unused.
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(alphatrend(h, lo, c, v, **kw), **kw)
+        kw.pop("volume", None)
+        return self._post_process(alphatrend(h, lo, c, **kw), **kw)
 
     def amat(self, close=None, **kw):
         return self._post_process(amat(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -1104,10 +1146,11 @@ class TechnicalIndicators:
         return self._post_process(xsignals(s, a, b, **kw), **kw)
 
     def zigzag(self, high=None, low=None, close=None, **kw):
+        # zigzag() signature is zigzag(high, low, ...); 'close' is unused.
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(zigzag(h, lo, c, **kw), **kw)
+        kw.pop("close", None)
+        return self._post_process(zigzag(h, lo, **kw), **kw)
 
     # ==================================================================
     #  Volatility
@@ -1137,11 +1180,13 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(atrts(h, lo, c, **kw), **kw)
 
-    def avsl(self, high=None, low=None, close=None, **kw):
-        h = self._col(high or kw.pop("high", "high"))
-        lo = self._col(low or kw.pop("low", "low"))
+    def avsl(self, close=None, low=None, volume=None, **kw):
+        # avsl() signature is avsl(close, low, volume, ...); 'high' is unused.
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(avsl(h, lo, c, **kw), **kw)
+        lo = self._col(low or kw.pop("low", "low"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("high", None)
+        return self._post_process(avsl(c, lo, v, **kw), **kw)
 
     def bbands(self, close=None, **kw):
         return self._post_process(bbands(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -1206,15 +1251,12 @@ class TechnicalIndicators:
         return self._post_process(pdist(o, h, lo, c, **kw), **kw)
 
     def rvi(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
-        return self._post_process(rvi(o, h, lo, c, **kw), **kw)
+        # rvi() signature is rvi(close, high, low, ...); 'open' is unused.
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        kw.pop("open", None)
+        return self._post_process(rvi(c, h, lo, **kw), **kw)
 
     def thermo(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
@@ -1328,16 +1370,18 @@ class TechnicalIndicators:
         return self._post_process(pvt(c, v, **kw), **kw)
 
     def vfi(self, high=None, low=None, close=None, volume=None, **kw):
-        h = self._col(high or kw.pop("high", "high"))
-        lo = self._col(low or kw.pop("low", "low"))
+        # vfi() signature is vfi(close, volume, ...); high/low are unused.
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(vfi(h, lo, c, v, **kw), **kw)
+        kw.pop("high", None)
+        kw.pop("low", None)
+        return self._post_process(vfi(c, v, **kw), **kw)
 
     def vhm(self, close=None, volume=None, **kw):
-        c = self._col(close or kw.pop("close", "close"))
+        # vhm() signature is vhm(volume, ...); 'close' is unused.
         v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(vhm(c, v, **kw), **kw)
+        kw.pop("close", None)
+        return self._post_process(vhm(v, **kw), **kw)
 
     def vp(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))

@@ -1,7 +1,15 @@
 # -*- coding: utf-8 -*-
 import sys
+from os.path import dirname
 
 sys.dont_write_bytecode = True
+
+# Make the reusable parity helpers (tests/_parity.py, tests/parity_exceptions.py)
+# importable by their bare module names from any test module, regardless of
+# pytest's package import mode.
+_TESTS_DIR = dirname(__file__)
+if _TESTS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_DIR)
 
 # Legacy pandas-era root-level test files that cannot be collected safely.
 # These retain the original pandas-based test logic and are excluded from

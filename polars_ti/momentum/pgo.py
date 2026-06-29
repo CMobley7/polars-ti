@@ -13,6 +13,7 @@ def pgo(
     low: IntoExpr,
     close: IntoExpr,
     length: int = 14,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Pretty Good Oscillator (PGO)
@@ -27,6 +28,7 @@ def pgo(
         low: Column name or pl.Expr for 'low' prices
         close: Column name or pl.Expr for 'close' prices
         length: Period. Default: 14
+        talib: Use TA-Lib SMA/ATR/EMA when available (matches OLD). Default: True
         offset: Shift result. Default: 0
 
     Returns:
@@ -40,9 +42,9 @@ def pgo(
     high_expr = v_expr(high)
     low_expr = v_expr(low)
 
-    sma_close = sma(close_expr, length=length, talib=False)
-    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=False)
-    ema_atr = ema(atr_expr, length=length, talib=False)
+    sma_close = sma(close_expr, length=length, talib=talib)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=talib)
+    ema_atr = ema(atr_expr, length=length, talib=talib)
 
     pgo_expr = (close_expr - sma_close) / ema_atr
 

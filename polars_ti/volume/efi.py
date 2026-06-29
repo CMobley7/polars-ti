@@ -15,6 +15,7 @@ def efi(
     length: int = 13,
     mamode: str = "ema",
     drift: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Elder's Force Index (EFI)
@@ -28,6 +29,7 @@ def efi(
         length: MA smoothing period. Default: 13
         mamode: MA type for smoothing. Default: 'ema'
         drift: The diff period. Default: 1
+        talib: If True and TA-Lib installed, use TA-Lib for the MA. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -42,8 +44,10 @@ def efi(
         return None
 
     # EFI = MA(close.diff(drift) * volume, length)
+    # Honor the requested talib mode so the native path uses the native EMA
+    # (with its NaN-tolerant pandas-ta seed), not TA-Lib's EMA.
     pv_diff = close_expr.diff(drift) * volume_expr
-    efi_expr = ma(name=mamode, source=pv_diff, length=length)
+    efi_expr = ma(name=mamode, source=pv_diff, length=length, talib=talib)
 
     if offset != 0:
         efi_expr = efi_expr.shift(offset)

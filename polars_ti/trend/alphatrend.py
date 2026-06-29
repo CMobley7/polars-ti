@@ -97,9 +97,11 @@ def alphatrend(
     low: IntoExpr,
     close: IntoExpr,
     length: int = 14,
-    multiplier: float = 1.0,
-    threshold: float = 50.0,
+    multiplier: float = 1,
+    threshold: float = 50,
     lag: int = 2,
+    mamode: str = "sma",
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Alpha Trend
@@ -114,29 +116,41 @@ def alphatrend(
         multiplier: ATR multiplier. Default: 1
         threshold: Momentum threshold. Default: 50
         lag: Lag period. Default: 2
+        mamode: MA used by the internal ATR/RSI. Default: 'sma' (matches OLD)
+        talib: Use TA-Lib for the internal ATR/RSI when available. Default: True
         offset: Shift result. Default: 0
 
     Returns:
         pl.Expr: Struct with ALPHAT and ALPHATl columns
     """
+    from polars_ti.volatility.atr import atr
+    from polars_ti.momentum.rsi import rsi
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
+    # ATR bands and RSI momentum via the library's own (talib-aware) indicators,
+    # matching OLD alphatrend (mamode='sma'). Momentum uses RSI (no-volume mode).
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
+    lower_atr = low_expr - atr_expr * multiplier
+    upper_atr = high_expr + atr_expr * multiplier
+    momo = rsi(close_expr, length=length, mamode=mamode, talib=talib)
+
+    _props = f"_{length}_{multiplier}_{threshold}"
+    at_name = f"ALPHAT{_props}"
+    atl_name = f"ALPHATl{_props}_{lag}"
+
     def _compute(s: pl.Series) -> pl.Series:
         data = s.struct.unnest()
-        h = data["_h"].to_numpy().astype(np.float64)
-        l_ = data["_l"].to_numpy().astype(np.float64)
-        c = data["_c"].to_numpy().astype(np.float64)
+        la = data["_la"].to_numpy().astype(np.float64)
+        ua = data["_ua"].to_numpy().astype(np.float64)
+        mo = data["_mo"].to_numpy().astype(np.float64)
 
-        atr_arr = _nb_atr_raw(h, l_, c, length)
-        rsi_arr = _nb_rsi_raw(c, length)
+        # NaN >= threshold -> False (numpy), so warmup is "not momentum".
+        momo_th = mo >= threshold
 
-        lower_atr = l_ - atr_arr * multiplier
-        upper_atr = h + atr_arr * multiplier
-        momo = rsi_arr >= threshold
-
-        at = nb_alpha(lower_atr, upper_atr, momo)
+        at = nb_alpha(la, ua, momo_th)
         atl = np.roll(at, lag)
         atl[:lag] = np.nan
 
@@ -147,21 +161,19 @@ def alphatrend(
                 at[:offset] = np.nan
                 atl[:offset] = np.nan
 
-        _props = f"_{length}_{multiplier}_{threshold}"
-        n = len(h)
-        return pl.Series(values=[{f"ALPHAT{_props}": at[i], f"ALPHATl{_props}_{lag}": atl[i]} for i in range(n)])
+        n = len(la)
+        return pl.Series(values=[{at_name: at[i], atl_name: atl[i]} for i in range(n)])
 
-    _aprops = f"_{length}_{multiplier}_{threshold}"
     fields = [
-        pl.Field(f"ALPHAT{_aprops}", pl.Float64),
-        pl.Field(f"ALPHATl{_aprops}_{lag}", pl.Float64),
+        pl.Field(at_name, pl.Float64),
+        pl.Field(atl_name, pl.Float64),
     ]
     return (
         pl.struct(
-            high_expr.alias("_h"),
-            low_expr.alias("_l"),
-            close_expr.alias("_c"),
+            lower_atr.alias("_la"),
+            upper_atr.alias("_ua"),
+            momo.alias("_mo"),
         )
         .map_batches(_compute, return_dtype=pl.Struct(fields))
-        .alias(f"ALPHAT{_aprops}")
+        .alias(at_name)
     )
