@@ -86,7 +86,6 @@ def _ema_numba(values: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-@njit(cache=True)
 def _tmo_core(
     open_arr: np.ndarray,
     close_arr: np.ndarray,
@@ -95,21 +94,36 @@ def _tmo_core(
     smooth_length: int,
     exclusive: bool,
     compute_momentum: bool,
+    use_talib: bool = False,
 ) -> tuple:
-    """Numba kernel for TMO calculation."""
+    """TMO calculation.
+
+    When ``use_talib`` is True (and TA-Lib is installed) the EMA cascade is
+    computed with TA-Lib's ``EMA`` so it matches the OLD pandas-ta TA-Lib mode
+    (which threaded ``talib`` into the ``ma()`` calls). Otherwise the
+    NaN-tolerant pandas-ta presma EMA kernel is used (native mode).
+    """
     n = len(close_arr)
 
     # 1. Calculate signed rolling deltas
     signed_diff = _signed_rolling_deltas_numba(open_arr, close_arr, tmo_length, exclusive)
 
+    if use_talib:
+        from talib import EMA as _TALIB_EMA
+
+        def _ema(values, length):
+            return _TALIB_EMA(values, length)
+    else:
+        _ema = _ema_numba
+
     # 2. Initial MA smoothing
-    initial_ma = _ema_numba(signed_diff, calc_length)
+    initial_ma = _ema(signed_diff, calc_length)
 
     # 3. Main signal = EMA(initial_ma, smooth_length)
-    main = _ema_numba(initial_ma, smooth_length)
+    main = _ema(initial_ma, smooth_length)
 
     # 4. Smooth signal = EMA(main, smooth_length)
-    smooth = _ema_numba(main, smooth_length)
+    smooth = _ema(main, smooth_length)
 
     # 5. Momentum (if requested)
     if compute_momentum:
@@ -137,6 +151,7 @@ def tmo(
     normalize: bool = False,
     exclusive: bool = True,
     mamode: str = "ema",
+    talib: bool = False,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: True Momentum Oscillator (TMO)
@@ -183,6 +198,11 @@ def tmo(
     _normalize = normalize
     _props = f"_{tmo_length}_{calc_length}_{smooth_length}"
 
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+
+    _use_talib = Imports["talib"] and v_talib(talib) and mamode == "ema"
+
     def compute_tmo(s: pl.Series) -> pl.Series:
         open_arr = s.struct.field("open").to_numpy().astype(np.float64)
         close_arr = s.struct.field("close").to_numpy().astype(np.float64)
@@ -195,6 +215,7 @@ def tmo(
             _smooth_length,
             _exclusive,
             _compute_momentum,
+            _use_talib,
         )
 
         # Normalize if requested

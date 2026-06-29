@@ -38,18 +38,20 @@ def nb_percent_rank(close: np.ndarray, lookback: int) -> np.ndarray:
     for i in range(1, n):
         returns[i] = (close[i] - close[i - 1]) / close[i - 1]
 
-    # Calculate percent rank
+    # Calculate percent rank.
+    # Mirror OLD pandas-ta: nanmean over the full ``lookback`` window where a
+    # NaN return (e.g. the first day's undefined return) compares False rather
+    # than being dropped from the denominator. So divide by the fixed window
+    # size, not by the count of finite values.
     for i in range(lookback, n):
         current = returns[i]
+        if np.isnan(current):
+            continue
         count_less = 0
-        valid_count = 0
         for j in range(i - lookback, i):
-            if not np.isnan(returns[j]):
-                valid_count += 1
-                if returns[j] < current:
-                    count_less += 1
-        if valid_count > 0:
-            result[i] = (count_less / valid_count) * 100.0
+            if not np.isnan(returns[j]) and returns[j] < current:
+                count_less += 1
+        result[i] = (count_less / lookback) * 100.0
 
     return result
 

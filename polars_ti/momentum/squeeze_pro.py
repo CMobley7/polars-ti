@@ -88,7 +88,7 @@ def squeeze_pro(
         length=kc_length,
         scalar=kc_scalar_wide,
         mamode=mamode,
-        talib=False,
+        talib=True,
         tr=use_tr,
         offset=0,
     )
@@ -99,7 +99,7 @@ def squeeze_pro(
         length=kc_length,
         scalar=kc_scalar_normal,
         mamode=mamode,
-        talib=False,
+        talib=True,
         tr=use_tr,
         offset=0,
     )
@@ -110,7 +110,7 @@ def squeeze_pro(
         length=kc_length,
         scalar=kc_scalar_narrow,
         mamode=mamode,
-        talib=False,
+        talib=True,
         tr=use_tr,
         offset=0,
     )

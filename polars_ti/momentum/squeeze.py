@@ -79,6 +79,10 @@ def squeeze(
     bb_upper_name = f"BBU_{bb_length}_{bb_std}"
 
     # Calculate Keltner Channels - get struct fields
+    # OLD squeeze never threaded ``talib`` into kc(), so its internal
+    # true_range defaulted to TA-Lib's TRANGE (TR[0]=NaN) when TA-Lib is
+    # installed. Mirror that default so the KC band warmup aligns with the
+    # golden (off-by-one otherwise on the first valid squeeze classification).
     kc_struct = kc(
         high_expr,
         low_expr,
@@ -86,7 +90,7 @@ def squeeze(
         length=kc_length,
         scalar=kc_scalar,
         mamode=mamode,
-        talib=False,
+        talib=True,
         tr=use_tr,
         offset=0,
     )
