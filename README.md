@@ -1,113 +1,76 @@
-# Polars TI
+# Polars-TI
 
-Polars TI is a Polars-native technical indicators library for OHLCV data. It provides expression-first indicators, a `df.ti` DataFrame namespace, study helpers, optional TA-Lib acceleration/parity paths, and focused Polars tests for the converted indicator surface.
-
-The public indicator functions now use the indicator name directly:
+**Polars-TI** is a technical-analysis library for OHLCV data built on a pure
+**Polars + Numba/NumPy** architecture. It provides **176 indicators and
+candlestick-pattern groups** as native Polars expressions, with **zero runtime
+pandas dependency**, a `df.ti` DataFrame namespace, study helpers, and optional
+TA-Lib acceleration/parity.
 
 ```python
+import polars as pl
+import polars_ti as ti
 from polars_ti.momentum import rsi
 from polars_ti.overlap import sma
-from polars_ti.volatility import atr
-```
 
-Legacy `pl_*` function names were removed. Use `rsi(...)`, `sma(...)`, `atr(...)`, etc.
+df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True)
+
+# Expression API
+features = df.select(sma("close", length=20), rsi("close", length=14))
+
+# DataFrame accessor (append=True keeps the original columns)
+with_rsi = df.ti.rsi(length=14, append=True)
+
+# A full study
+all_features = df.ti.study(ti.AllStudy, talib=True)
+```
 
 ## Features
 
-- Polars `Expr` indicators for candles, cycles, momentum, overlap, performance, statistics, transform, trend, volatility, and volume.
-- `pl.DataFrame.ti` namespace for convenient indicator dispatch.
-- `Study`, `AllStudy`, and `CommonStudy` helpers for grouped indicator runs.
-- Optional TA-Lib support for indicators and candlestick patterns where TA-Lib has an equivalent.
-- Numba kernels for indicators that need stateful numerical loops.
-- Ruff, mypy, pytest, coverage, pandas-purge checks, and dependency audit wired into `scripts/check.sh` and CI.
+- Native Polars `Expr` indicators across candles, cycles, momentum, overlap,
+  performance, statistics, transform, trend, volatility, and volume.
+- `df.ti` accessor and `Study` / `AllStudy` / `CommonStudy` helpers.
+- Optional TA-Lib paths; fully functional **without** TA-Lib (native
+  Polars/Numba), selectable per call via `talib=`.
+- Numba kernels for stateful/recursive indicators.
+- Parity-tested against the pandas baseline and TA-Lib, in both TA-Lib modes.
 
-## Installation
-
-```bash
-uv pip install "polars-ti[full]"
-```
-
-For local development:
+## Install
 
 ```bash
-uv sync --extra test --dev
+uv pip install "polars-ti[full]"     # everything
+# or just the library:
+uv pip install polars-ti
 ```
 
-TA-Lib is optional, but recommended for full candlestick coverage and independent parity checks:
+TA-Lib is optional (recommended for full candlestick coverage):
 
 ```bash
 uv pip install TA-Lib
 ```
 
-## Quick Start
+## Documentation
 
-```python
-import polars as pl
-from polars_ti.momentum import rsi
-from polars_ti.overlap import sma
+Full documentation lives in [`docs/`](docs/index.md):
 
-df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True)
+- [Getting started](docs/getting-started.md) — install, quickstart, return types, `append=`, lazy eval.
+- [Indicators](docs/indicators.md) — all 176 by category, with outputs and TA-Lib availability.
+- [Studies](docs/studies.md) — `AllStudy` / `CommonStudy` / custom studies, `talib=` and `errors=`.
+- [TA-Lib & native paths](docs/talib.md) — the `native = pandas-ta, talib = TA-Lib` design rule.
+- [Migrating from pandas-ta](docs/migrating-from-pandas-ta.md) — porting guide.
+- [Differences from pandas-ta](docs/differences-from-pandas-ta.md) — output differences (and why), new indicators and credits.
+- [Development](docs/development.md) — quality gates, CI, and the parity oracle.
 
-result = df.select(
-    sma("close", length=20),
-    rsi("close", length=14),
-)
-```
-
-The DataFrame namespace returns a result DataFrame by default:
-
-```python
-sma20 = df.ti.sma(length=20)
-```
-
-Pass `append=True` when you want the returned DataFrame to include the original columns plus the indicator columns:
-
-```python
-df_with_sma = df.ti.sma(length=20, append=True)
-```
-
-## Studies
-
-Run a built-in study and keep the returned DataFrame:
-
-```python
-import polars as pl
-import polars_ti as ti
-
-df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True)
-all_features = df.ti.study(ti.AllStudy, cores=0, talib=True)
-```
-
-`talib=True` enables TA-Lib-backed implementations where available. `talib=False` forces native Polars/Numba paths for indicators that support both.
-
-## Validation
-
-Current validation status is captured in [VALIDATION_REPORT.md](VALIDATION_REPORT.md).
-
-At the time of this update:
-
-- Ruff check passes.
-- The active Polars test suite passes: `1128 passed`.
-- All current public imports use non-`pl_` indicator names.
-- All-study outputs were compared against the pandas implementation in `tmp/polars-ti` on the same deterministic random OHLCV dataset, with TA-Lib used independently for matching indicators.
-
-## Development Checks
-
-Run the same local quality gates used by CI:
+## Development
 
 ```bash
-./scripts/check.sh --fast
+uv sync --extra test --dev
+./scripts/check.sh --fast        # ruff, mypy, pytest+coverage, pandas-purge
 ```
 
-Run the full suite:
+## License & credits
 
-```bash
-uv run pytest tests/ -q --tb=short
-```
-
-Run Ruff:
-
-```bash
-uv run ruff check polars_ti tests scripts
-uv run ruff format --check polars_ti tests scripts
-```
+Polars-TI is a Polars/Numba port of, and builds on,
+[twopirllc/pandas-ta](https://github.com/twopirllc/pandas-ta). Additional
+indicators were integrated from community forks with attribution — see
+[Differences §6](docs/differences-from-pandas-ta.md#6-new-indicators--credits).
+See [LICENSE](LICENSE).

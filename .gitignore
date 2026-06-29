@@ -158,3 +158,6 @@ CONVERSION_TASKS.md
 .agent/*
 .tmp/*
 tmp/*
+
+# Internal process/working docs (kept locally, not in repo)
+docs/internal/
