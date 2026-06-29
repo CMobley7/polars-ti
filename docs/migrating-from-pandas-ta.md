@@ -15,6 +15,9 @@ pl_df = pl.from_pandas(pd_df)          # pandas -> Polars
 pd_df = pl_df.to_pandas()              # Polars -> pandas
 ```
 
+`from_pandas` / `to_pandas` require `pandas` and `pyarrow` (e.g.
+`uv pip install pandas pyarrow`); they are not needed for Polars-TI itself.
+
 ## 2. Accessor name: `.ta` → `.ti`
 
 ```python
