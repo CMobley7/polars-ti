@@ -12,6 +12,7 @@ def cfo(
     close: IntoExpr,
     length: int = 9,
     scalar: float = 100.0,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Chande Forecast Oscillator (CFO)
@@ -38,8 +39,7 @@ def cfo(
     close_expr = v_expr(close)
 
     # TSF = Time Series Forecast from linear regression
-    # Match Pandas default: talib=True
-    tsf = linreg(close_expr, length=length, tsf=True, offset=0)
+    tsf = linreg(close_expr, length=length, talib=talib, tsf=True, offset=0)
 
     # CFO = scalar * (close - TSF) / close
     # Protect against divide-by-zero

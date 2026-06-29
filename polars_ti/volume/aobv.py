@@ -60,8 +60,8 @@ def aobv(
     obv_expr = obv(close_expr, volume_expr, talib=talib, offset=0)
 
     # Build MA expressions on OBV
-    obv_fast_ma = ma(name=mamode, source=obv_expr, length=fast)
-    obv_slow_ma = ma(name=mamode, source=obv_expr, length=slow)
+    obv_fast_ma = ma(name=mamode, source=obv_expr, length=fast, talib=talib)
+    obv_slow_ma = ma(name=mamode, source=obv_expr, length=slow, talib=talib)
 
     # Long/Short run on the MAs
     obv_long = long_run(obv_fast_ma, obv_slow_ma, length=run_length)

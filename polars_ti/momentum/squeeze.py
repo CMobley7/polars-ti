@@ -86,6 +86,7 @@ def squeeze(
         length=kc_length,
         scalar=kc_scalar,
         mamode=mamode,
+        talib=False,
         tr=use_tr,
         offset=0,
     )

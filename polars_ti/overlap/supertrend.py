@@ -60,6 +60,7 @@ def supertrend(
     length: int = 7,
     multiplier: float = 3.0,
     mamode: str = "rma",
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Supertrend - uses pl_hl2 and pl_atr composition.
@@ -89,7 +90,7 @@ def supertrend(
 
     # Use pl_hl2 and pl_atr composition!
     hl2_expr = hl2(high_expr, low_expr)
-    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=True)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
 
     def compute_supertrend(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()

@@ -82,7 +82,7 @@ def vidya(
             from polars_ti.momentum.cmo import cmo
 
             tmp = pl.DataFrame({"_close": arr})
-            cmo_col = tmp.select(cmo("_close", length=_length, drift=_drift)).to_series().to_numpy()
+            cmo_col = tmp.select(cmo("_close", length=_length, drift=_drift, talib=False)).to_series().to_numpy()
             cmo_vals = cmo_col / 100.0  # Scale to 0-1
 
         # Clamp |CMO| to [0, 1] and treat NaN as 0 so that ``alpha * abs_cmo``

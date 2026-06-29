@@ -65,6 +65,7 @@ def ott(
     length: int = 5,
     multiplier: float = 2.4,
     mamode: str = "vidya",
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Optimized Trend Tracker (OTT)
@@ -85,7 +86,7 @@ def ott(
     _props = f"_{length}_{multiplier}"
 
     # Get the MA expression
-    ma_expr = ma(mamode, close, length=length).alias(f"OTTSL{_props}")
+    ma_expr = ma(mamode, close, length=length, talib=talib).alias(f"OTTSL{_props}")
 
     def compute_ott(struct: pl.Series) -> pl.Series:
         # Extract MA values from struct

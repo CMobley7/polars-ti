@@ -53,7 +53,7 @@ def kc(
 
     # Range: True Range or High-Low (matches Pandas: true_range() if tr else high_low_range())
     if tr:
-        range_expr = true_range(high_expr, low_expr, close_expr)
+        range_expr = true_range(high_expr, low_expr, close_expr, talib=talib)
     else:
         range_expr = high_expr - low_expr
 

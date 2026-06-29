@@ -14,6 +14,7 @@ def pvo(
     slow: int = 26,
     signal: int = 9,
     scalar: float = 100.0,
+    talib: bool = True,
     offset: int = 0,
 ) -> list[PlExpr]:
     """Polars: Percentage Volume Oscillator (PVO)
@@ -44,12 +45,12 @@ def pvo(
     _props = f"_{fast}_{slow}_{signal}"
 
     # PVO = scalar * (fastEMA - slowEMA) / slowEMA
-    fast_ema = ema(volume_expr, length=fast)
-    slow_ema = ema(volume_expr, length=slow)
+    fast_ema = ema(volume_expr, length=fast, talib=talib)
+    slow_ema = ema(volume_expr, length=slow, talib=talib)
     pvo_expr = scalar * (fast_ema - slow_ema) / slow_ema
 
     # Signal = EMA(PVO, signal)
-    signal_ema = ema(pvo_expr, length=signal)
+    signal_ema = ema(pvo_expr, length=signal, talib=talib)
 
     # Histogram = PVO - Signal
     histogram_expr = pvo_expr - signal_ema

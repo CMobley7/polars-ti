@@ -18,6 +18,7 @@ def inertia(
     refined: bool = False,
     thirds: bool = False,
     mamode: str = "ema",
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Inertia (INERTIA)
@@ -51,6 +52,7 @@ def inertia(
     _refined = refined
     _thirds = thirds
     _mamode = mamode
+    _talib = talib
 
     # For simple (non-refined, non-thirds) case only close is needed
     if refined or thirds:
@@ -74,6 +76,7 @@ def inertia(
                         scalar=_scalar,
                         refined=True,
                         mamode=_mamode,
+                        talib=_talib,
                     )
                 )[df.columns[0]]
             else:  # thirds
@@ -86,6 +89,7 @@ def inertia(
                         scalar=_scalar,
                         thirds=True,
                         mamode=_mamode,
+                        talib=_talib,
                     )
                 )[df.columns[0]]
 
@@ -101,7 +105,7 @@ def inertia(
         # Simple case - compute RVI then apply linreg in map_batches
         def compute_simple(s: pl.Series) -> pl.Series:
             df = pl.DataFrame({"close": s})
-            rvi_result = df.select(rvi("close", length=_rvi_length, scalar=_scalar, mamode=_mamode))
+            rvi_result = df.select(rvi("close", length=_rvi_length, scalar=_scalar, mamode=_mamode, talib=_talib))
             rvi_col = rvi_result.to_series()
             rvi_df = pl.DataFrame({"rvi": rvi_col})
             linreg_result = rvi_df.select(linreg("rvi", length=_length))

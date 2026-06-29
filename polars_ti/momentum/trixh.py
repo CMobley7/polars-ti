@@ -95,10 +95,10 @@ def trixh(
 
         trix_expr = close_expr.map_batches(compute_trix, return_dtype=pl.Float64)
     else:
-        # Use pl_ema composition: triple EMA
-        ema1 = ema(close_expr, length=length)
-        ema2 = ema(ema1, length=length)
-        ema3 = ema(ema2, length=length)
+        # Use pl_ema composition: triple EMA (native branch -> talib=False)
+        ema1 = ema(close_expr, length=length, talib=False)
+        ema2 = ema(ema1, length=length, talib=False)
+        ema3 = ema(ema2, length=length, talib=False)
 
         # TRIX = scalar * pct_change(ema3, drift)
         ema3_shifted = ema3.shift(drift)

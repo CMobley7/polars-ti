@@ -18,6 +18,7 @@ def kvo(
     slow: int = 55,
     signal: int = 13,
     mamode: str = "ema",
+    talib: bool = True,
     offset: int = 0,
 ) -> list[PlExpr]:
     """Polars: Klinger Volume Oscillator (KVO)
@@ -61,12 +62,12 @@ def kvo(
     signed_volume = volume_expr * sign
 
     # KVO = MA(signed_volume, fast) - MA(signed_volume, slow)
-    kvo_fast = ma(name=mamode, source=signed_volume, length=fast)
-    kvo_slow = ma(name=mamode, source=signed_volume, length=slow)
+    kvo_fast = ma(name=mamode, source=signed_volume, length=fast, talib=talib)
+    kvo_slow = ma(name=mamode, source=signed_volume, length=slow, talib=talib)
     kvo_expr = kvo_fast - kvo_slow
 
     # Signal = MA(KVO, signal)
-    kvo_signal_expr = ma(name=mamode, source=kvo_expr, length=signal)
+    kvo_signal_expr = ma(name=mamode, source=kvo_expr, length=signal, talib=talib)
 
     if offset != 0:
         kvo_expr = kvo_expr.shift(offset)

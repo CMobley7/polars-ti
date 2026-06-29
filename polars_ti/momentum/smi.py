@@ -14,6 +14,7 @@ def smi(
     slow: int = 20,
     signal: int = 5,
     scalar: float = 1.0,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: SMI Ergodic Indicator (SMI)
@@ -58,6 +59,7 @@ def smi(
         scalar=scalar,
         mamode="ema",
         drift=1,
+        talib=talib,
         offset=0,  # We'll apply offset at the end
     )
 

@@ -184,6 +184,17 @@ _FIXED_GROUPS = {
         "TOS_STDEVALL_U_2",
         "TOS_STDEVALL_U_3",
     ],
+    # accessor passed (high, low, close) but smc()'s first param is open_, so
+    # all OHLC inputs were shifted; fixed the dispatch (matches both modes).
+    "smc": [
+        "SMChv_14_50_20_5",
+        "SMCbf_14_50_20_5",
+        "SMCbi_14_50_20_5",
+        "SMCbp_14_50_20_5",
+        "SMCtf_14_50_20_5",
+        "SMCti_14_50_20_5",
+        "SMCtp_14_50_20_5",
+    ],
 }
 
 # --- Still broken / missing / all-NaN in NEW (COMPARISON_REPORT §3, §6) --------

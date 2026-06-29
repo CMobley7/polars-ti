@@ -29,17 +29,9 @@ from parity_exceptions import mode_for
 FIXTURES = "tests/fixtures"
 SLICE_ROWS = 1500
 
-# Genuine NEW native discrepancies (OLD propagated talib, so the OLD native
-# golden is a real native reference) — root cause TBD; visible but non-blocking.
-NATIVE_TODO = {
-    "SMCbf_14_50_20_5",
-    "SMCbi_14_50_20_5",
-    "SMCbp_14_50_20_5",
-    "SMChv_14_50_20_5",
-    "SMCtf_14_50_20_5",
-    "SMCti_14_50_20_5",
-    "SMCtp_14_50_20_5",
-}
+# Genuine NEW native discrepancies whose OLD golden is a real native reference.
+# (Empty — SMC, the last one, was an accessor arg-order bug now fixed.)
+NATIVE_TODO: set[str] = set()
 
 # Columns whose OLD native golden is TA-Lib-contaminated (OLD non-propagation)
 # or depends on OLD's buggy native RSI/ADX/CMO seed. NEW native is correct by

@@ -86,6 +86,7 @@ def qqe(
     smooth: int = 5,
     factor: float = 4.236,
     mamode: str = "ema",
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Quantitative Qualitative Estimation (QQE)
@@ -132,6 +133,7 @@ def qqe(
     _mamode = mamode
     _wilders_length = wilders_length
     _props_str = _props
+    _talib = talib
 
     def compute_qqe(s: pl.Series) -> pl.DataFrame:
         """Compute QQE using pure Polars/Numba — no pandas dependency."""
@@ -139,11 +141,11 @@ def qqe(
         tmp = pl.DataFrame({"_close": arr})
 
         # Step 1: RSI via pl_rsi evaluated eagerly
-        rsi_col = tmp.select(rsi("_close", length=_length)).to_series().to_numpy()
+        rsi_col = tmp.select(rsi("_close", length=_length, talib=_talib)).to_series().to_numpy()
 
         # Step 2: Smooth RSI with pl_ma
         tmp2 = pl.DataFrame({"_rsi": rsi_col})
-        rsi_ma_expr = ma(_mamode, "_rsi", length=_smooth)
+        rsi_ma_expr = ma(_mamode, "_rsi", length=_smooth, talib=_talib)
         rsi_ma_col = tmp2.select(rsi_ma_expr).to_series().to_numpy()
 
         # Step 3: RSI MA True Range
@@ -151,9 +153,9 @@ def qqe(
 
         # Step 4: Double EMA of RSI TR
         tmp3 = pl.DataFrame({"_tr": rsi_ma_tr})
-        s1 = tmp3.select(ma("ema", "_tr", length=_wilders_length)).to_series().to_numpy()
+        s1 = tmp3.select(ma("ema", "_tr", length=_wilders_length, talib=_talib)).to_series().to_numpy()
         tmp4 = pl.DataFrame({"_s1": s1})
-        s2 = tmp4.select(ma("ema", "_s1", length=_wilders_length)).to_series().to_numpy()
+        s2 = tmp4.select(ma("ema", "_s1", length=_wilders_length, talib=_talib)).to_series().to_numpy()
         dar = _factor * s2
 
         # Step 5: Upper/Lower bands

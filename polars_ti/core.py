@@ -742,11 +742,13 @@ class TechnicalIndicators:
     def slope(self, close=None, **kw):
         return self._post_process(slope(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def smc(self, high=None, low=None, close=None, **kw):
+    def smc(self, open_=None, high=None, low=None, close=None, **kw):
+        # smc() signature is smc(open_, high, low, close, ...).
+        o = self._col(open_ or kw.pop("open", "open"))
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
-        return self._post_process(smc(h, lo, c, **kw), **kw)
+        return self._post_process(smc(o, h, lo, c, **kw), **kw)
 
     def smi(self, close=None, **kw):
         return self._post_process(smi(self._col(close or kw.pop("close", "close")), **kw), **kw)
