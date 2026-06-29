@@ -85,7 +85,10 @@ def vidya(
             cmo_col = tmp.select(cmo("_close", length=_length, drift=_drift)).to_series().to_numpy()
             cmo_vals = cmo_col / 100.0  # Scale to 0-1
 
-        abs_cmo = np.abs(cmo_vals).astype(np.float64)
+        # Clamp |CMO| to [0, 1] and treat NaN as 0 so that ``alpha * abs_cmo``
+        # stays in [0, alpha] and the recurrence is a stable convex combination
+        # (a degenerate native CMO must not diverge VIDYA to +/-inf).
+        abs_cmo = np.nan_to_num(np.clip(np.abs(cmo_vals), 0.0, 1.0)).astype(np.float64)
 
         # Use the shared Numba kernel
         result = nb_vidya(arr, abs_cmo, alpha, _length)
