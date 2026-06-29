@@ -39,7 +39,7 @@ study = ti.Study(
         {"kind": "sma", "length": 50},
         {"kind": "bbands", "length": 20},
         {"kind": "log_return", "cumulative": True},
-        {"kind": "ema", "close": "CUMLOGRET_1", "length": 5, "suffix": "CLR"},
+        {"kind": "ema", "close": "CUMLOGRET_1", "length": 5},
     ],
 )
 features = df.ti.study(study)
@@ -59,6 +59,9 @@ df.ti.study(study, talib=True, errors="warn", cores=0)
     rest of the study.
   - `"raise"` — re-raise the first failure immediately.
   - `"ignore"` — silently skip failures.
+
+  (Note: an unrecognized `kind` — e.g. a typo — is silently skipped under every
+  error mode; it is not treated as a failure.)
 - **`cores`** (default `0`): reserved for future multiprocessing; currently all
   indicators run sequentially.
 

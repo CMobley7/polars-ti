@@ -23,10 +23,11 @@ and why* reference.
   all-study output — every pandas column is reproduced; none are dropped
   (see [§3](#3-indicator--column-counts)).
 - **Numerical differences:** the overwhelming majority of columns match the
-  pandas output to floating-point noise. Where they differ, it is **always**
-  because Polars-TI is *more correct* (the old value was a bug) or a
-  *documented, intentional* convention change — never because Polars-TI is
-  wrong (see [§4](#4-output-differences-with-reasons)).
+  pandas output within floating-point tolerance. Every remaining difference is
+  documented and falls into one of: Polars-TI matching TA-Lib/canonical where
+  pandas-ta was buggy, a deliberate convention change, or offering a TA-Lib path
+  pandas-ta lacked. None are Polars-TI being wrong, and **every shared column is
+  parity-tested per-column** (see [§4](#4-output-differences-with-reasons)).
 
 ---
 
@@ -38,12 +39,12 @@ and why* reference.
 | Runtime pandas | required | **none** (enforced by a CI "pandas purge" check) |
 | Call style | `df.ta.rsi()` | `df.ti.rsi()` **and** `from polars_ti.momentum import rsi` → `df.select(rsi("close"))` |
 | Legacy `pl_*` names | n/a | removed — use the indicator name directly (`rsi`, `sma`, `atr`, …) |
-| Multi-output indicators | multiple columns in a DataFrame | a single Polars **struct** column (accessor) or a **list of expressions**; unnest/`flatten` for flat columns |
+| Multi-output indicators | multiple columns in a DataFrame | a single Polars **struct** column (accessor) or a **list of expressions**; unnest for flat columns |
 | TA-Lib | `talib=` per call | `talib=` per call **and** a study-wide `talib=` flag; native paths fully implemented so TA-Lib is optional |
 | Study errors | exceptions bubble up | `df.ti.study(..., errors="warn"|"raise"|"ignore")`, default `"warn"` |
 
-See [Getting started](getting-started.md) for the return-type details and
-`flatten` helper.
+See [Getting started](getting-started.md) for the return-type details and how to
+unnest struct columns.
 
 ---
 
@@ -58,7 +59,7 @@ with TA-Lib installed:
 | All-study indicator columns (TA-Lib mode) | 387 | **389** |
 | Columns dropped vs pandas | — | **0** |
 | Extra columns exposed | — | **+2** (`DMP_14`/`DMN_14` are also surfaced inside the `ADX` struct) |
-| All-study indicator columns (native, no TA-Lib) | — | 337 |
+| All-study indicator columns (native, no TA-Lib) | — | 329 |
 
 The native (no-TA-Lib) study has fewer columns only because ~60 TA-Lib
 candlestick patterns have no native implementation — pandas-ta behaves the same
@@ -72,10 +73,15 @@ not drops; they are folded by an authoritative old↔new name map
 
 ## 4. Output differences (with reasons)
 
-On the 387 shared columns: **361 match pandas to within `max_abs`/`max_rel`
-≤ 1e-6** (pure floating-point noise). The rest fall into the buckets below and
-are pinned by the parity test-suite (`tests/test_parity_smoke.py`,
-`tests/parity_exceptions.py`).
+Of the 387 shared columns (measured in TA-Lib mode vs the pandas golden):
+**363 match within tolerance** — 356 to floating-point noise
+(`max_abs`/`max_rel` ≤ 1e-6) and 7 that agree post-warmup with only a warm-up
+null-mask difference. The remaining 24 are accounted for below: **8** pinned to
+TA-Lib (§4a), **14** intentional convention divergences (§4b), and **2**
+documented special cases — KAMA's TA-Lib path (§4c) and the `HT_direction`
+string column. Every shared column is enforced per-column by
+`tests/test_talib_parity.py` (TA-Lib mode) and `tests/test_native_parity.py`
+(native mode), using the verdicts in `tests/parity_exceptions.py`.
 
 ### 4a. Polars-TI is more correct (old value was a bug)
 
@@ -117,6 +123,13 @@ of that, Polars-TI's *native-mode* output legitimately diverges from pandas-ta's
 matches. This is a consequence of the design rule **native = pandas-ta
 semantics, talib = TA-Lib fidelity**.
 
+The same rule runs the other way for **`KAMA`**: pandas-ta had *only* a native
+KAMA, so the golden is native KAMA in both modes. Polars-TI's `talib=False` path
+reproduces it exactly, while `talib=True` returns TA-Lib's KAMA — which uses
+different internal fast/slow constants and so differs from the golden (~0.15).
+This is the one TA-Lib-mode column that diverges from the pandas golden and is
+not a bug; it is exempted in `tests/test_talib_parity.py` (`TALIB_DIVERGENCE`).
+
 ### 4d. Renames / struct outputs
 
 Multi-output indicators emit a single **struct** column instead of several flat
@@ -133,8 +146,8 @@ mappings (old flat → new):
 | `TOS_STDEVALL_*` | `TOS_STDEVALL` struct |
 | `VWAP_D` | `VWAP_1D` |
 
-The full map lives in `tests/_parity.py` (`RENAME_MAP`); a `flatten` helper
-returns the old flat names for drop-in use.
+The full map lives in `tests/_parity.py` (`RENAME_MAP`). To get flat columns with
+the familiar names, unnest the struct column (e.g. `.unnest("AROON_14")`).
 
 ---
 
@@ -214,8 +227,13 @@ committed golden fixtures generated from the pandas baseline and from TA-Lib:
 - `tests/_parity.py` — comparison engine + the rename map.
 - `tests/parity_exceptions.py` — per-column verdicts (`match`, `match_talib`,
   `intentional`).
-- `tests/test_parity_smoke.py`, `tests/test_native_parity.py`,
-  `tests/test_study_completeness.py` — enforce parity, native divergences, and
-  the column manifest in both TA-Lib modes.
+- `tests/test_talib_parity.py` — the full per-column TA-Lib-mode gate (every
+  shared column matches the pandas golden except the documented exceptions).
+- `tests/test_native_parity.py` — the native-mode gate (with `NATIVE_DIVERGENCE`
+  for pandas-ta's TA-Lib-contaminated native columns).
+- `tests/test_study_completeness.py` — the column manifest + no-all-NaN check in
+  both modes.
+- `tests/test_parity_smoke.py` — a fast oracle sanity subset (not the full
+  per-column gate; that is `test_talib_parity.py`).
 
 Run them with `./scripts/check.sh --fast` (see [Development](development.md)).

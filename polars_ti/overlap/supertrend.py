@@ -63,7 +63,7 @@ def supertrend(
     talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
-    """Polars: Supertrend - uses pl_hl2 and pl_atr composition.
+    """Polars: Supertrend - uses HL2 and ATR composition.
 
     Returns struct with SUPERT, SUPERTd, SUPERTl, SUPERTs.
 

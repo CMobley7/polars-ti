@@ -55,11 +55,14 @@ pandas baseline and from TA-Lib, over a deterministic slice of `data/SPY_D.csv`:
 
 Key test modules:
 
-- `tests/test_parity_smoke.py` — all-study parity vs the pandas golden (TA-Lib mode).
+- `tests/test_talib_parity.py` — the full per-column TA-Lib-mode gate: every
+  shared all-study column matches the pandas golden within tolerance, except the
+  documented `match_talib`/`intentional`/`TALIB_DIVERGENCE` exceptions.
 - `tests/test_native_parity.py` — native-mode parity vs the native golden, with
   documented `NATIVE_DIVERGENCE` (columns where pandas-ta's native golden was
   TA-Lib-contaminated).
 - `tests/test_study_completeness.py` — column manifest + no all-NaN columns, both modes.
+- `tests/test_parity_smoke.py` — a fast oracle sanity subset (not the full gate).
 - `tests/test_indicators_parametrized.py` — every indicator runs, is non-empty,
   and is deterministic.
 

@@ -68,7 +68,7 @@ Polars-TI provides **176 indicators and candlestick-pattern groups** across 10 c
 | `stoch` | 3 | ✓ | Stochastic Oscillator (STOCH) |
 | `stochf` | 2 | ✓ | Fast Stochastic Oscillator (STOCHF) |
 | `stochrsi` | 2 | ✓ | Stochastic RSI (STOCHRSI) |
-| `tmo` | 4 | — | True Momentum Oscillator (TMO) |
+| `tmo` | 4 | ✓ | True Momentum Oscillator (TMO) |
 | `trix` | 2 | ✓ | TRIX (Triple Exponential Average Rate of Change) |
 | `trixh` | 3 | ✓ | TRIX Histogram (TRIXH) |
 | `tsi` | 2 | ✓ | True Strength Index (TSI) |
@@ -110,7 +110,7 @@ Polars-TI provides **176 indicators and candlestick-pattern groups** across 10 c
 | `smma` | 1 | ✓ | SMoothed Moving Average (SMMA) |
 | `ssf` | 1 | — | Ehler's Super Smoother Filter (SSF) |
 | `ssf3` | 1 | — | Ehler's 3 Pole Super Smoother Filter (SSF3) |
-| `supertrend` | 4 | ✓ | Supertrend - uses pl_hl2 and pl_atr composition. |
+| `supertrend` | 4 | ✓ | Supertrend - uses HL2 and ATR composition. |
 | `swma` | 1 | — | Symmetric Weighted Moving Average (SWMA) |
 | `t3` | 1 | ✓ | Tim Tillson's T3 Moving Average (T3) |
 | `tema` | 1 | ✓ | Triple Exponential Moving Average (TEMA) |
