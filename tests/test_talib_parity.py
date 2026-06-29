@@ -25,6 +25,14 @@ import pytest
 import polars_ti as ti  # noqa: F401 — registers 'ti'
 from _parity import assert_column, compare_frames
 from parity_exceptions import mode_for
+from polars_ti.maps import Imports
+
+# This gate grades the TA-Lib-mode study against the TA-Lib (old_talib) golden,
+# so it is only meaningful when TA-Lib is installed. In a no-TA-Lib environment
+# the study falls back to native output, which must NOT be compared to the
+# TA-Lib golden — skip the whole module (the native path is covered by
+# tests/test_native_parity.py).
+pytestmark = pytest.mark.skipif(not Imports["talib"], reason="requires TA-Lib (grades vs the TA-Lib golden)")
 
 FIXTURES = "tests/fixtures"
 SLICE_ROWS = 1500

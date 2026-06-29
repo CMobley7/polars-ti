@@ -170,8 +170,9 @@ pandas-ta):
   sub-indicator (see [§4c](#4c-native-vs-ta-lib-paths-talib-flag)).
 - **Restored/repaired indicators** — `ha`, `ichimoku`, `mama`, `pivots`, `hilo`,
   `psar`, `pmax`, `macd`, `ppo`, `ebsw`, `reflex`, `cksp`, `chop`, `atrts`,
-  `halftrend`, `inertia`, `pgo`, `rwi`, `vidya`, `invfisher` were broken or
-  emitted nothing in some path and now produce correct output in both modes.
+  `halftrend`, `inertia`, `pgo`, `rwi`, `vidya`, `ifisher` (INVFISHER) were
+  broken or emitted nothing in some path and now produce correct output in both
+  modes.
 
 ---
 
