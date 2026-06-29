@@ -1413,3 +1413,36 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
         return self._post_process(wb_tsv(c, v, **kw), **kw)
+
+
+# ---------------------------------------------------------------------------
+# Wrap every indicator accessor so the DataFrame-level ``append=`` keyword is
+# handled centrally instead of leaking into the indicator function (which would
+# raise ``TypeError: <ind>() got an unexpected keyword argument 'append'``).
+# When ``append=True`` the original DataFrame is returned with the new indicator
+# columns hstacked on; otherwise the result-only DataFrame is returned (default).
+# ``study``/``categories`` and private methods are excluded.
+# ---------------------------------------------------------------------------
+import functools as _functools
+
+_NON_INDICATOR_METHODS = {"categories", "study"}
+
+
+def _support_append(method):
+    @_functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        append = bool(kwargs.pop("append", False))
+        result = method(self, *args, **kwargs)
+        if append and isinstance(result, pl.DataFrame):
+            new_cols = [c for c in result.columns if c not in self._df.columns]
+            return self._df.hstack(result.select(new_cols))
+        return result
+
+    return wrapper
+
+
+for _m_name, _m_attr in list(vars(TechnicalIndicators).items()):
+    if _m_name.startswith("_") or _m_name in _NON_INDICATOR_METHODS:
+        continue
+    if callable(_m_attr):
+        setattr(TechnicalIndicators, _m_name, _support_append(_m_attr))
