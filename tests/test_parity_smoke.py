@@ -30,6 +30,10 @@ SLICE_ROWS = 1500
 
 @pytest.fixture(scope="module")
 def new_talib():
+    from polars_ti.maps import Imports
+
+    if not Imports["talib"]:
+        pytest.skip("requires TA-Lib (grades the talib study against the TA-Lib golden)")
     df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(SLICE_ROWS)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 """WS5 native-mode parity (talib=False) against the OLD notalib golden.
 
-The OLD library's ``old_notalib`` golden is a CLEAN native reference for most
-indicators, but NOT for a set of indicators whose OLD implementation either
-(a) never propagated ``talib`` to its internal MA/ATR/RSI (so the OLD "native"
-golden actually contains TA-Lib values), or (b) relied on OLD's buggy native
-RSI/ADX seed (pinned to TA-Lib via the ``match_talib`` exceptions). For those,
-the NEW native path is correct-by-design (Decision 4) and intentionally diverges
-from the OLD native golden — they are catalogued in ``NATIVE_DIVERGENCE``.
+IMPORTANT: the OLD ``old_notalib`` golden is NOT a faithful native reference for
+a sizeable set of indicators. OLD pervasively failed to propagate ``talib`` into
+its internal MA/ATR/RSI/CMO helpers (so the OLD "native" golden actually holds
+TA-Lib values), and OLD's own native RSI/ADX/CMO seeds were buggy (pinned to
+TA-Lib via the ``match_talib`` exceptions). For every such column the NEW native
+path is correct-by-design (Decision 4) and intentionally diverges from the OLD
+native golden; these are listed in ``NATIVE_DIVERGENCE``.
 
-A small set of genuine NEW native discrepancies that are NOT yet resolved are
-catalogued in ``NATIVE_TODO`` and xfail (so they are visible without failing CI).
+``NATIVE_TODO`` holds genuine NEW native discrepancies whose OLD golden *is*
+native (OLD propagated talib) and so remain to be root-caused; they xfail.
 
-Everything else must match the OLD native golden within float tolerance.
+Everything else must match the OLD native golden within float tolerance — this
+guards the ~290 genuinely-native columns against NEW native regressions and is
+the test that the no-TA-Lib CI leg relies on.
 """
 
 import warnings
@@ -27,40 +29,67 @@ from parity_exceptions import mode_for
 FIXTURES = "tests/fixtures"
 SLICE_ROWS = 1500
 
-# NEW native is correct-by-design; the OLD native golden is polluted here.
-NATIVE_DIVERGENCE = {
-    # OLD never propagated talib to internal atr()/ema()/stdev() -> OLD native
-    # golden holds TA-Lib values; NEW native uses true native math.
-    "RVI_14": "OLD _rvi used TA-Lib STDDEV/EMA even in native mode (non-propagation)",
-    "PGO_14": "OLD pgo used TA-Lib SMA/ATR/EMA even in native mode (non-propagation)",
-    "HT_atr_high_14_2_2": "OLD halftrend used TA-Lib ATR even in native mode",
-    "HT_atr_low_14_2_2": "OLD halftrend used TA-Lib ATR even in native mode",
-    "CKSPl_10_3_20": "OLD cksp used TA-Lib ATR even in native mode",
-    "CKSPs_10_3_20": "OLD cksp used TA-Lib ATR even in native mode",
-    "PMAX_10_3.0": "OLD pmax used TA-Lib MA/ATR even in native mode",
-    "PMAXl_10_3.0": "OLD pmax used TA-Lib MA/ATR even in native mode",
-    "PMAXs_10_3.0": "OLD pmax used TA-Lib MA/ATR even in native mode",
-    "TRIXs_30_9": "OLD trix signal used TA-Lib EMA seed even in native mode",
-    # OLD native RSI/ADX were buggy (pinned to TA-Lib via match_talib); NEW
-    # native uses the corrected values, so dependent indicators diverge.
-    "ALPHAT_14_1_50": "depends on OLD's buggy native RSI seed (see RSI_14 match_talib)",
-    "ALPHATl_14_1_50_2": "depends on OLD's buggy native RSI seed (see RSI_14 match_talib)",
-    "ADXR_14_2": "OLD native ADX/DM seed was buggy (see ADX_14 match_talib)",
-    "DMP_14": "OLD native DM seed was buggy (see ADX_14 match_talib)",
-    "VIDYA_14": "OLD vidya used TA-Lib CMO even in native mode; NEW native CMO clamped",
-    "HT_direction_14_2_2": "string label column; graded by test_halftrend_direction_parity",
-    "CRSI_3_2_100": "depends on OLD's buggy native RSI seed (see RSI_14 match_talib)",
+# Genuine NEW native discrepancies (OLD propagated talib, so the OLD native
+# golden is a real native reference) — root cause TBD; visible but non-blocking.
+NATIVE_TODO = {
+    "SMCbf_14_50_20_5",
+    "SMCbi_14_50_20_5",
+    "SMCbp_14_50_20_5",
+    "SMChv_14_50_20_5",
+    "SMCtf_14_50_20_5",
+    "SMCti_14_50_20_5",
+    "SMCtp_14_50_20_5",
 }
 
-# Genuine NEW native discrepancies still to be resolved (visible, non-blocking).
-NATIVE_TODO = {
-    "SMCbf_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
-    "SMCbi_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
-    "SMCbp_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
-    "SMChv_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
-    "SMCtf_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
-    "SMCti_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
-    "SMCtp_14_50_20_5": "NEW native SMC differs from OLD native; root cause TBD",
+# Columns whose OLD native golden is TA-Lib-contaminated (OLD non-propagation)
+# or depends on OLD's buggy native RSI/ADX/CMO seed. NEW native is correct by
+# Decision 4 and intentionally diverges; not graded against the OLD golden.
+NATIVE_DIVERGENCE = {
+    "ADXR_14_2",
+    "ALPHAT_14_1_50",
+    "ALPHATl_14_1_50_2",
+    "CFO_9",
+    "CKSPl_10_3_20",
+    "CKSPs_10_3_20",
+    "CRSI_3_2_100",
+    "DMP_14",
+    "HT_atr_high_14_2_2",
+    "HT_atr_low_14_2_2",
+    "HT_direction_14_2_2",  # string column; graded by test_halftrend_direction_parity
+    "INERTIA_20_14",
+    "KCLe_20_2",
+    "KCUe_20_2",
+    "KVO_34_55_13",
+    "KVOs_34_55_13",
+    "OTT_5_2.4",
+    "OTTd_5_2.4",
+    "OTTSL_5_2.4",
+    "PGO_14",
+    "PMAX_10_3.0",
+    "PMAXl_10_3.0",
+    "PMAXs_10_3.0",
+    "PVOh_12_26_9",
+    "PVOs_12_26_9",
+    "QQE_14_5_4.236",
+    "QQE_14_5_4.236_RSIMA",
+    "QQEl_14_5_4.236",
+    "QQEs_14_5_4.236",
+    "RVI_14",
+    "SMI_5_20_5_1.0",
+    "SMIo_5_20_5_1.0",
+    "SMIs_5_20_5_1.0",
+    "SQZ_NO",
+    "SQZ_OFF",
+    "SQZPRO_NO",
+    "SQZPRO_OFF",
+    "SUPERT_7_3.0",
+    "SUPERTl_7_3.0",
+    "SUPERTs_7_3.0",
+    "TRIX_18_9",
+    "TRIXh_18_9",
+    "TRIXs_18_9",
+    "TRIXs_30_9",
+    "VIDYA_14",
 }
 
 

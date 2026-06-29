@@ -14,6 +14,7 @@ def cmo(
     length: int = 14,
     scalar: float = 100.0,
     talib: bool = True,
+    drift: int = 1,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Chande Momentum Oscillator (CMO)
@@ -29,6 +30,7 @@ def cmo(
         length: Rolling period. Default: 14
         scalar: Multiplication factor. Default: 100
         talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        drift: Difference period for momentum. Default: 1
         offset: Shift result. Default: 0
 
     Returns:
@@ -53,7 +55,7 @@ def cmo(
         cmo_expr = close_expr.map_batches(compute_cmo_talib, return_dtype=pl.Float64)
     else:
         # Calculate momentum (diff)
-        mom = close_expr.diff(1)
+        mom = close_expr.diff(drift)
 
         # Positive gains (clipped lower=0)
         pos = mom.clip(lower_bound=0)

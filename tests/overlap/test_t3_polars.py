@@ -5,6 +5,8 @@ import numpy as np
 import polars as pl
 import pytest
 
+from polars_ti.maps import Imports
+
 from polars_ti.overlap.t3 import t3
 
 
@@ -45,6 +47,7 @@ class TestPlT3:
             if not np.isnan(no_offset[i]):
                 assert no_offset[i] == with_offset[i + 5], f"Offset mismatch at {i}"
 
+    @pytest.mark.skipif(not Imports["talib"], reason="warmup structure assumes the TA-Lib multi-stage warmup")
     def test_warmup_period_has_nan(self, sample_data):
         """Warmup period contains NaN values."""
         result = sample_data["pl_df"].select(t3("close", length=10)).to_series()

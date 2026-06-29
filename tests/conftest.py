@@ -38,6 +38,23 @@ import pytest
 import polars as pl
 
 import polars_ti as ti
+from polars_ti.maps import Imports
+
+# Test hook: force the library into its no-TA-Lib (native) code paths even when
+# TA-Lib is installed, so the no-TA-Lib behaviour can be exercised locally with
+# ``POLARS_TI_SIMULATE_NO_TALIB=1 uv run pytest``. In CI the no-TA-Lib leg simply
+# doesn't install TA-Lib, so this is only a convenience for local verification.
+if __import__("os").environ.get("POLARS_TI_SIMULATE_NO_TALIB") == "1":
+    Imports["talib"] = False
+    # Make ``import talib`` raise ImportError too, so try/except-guarded code
+    # paths behave exactly as in a real TA-Lib-absent environment.
+    sys.modules["talib"] = None
+
+# Whether TA-Lib is importable in this environment. Parity tests that grade
+# against the TA-Lib golden (old_talib / talib_reference) must skip when absent,
+# so the no-TA-Lib CI leg stays green (it exercises the native code paths).
+HAS_TALIB = bool(Imports.get("talib", False))
+requires_talib = pytest.mark.skipif(not HAS_TALIB, reason="requires TA-Lib")
 
 # Pre-warm all Numba JIT kernels once per session to prevent concurrent
 # JIT compilation crashes when multiple indicator modules are loaded together.

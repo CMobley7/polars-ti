@@ -98,17 +98,13 @@ jobs:
         if: matrix.talib == 'on'
         run: uv run pytest tests/ -q --tb=short --cov=polars_ti --cov-report=term-missing --cov-fail-under=90
 
-      # TA-Lib absent: the native paths still have known-broken indicators
-      # (COMPARISON_REPORT §3/§5/§6). Those parity cases are already xfail-gated
-      # (tests/parity_exceptions.py + test_parity_smoke.py), but a handful of
-      # legacy per-indicator tests may still fail until WS2-WS4 land. Keep the
-      # job present and visible but non-blocking for now.
-      # TODO(WS2-WS4): remove continue-on-error once native indicators are fixed
-      #   (restore broken indicators, fix the presma seeding bug, fix the value
-      #   bugs) so the no-TA-Lib leg is fully green and becomes a hard gate.
+      # TA-Lib absent: exercises the native (Numba) code paths. WS2-WS4 fixed
+      # the native indicators; parity tests that grade against the TA-Lib golden
+      # skip automatically when TA-Lib is missing (tests/conftest.py HAS_TALIB),
+      # and native-mode parity is enforced against the OLD native golden by
+      # tests/test_native_parity.py. This leg is now a hard gate.
       - name: Run tests (without TA-Lib)
         if: matrix.talib == 'off'
-        continue-on-error: true
         run: uv run pytest tests/ -q --tb=short
 
   security:

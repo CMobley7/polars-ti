@@ -15,10 +15,15 @@ import pytest
 
 import polars_ti as ti  # noqa: F401 — registers 'ti'
 from _parity import flatten_structs
+from polars_ti.maps import Imports
 
 FIXTURES = "tests/fixtures"
 SLICE_ROWS = 1500
 BASE = {"date", "open", "high", "low", "close", "volume", "dividends", "stock splits"}
+
+# In a no-TA-Lib environment the talib=True study falls back to native output,
+# so only the talib=False expectations are valid; skip the talib=True cases.
+_TALIB_MODES = [False] if not Imports["talib"] else [True, False]
 
 
 @pytest.fixture(scope="module")
@@ -34,7 +39,7 @@ def _study(talib: bool) -> pl.DataFrame:
         return df.ti.study(ti.AllStudy, cores=0, talib=talib, errors="ignore")
 
 
-@pytest.mark.parametrize("talib", [True, False])
+@pytest.mark.parametrize("talib", _TALIB_MODES)
 def test_study_column_manifest(manifest, talib):
     """The AllStudy output (flattened) must match the committed column manifest
     exactly in each mode — no silent drops, no unexpected additions. The
@@ -49,7 +54,7 @@ def test_study_column_manifest(manifest, talib):
     assert not extra, f"talib={talib}: unexpected new columns: {extra}"
 
 
-@pytest.mark.parametrize("talib", [True, False])
+@pytest.mark.parametrize("talib", _TALIB_MODES)
 def test_no_all_nan_study_columns(talib):
     """No indicator column may be entirely NaN/null in either mode."""
     flat = flatten_structs(_study(talib))

@@ -62,6 +62,10 @@ def native_report():
 
 @pytest.fixture(scope="module")
 def talib_report():
+    from polars_ti.maps import Imports
+
+    if not Imports["talib"]:
+        pytest.skip("requires TA-Lib (grades the talib study against the TA-Lib golden)")
     new = _study(talib=True)
     golden = pl.read_parquet(f"{FIXTURES}/old_talib.parquet")
     return compare_frames(new, golden)
