@@ -73,21 +73,79 @@ def _to_float(series: pl.Series):
         return None
 
 
+# Authoritative OLD-flat -> NEW-flattened(dotted) name map for the deliberate
+# struct/rename divergences (Decision 1). The NEW library keeps struct/dotted
+# output as canonical; these columns can't be folded by suffix matching because
+# the NEW struct field uses a short/different key, so they are mapped explicitly.
+# The values here are the column names produced by ``flatten_structs`` (i.e.
+# ``StructName.field``). Keep in sync with the optional pandas-ta-compat layer.
+RENAME_MAP: dict[str, str] = {
+    # Aroon struct (short field keys)
+    "AROOND_14": "AROON_14.AROOND",
+    "AROONOSC_14": "AROON_14.AROONOSC",
+    "AROONU_14": "AROON_14.AROONU",
+    # Chandelier Exit struct
+    "CHDLREXTd_22_22_14_2.0": "CHDLREXT_22_22_14_2.0.direction",
+    "CHDLREXTl_22_22_14_2.0": "CHDLREXT_22_22_14_2.0.long",
+    "CHDLREXTs_22_22_14_2.0": "CHDLREXT_22_22_14_2.0.short",
+    # Fair Value Gap struct
+    "FVGh_0": "FVG_0.fvg_high",
+    "FVGl_0": "FVG_0.fvg_low",
+    "FVGt_0": "FVG_0.fvg_type",
+    # Holt-Winters channel struct
+    "HWL_1": "HWC_1.hwl",
+    "HWM_1": "HWC_1.hwm",
+    "HWU_1": "HWC_1.hwu",
+    # Keltner Channel (ema) struct
+    "KCBe_20_2": "KC_e_20_2.kcb",
+    "KCLe_20_2": "KC_e_20_2.kcl",
+    "KCUe_20_2": "KC_e_20_2.kcu",
+    # Thermo struct
+    "THERMO_20_2_0.5": "THERMO_20_2_0.5.thermo",
+    "THERMOl_20_2_0.5": "THERMO_20_2_0.5.thermo_long",
+    "THERMOma_20_2_0.5": "THERMO_20_2_0.5.thermo_ma",
+    "THERMOs_20_2_0.5": "THERMO_20_2_0.5.thermo_short",
+    # TOS Standard-deviation-all struct (dot vs underscore separator)
+    "TOS_STDEVALL_LR": "TOS_STDEVALL.LR",
+    "TOS_STDEVALL_L_1": "TOS_STDEVALL.L_1",
+    "TOS_STDEVALL_L_2": "TOS_STDEVALL.L_2",
+    "TOS_STDEVALL_L_3": "TOS_STDEVALL.L_3",
+    "TOS_STDEVALL_U_1": "TOS_STDEVALL.U_1",
+    "TOS_STDEVALL_U_2": "TOS_STDEVALL.U_2",
+    "TOS_STDEVALL_U_3": "TOS_STDEVALL.U_3",
+    # VWAP anchor naming
+    "VWAP_D": "VWAP_1D",
+}
+
+
 def _build_name_map(old_inds: list[str], new_inds: list[str]) -> list[tuple[str, str]]:
     """Fold flattened NEW ``structkey.field`` names onto OLD names.
 
-    Exact match first; otherwise the shortest NEW column that ends with the OLD
-    name (either ``== old``, ``endswith('.'+old)`` or ``endswith(old)``).
+    Explicit :data:`RENAME_MAP` first; then exact match; otherwise the shortest
+    NEW column that ends with the OLD name (``== old``, ``endswith('.'+old)`` or
+    ``endswith(old)``).
     """
     new_set = set(new_inds)
     common: list[tuple[str, str]] = []
     matched_new: set[str] = set()
 
+    # 1) Explicit rename map (deliberate struct/rename divergences).
     for oc in old_inds:
-        if oc in new_set:
+        nc = RENAME_MAP.get(oc)
+        if nc is not None and nc in new_set and nc not in matched_new:
+            common.append((oc, nc))
+            matched_new.add(nc)
+
+    # 2) Exact name match.
+    already = {a for a, _ in common}
+    for oc in old_inds:
+        if oc in already:
+            continue
+        if oc in new_set and oc not in matched_new:
             common.append((oc, oc))
             matched_new.add(oc)
 
+    # 3) Suffix fold for the remaining struct columns.
     already = {a for a, _ in common}
     for oc in old_inds:
         if oc in already:

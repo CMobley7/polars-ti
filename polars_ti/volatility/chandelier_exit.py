@@ -17,6 +17,8 @@ def chandelier_exit(
     atr_length: int = 14,
     multiplier: float = 2.0,
     use_close: bool = False,
+    mamode: str = "rma",
+    talib: bool = True,
     drift: int = 1,
     offset: int = 0,
 ) -> pl.Expr:
@@ -52,8 +54,9 @@ def chandelier_exit(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    # ATR using pl_atr composition
-    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode="rma", talib=False)
+    # ATR using pl_atr composition. OLD chandelier propagated talib to atr, so
+    # honour talib here (default True) to match the OLD golden in talib mode.
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode=mamode, talib=talib)
     atr_mult = atr_expr * pl.lit(multiplier)
 
     # Rolling max/min for long/short
@@ -65,10 +68,13 @@ def chandelier_exit(
         long_expr = high_expr.rolling_max(window_size=high_length, min_samples=1) - atr_mult
         short_expr = low_expr.rolling_min(window_size=low_length, min_samples=1) + atr_mult
 
-    # Direction: uptrend (1) if close > long.shift, downtrend (-1) if close < short.shift
-    # Replace 0 with null, ffill, default to 1
-    uptrend = (close_expr > long_expr.shift(drift)).cast(pl.Int64)
-    downtrend = (close_expr < short_expr.shift(drift)).cast(pl.Int64) * -1
+    # Direction: uptrend (1) if close > long.shift, downtrend (-1) if close <
+    # short.shift. Guard NaN comparisons (close > NaN is True in Polars) so the
+    # warmup yields 0 like pandas; then replace 0 with null, ffill, default to 1.
+    long_shift = long_expr.shift(drift)
+    short_shift = short_expr.shift(drift)
+    uptrend = ((close_expr > long_shift) & long_shift.is_not_nan() & long_shift.is_not_null()).cast(pl.Int64)
+    downtrend = ((close_expr < short_shift) & short_shift.is_not_nan() & short_shift.is_not_null()).cast(pl.Int64) * -1
     raw_dir = uptrend + downtrend
     direction = pl.when(raw_dir == 0).then(None).otherwise(raw_dir).forward_fill().fill_null(1).cast(pl.Float64)
 

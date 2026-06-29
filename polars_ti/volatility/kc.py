@@ -16,6 +16,7 @@ def kc(
     scalar: float = 2.0,
     mamode: str = "ema",
     tr: bool = True,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Keltner Channels (KC)
@@ -56,9 +57,11 @@ def kc(
     else:
         range_expr = high_expr - low_expr
 
-    # Basis = MA(close) and Band = MA(range) using pl_ma composition
-    basis = ma(name=mamode, source=close_expr, length=length, talib=False)
-    band = ma(name=mamode, source=range_expr, length=length, talib=False)
+    # Basis = MA(close) and Band = MA(range) using pl_ma composition.
+    # OLD kc never propagated talib to its MAs, so honour talib (default True)
+    # to match the OLD golden's TA-Lib MA in talib mode.
+    basis = ma(name=mamode, source=close_expr, length=length, talib=talib)
+    band = ma(name=mamode, source=range_expr, length=length, talib=talib)
 
     # KC bands
     lower = basis - pl.lit(scalar) * band

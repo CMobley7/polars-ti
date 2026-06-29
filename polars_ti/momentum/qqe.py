@@ -122,7 +122,8 @@ def qqe(
 
     wilders_length = 2 * length - 1
     _mode = mamode.lower()[0] if mamode != "ema" else ""
-    _props = f"_{_mode}_{length}_{smooth}_{factor:.3f}".replace(".", "_")
+    _props = f"{_mode}_{length}_{smooth}_{factor}"
+    _rsima_name = f"QQE{_props}_RSI{_mode.upper()}MA"
 
     # Capture loop variables for closure
     _length = length
@@ -165,6 +166,7 @@ def qqe(
         return pl.DataFrame(
             {
                 f"QQE{_props_str}": qqe_vals,
+                _rsima_name: rsi_ma_col,
                 f"QQEl{_props_str}": qqe_long_vals,
                 f"QQEs{_props_str}": qqe_short_vals,
             }
@@ -175,11 +177,12 @@ def qqe(
         return_dtype=pl.Struct(
             [
                 pl.Field(f"QQE{_props}", pl.Float64),
+                pl.Field(_rsima_name, pl.Float64),
                 pl.Field(f"QQEl{_props}", pl.Float64),
                 pl.Field(f"QQEs{_props}", pl.Float64),
             ]
         ),
-    )
+    ).alias(f"QQE{_props}")
 
     if offset != 0:
         result = result.shift(offset)

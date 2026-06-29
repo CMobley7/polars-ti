@@ -13,7 +13,7 @@ def cube(
     pwr: float = 3.0,
     signal_offset: int = -1,
     offset: int = 0,
-) -> pl.Expr:
+) -> list[PlExpr]:
     """Polars: Cube Transform
 
     Compresses signals near zero for normalized oscillators like
@@ -32,7 +32,7 @@ def cube(
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        pl.Expr: Cube transform expression
+        list[pl.Expr]: ``[CUBE_{pwr}_{signal_offset}, CUBEs_{pwr}_{signal_offset}]``.
     """
     close_expr = v_expr(close)
     if close_expr is None:
@@ -41,10 +41,16 @@ def cube(
     # Pure native Polars: simple power operation
     result = close_expr.pow(pwr)
 
-    # Apply offsets
+    # OLD applies BOTH offset and signal_offset to BOTH lines, so the main and
+    # signal series are identical (preserved for parity).
+    ct = result
+    signal = result
     if offset != 0:
-        result = result.shift(offset)
+        ct = ct.shift(offset)
+        signal = signal.shift(offset)
     if signal_offset != 0:
-        result = result.shift(signal_offset)
+        ct = ct.shift(signal_offset)
+        signal = signal.shift(signal_offset)
 
-    return result.alias(f"CUBE_{pwr}_{signal_offset}")
+    _props = f"_{pwr}_{signal_offset}"
+    return [ct.alias(f"CUBE{_props}"), signal.alias(f"CUBEs{_props}")]

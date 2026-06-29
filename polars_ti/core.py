@@ -1393,6 +1393,13 @@ class TechnicalIndicators:
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
+        # Anchor on a datetime column when one is present (daily reset, like the
+        # OLD DatetimeIndex behaviour); otherwise VWAP is cumulative.
+        if kw.get("datetime_col") is None:
+            for cand in ("date", "datetime", "time", "timestamp"):
+                if cand in self._df.columns and self._df.schema[cand] in (pl.Date, pl.Datetime):
+                    kw["datetime_col"] = cand
+                    break
         return self._post_process(vwap(h, lo, c, v, **kw), **kw)
 
     def vwma(self, close=None, volume=None, **kw):

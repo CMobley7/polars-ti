@@ -143,6 +143,47 @@ _FIXED_GROUPS = {
         "HT_arr_up_14_2_2",
         "HT_arr_down_14_2_2",
     ],
+    # WS5 — surfaced once the struct/rename name-map (tests/_parity.RENAME_MAP)
+    # let the parity engine grade these columns. Each is graded through the map.
+    # qqe: result was never aliased (collided as 'close'), _props had a leading
+    #   underscore and replaced '.'; restored naming + the RSIMA basis column.
+    "qqe": [
+        "QQE_14_5_4.236",
+        "QQE_14_5_4.236_RSIMA",
+        "QQEl_14_5_4.236",
+        "QQEs_14_5_4.236",
+    ],
+    # cube: emitted only the main line; now returns the CUBEs signal too.
+    "cube": ["CUBE_3.0_-1", "CUBEs_3.0_-1"],
+    # kc/thermo/chandelier: internal ma()/atr() hardcoded talib=False; now honour
+    # talib (OLD used TA-Lib). thermo/chandelier also had NaN-comparison flag bugs.
+    "kc": ["KCLe_20_2", "KCBe_20_2", "KCUe_20_2"],
+    "thermo": [
+        "THERMO_20_2_0.5",
+        "THERMOma_20_2_0.5",
+        "THERMOl_20_2_0.5",
+        "THERMOs_20_2_0.5",
+    ],
+    "chandelier_exit": [
+        "CHDLREXTl_22_22_14_2.0",
+        "CHDLREXTs_22_22_14_2.0",
+        "CHDLREXTd_22_22_14_2.0",
+    ],
+    # vwap: accessor now passes a datetime column so VWAP anchors (daily reset).
+    "vwap": ["VWAP_D"],
+    # Folded-and-already-correct struct renames (guard the name-map folding).
+    "aroon": ["AROOND_14", "AROONU_14", "AROONOSC_14"],
+    "fvg": ["FVGh_0", "FVGl_0", "FVGt_0"],
+    "hwc": ["HWL_1", "HWM_1", "HWU_1"],
+    "tos_stdevall": [
+        "TOS_STDEVALL_LR",
+        "TOS_STDEVALL_L_1",
+        "TOS_STDEVALL_L_2",
+        "TOS_STDEVALL_L_3",
+        "TOS_STDEVALL_U_1",
+        "TOS_STDEVALL_U_2",
+        "TOS_STDEVALL_U_3",
+    ],
 }
 
 # --- Still broken / missing / all-NaN in NEW (COMPARISON_REPORT §3, §6) --------

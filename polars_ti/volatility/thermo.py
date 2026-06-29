@@ -17,6 +17,7 @@ def thermo(
     mamode: str = "ema",
     asint: bool = True,
     drift: int = 1,
+    talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
     """Polars: Elders Thermometer (THERMO)
@@ -56,12 +57,16 @@ def thermo(
     # thermo = max(thermoL, thermoH) - using when/then/otherwise
     thermo = pl.when(thermo_h < thermo_l).then(thermo_l).otherwise(thermo_h)
 
-    # MA of thermo
-    thermo_ma = ma(name=mamode, source=thermo, length=length, talib=False)
+    # MA of thermo. OLD thermo never propagated talib to its MA, so honour talib
+    # (default True) to match the OLD golden's TA-Lib MA in talib mode.
+    thermo_ma = ma(name=mamode, source=thermo, length=length, talib=talib)
 
-    # Long/Short signals
-    thermo_long_cond = thermo < (thermo_ma * pl.lit(long))
-    thermo_short_cond = thermo > (thermo_ma * pl.lit(short))
+    # Long/Short signals. Guard NaN comparisons (thermo < NaN is True in Polars,
+    # since NaN sorts highest) so warmup yields 0 like pandas, not a spurious 1.
+    thermo_long_thr = thermo_ma * pl.lit(long)
+    thermo_short_thr = thermo_ma * pl.lit(short)
+    thermo_long_cond = (thermo < thermo_long_thr) & thermo_long_thr.is_not_nan() & thermo_long_thr.is_not_null()
+    thermo_short_cond = (thermo > thermo_short_thr) & thermo_short_thr.is_not_nan() & thermo_short_thr.is_not_null()
 
     # Cast to int if requested
     if asint:

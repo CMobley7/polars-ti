@@ -62,6 +62,13 @@ def test_parity_engine_runs(report):
     assert n_match > 200
 
 
+def test_no_unmapped_old_columns(report):
+    """Completeness: every OLD golden column folds onto a NEW column (via exact
+    name, struct-suffix, or the explicit RENAME_MAP). No OLD column is silently
+    dropped/renamed without being graded."""
+    assert report["__old_only__"] == [], f"OLD columns not folded onto any NEW column: {report['__old_only__']}"
+
+
 def test_known_good_column_matches(report):
     assert_column(report, "SMA_10")
 
