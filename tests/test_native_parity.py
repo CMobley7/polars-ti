@@ -83,7 +83,8 @@ NATIVE_DIVERGENCE = {
     "TRIXh_18_9",
     "TRIXs_18_9",
     "TRIXs_30_9",
-    "VIDYA_14",
+    # VIDYA_14 is registered "intentional" in parity_exceptions (classic 1474768
+    # SMA-seed; no TA-Lib equiv), so it is excluded from native grading there.
 }
 
 

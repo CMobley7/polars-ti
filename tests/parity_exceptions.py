@@ -71,6 +71,13 @@ _INTENTIONAL = {
     # (canonical TradingView "Heatmap Volume"); it intentionally diverges from
     # the buggy OLD golden and is pinned by test_vhm_canonical (not vs OLD).
     "VHM_610": "OLD pstdev(volume, slength) misuses mean-arg as window (constant denom); NEW rolling stdev is canonical",
+    # classic 1474768: VIDYA now seeds the recurrence with the SMA of the first
+    # `length` closes (vidya[length-1] = mean(close[:length])) instead of 0; the
+    # zero-seed produced a long, materially-wrong transient. There is no TA-Lib
+    # VIDYA, so it is graded against the classic fork's vidya output (native CMO)
+    # by tests/overlap/test_vidya_polars.py (max_abs ~5.7e-14), not the OLD
+    # goldens (which baked in the zero-seed bug). NEW diverges in BOTH modes.
+    "VIDYA_14": "classic 1474768: SMA-seed recurrence; no TA-Lib equiv; pinned vs classic fork (native), not OLD golden",
 }
 
 # --- WS2-WS4 FIXED: now match the OLD golden within float tol -----------------
@@ -107,8 +114,6 @@ _FIXED_GROUPS = {
     "chop": ["CHOP_14_1_100.0"],
     "cksp": ["CKSPl_10_3_20", "CKSPs_10_3_20"],
     "halftrend_tl": ["HT_TL"],  # trend line fixed; the other HT_* still broken
-    # WS4 — value bug repaired (§6)
-    "vidya": ["VIDYA_14"],
     # WS4 — NaN-comparison guard in increasing()/decreasing() (NaN > 0 == True
     # in Polars produced spurious warmup 1s); now 0 during warmup like pandas.
     "amat": ["AMATe_LR_8_21_2", "AMATe_SR_8_21_2"],

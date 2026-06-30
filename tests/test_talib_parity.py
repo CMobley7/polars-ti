@@ -49,6 +49,14 @@ TALIB_DIVERGENCE = {
     # OLD baked in the buggy ema default in BOTH goldens; NEW talib-mode NATR
     # matches talib.NATR exactly (pinned by tests/volatility/test_natr_polars.py).
     "NATR_14": "classic b914429: NATR mamode default rma; NEW talib matches talib.NATR (OLD golden used ema)",
+    # classic 1474768 (downstream of the VIDYA SMA-seed fix): OTT defaults to
+    # mamode="vidya", and its OTTSL field IS vidya(length=5) exactly. The OLD
+    # goldens baked in the buggy zero-seed VIDYA, so OTT/OTTSL/OTTd diverge in
+    # BOTH modes. OTTSL == NEW vidya (validated vs the classic fork); OTT/OTTd
+    # are deterministic transforms of it.
+    "OTT_5_2.4": "classic 1474768: OTTSL == seed-fixed vidya(5); OLD golden used zero-seed vidya",
+    "OTTSL_5_2.4": "classic 1474768: OTTSL == seed-fixed vidya(5); OLD golden used zero-seed vidya",
+    "OTTd_5_2.4": "classic 1474768: OTT direction derived from seed-fixed vidya; OLD golden used zero-seed vidya",
 }
 
 

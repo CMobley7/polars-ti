@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from numpy import zeros
 from numba import njit
 
 
@@ -9,10 +8,16 @@ def nb_vidya(close, abs_cmo, alpha, length):
     """Numba-optimized VIDYA calculation.
 
     State-dependent loop: each VIDYA value depends on previous VIDYA value.
-    Values before 'length' are left as 0 and converted to NaN later.
+    The recurrence is seeded at index ``length-1`` with the SMA of the first
+    ``length`` closes (classic fork commit 1474768) instead of being left at 0;
+    seeding from 0 produced a long, materially-wrong transient. Indices before
+    ``length-1`` stay NaN.
     """
     m = close.size
-    vidya = zeros(m)
+    vidya = np.full(m, np.nan)
+    if length - 1 < m:
+        # SMA seed over the first `length` closes.
+        vidya[length - 1] = close[:length].mean()
 
     for i in range(length, m):
         vidya[i] = alpha * abs_cmo[i] * close[i] + vidya[i - 1] * (1 - alpha * abs_cmo[i])
@@ -90,11 +95,8 @@ def vidya(
         # (a degenerate native CMO must not diverge VIDYA to +/-inf).
         abs_cmo = np.nan_to_num(np.clip(np.abs(cmo_vals), 0.0, 1.0)).astype(np.float64)
 
-        # Use the shared Numba kernel
+        # Use the shared Numba kernel (SMA-seeded; warmup stays NaN).
         result = nb_vidya(arr, abs_cmo, alpha, _length)
-
-        # Replace zeros with NaN
-        result[result == 0] = np.nan
 
         return pl.Series(result)
 
