@@ -78,6 +78,18 @@ _INTENTIONAL = {
     # by tests/overlap/test_vidya_polars.py (max_abs ~5.7e-14), not the OLD
     # goldens (which baked in the zero-seed bug). NEW diverges in BOTH modes.
     "VIDYA_14": "classic 1474768: SMA-seed recurrence; no TA-Lib equiv; pinned vs classic fork (native), not OLD golden",
+    # classic 9258bf6: PSAR reversal test now uses the GUARDED SAR (guard spans
+    # the prior TWO bars' high/low) and long/short are reclassified from the
+    # combined SAR using close (SAR<close->long, else short), matching TA-Lib.
+    # TA-Lib's SAR is a single series with no af/reversal columns, so these can't
+    # be folded onto talib_reference; the combined SAR line is validated against
+    # talib.SAR (== exactly after the warmup transient) by
+    # tests/trend/test_psar_polars.py. NEW diverges from the OLD goldens (which
+    # baked in the pre-fix reversal/guard logic) in BOTH modes.
+    "PSARl_0.02_0.2": "classic 9258bf6: guarded reversal + 2-bar guard + close reclassify; combined SAR == talib.SAR (pinned by test)",
+    "PSARs_0.02_0.2": "classic 9258bf6: guarded reversal + 2-bar guard + close reclassify; combined SAR == talib.SAR (pinned by test)",
+    "PSARaf_0.02_0.2": "classic 9258bf6: acceleration factor follows the TA-Lib-aligned reversal logic; no TA-Lib equivalent column",
+    "PSARr_0.02_0.2": "classic 9258bf6: reversal flag follows the TA-Lib-aligned guarded reversal; no TA-Lib equivalent column",
 }
 
 # --- WS2-WS4 FIXED: now match the OLD golden within float tol -----------------
@@ -104,7 +116,6 @@ _FIXED_GROUPS = {
         "PIVOTS_TRAD_D_R4",
     ],
     "pmax": ["PMAX_10_3.0", "PMAXd_10_3.0", "PMAXl_10_3.0", "PMAXs_10_3.0"],
-    "psar": ["PSARaf_0.02_0.2", "PSARl_0.02_0.2", "PSARr_0.02_0.2", "PSARs_0.02_0.2"],
     "rwi": ["RWIh_14", "RWIl_14"],
     # WS2 — talib kwarg crash repaired (§3)
     "macd": ["MACD_12_26_9", "MACDh_12_26_9", "MACDs_12_26_9"],

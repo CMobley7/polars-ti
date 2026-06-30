@@ -36,17 +36,22 @@ def _nb_psar(high, low, sar0, has_close, af0, max_af):
         sar[i] = sar[i - 1] + af * (ep - sar[i - 1])
 
         if falling:
-            reverse = high[i] > sar[i]
             if low[i] < ep:
                 ep = low[i]
                 af = min(af + af0, max_af)
-            sar[i] = max(high[i - 1], sar[i])
+            # Guard: clamp to the prior TWO bars' highs (classic 9258bf6). The
+            # reversal test must use the GUARDED SAR, not the raw projection, to
+            # match TA-Lib (avoids off-by-one misclassification at reversals).
+            # max(0, i-2) keeps i==1 from indexing -1 (the last element).
+            sar[i] = max(high[i - 1], high[max(0, i - 2)], sar[i])
+            reverse = high[i] > sar[i]
         else:
-            reverse = low[i] < sar[i]
             if high[i] > ep:
                 ep = high[i]
                 af = min(af + af0, max_af)
-            sar[i] = min(low[i - 1], sar[i])
+            # Symmetric short-stop guard over the prior two bars' lows.
+            sar[i] = min(low[i - 1], low[max(0, i - 2)], sar[i])
+            reverse = low[i] < sar[i]
 
         if reverse:
             sar[i] = ep
@@ -101,8 +106,19 @@ def psar(
         data = s.struct.unnest()
         h = data["_h"].to_numpy().astype(np.float64)
         l_ = data["_l"].to_numpy().astype(np.float64)
-        sar0 = float(data["_c"].to_numpy().astype(np.float64)[0]) if _has_close else 0.0
+        c_arr = data["_c"].to_numpy().astype(np.float64)
+        sar0 = float(c_arr[0]) if _has_close else 0.0
         long_a, short_a, af_a, rev_a = _nb_psar(h, l_, sar0, _has_close, _af0, max_af)
+
+        # Reclassify long/short from the combined SAR using close (classic
+        # 9258bf6): SAR < close -> long, SAR >= close -> short. This matches
+        # TA-Lib's convention and avoids off-by-one splits at reversal bars that
+        # the `falling` flag alone produces. The combined SAR (the per-bar value)
+        # is unchanged; only which of PSARl/PSARs holds it changes.
+        if _has_close:
+            combined = np.where(~np.isnan(long_a), long_a, short_a)
+            long_a = np.where(combined < c_arr, combined, np.nan)
+            short_a = np.where(combined >= c_arr, combined, np.nan)
 
         if offset != 0:
             for a in [long_a, short_a, af_a]:
