@@ -76,6 +76,7 @@ from polars_ti.momentum.rsx import rsx
 from polars_ti.momentum.rvgi import rvgi
 from polars_ti.momentum.slope import slope
 from polars_ti.momentum.smc import smc
+from polars_ti.momentum.smc_sweep import smc_sweep
 from polars_ti.momentum.smi import smi
 from polars_ti.momentum.squeeze import squeeze
 from polars_ti.momentum.squeeze_pro import squeeze_pro
@@ -764,6 +765,13 @@ class TechnicalIndicators:
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(smc(o, h, lo, c, **kw), **kw)
+
+    def smc_sweep(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(smc_sweep(o, h, lo, c, **kw), **kw)
 
     def smi(self, close=None, **kw):
         return self._post_process(smi(self._col(close or kw.pop("close", "close")), **kw), **kw)

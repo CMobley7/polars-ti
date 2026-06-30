@@ -80,6 +80,7 @@ Category: Dict[str, ListStr] = {
         "rvgi",
         "slope",
         "smc",
+        "smc_sweep",
         "smi",
         "squeeze",
         "squeeze_pro",

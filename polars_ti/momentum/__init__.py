@@ -38,6 +38,7 @@ from polars_ti.momentum.rsx import rsx
 from polars_ti.momentum.rvgi import rvgi
 from polars_ti.momentum.slope import slope
 from polars_ti.momentum.smc import smc
+from polars_ti.momentum.smc_sweep import smc_sweep
 from polars_ti.momentum.smi import smi
 from polars_ti.momentum.squeeze import squeeze
 from polars_ti.momentum.squeeze_pro import squeeze_pro
@@ -93,6 +94,7 @@ __all__ = [
     "rvgi",
     "slope",
     "smc",
+    "smc_sweep",
     "smi",
     "squeeze",
     "squeeze_pro",

@@ -84,6 +84,7 @@ from polars_ti.momentum import (
     rvgi,
     slope,
     smc,
+    smc_sweep,
     smi,
     squeeze,
     squeeze_pro,
