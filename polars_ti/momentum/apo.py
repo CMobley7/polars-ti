@@ -1,78 +1,68 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars APO (Absolute Price Oscillator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.maps import Imports
-from polars_ti.utils import tal_ma, v_mamode, v_offset, v_pos_default, v_series, v_talib
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def apo(
-    close: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Absolute Price Oscillator (APO)
+    close: IntoExpr,
+    fast: int = 12,
+    slow: int = 26,
+    mamode: str = "sma",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Absolute Price Oscillator (APO)
 
-    The Absolute Price Oscillator is an indicator used to measure a
-    security's momentum.  It is simply the difference of two Exponential
-    Moving Averages (EMA) of two different periods. Note: APO and MACD lines
-    are equivalent.
-
-    Sources:
-        https://www.tradingtechnologies.com/xtrader-help/x-study/technical-indicator-definitions/absolute-price-oscillator-apo/
+    Measures momentum using the difference between fast and slow MAs.
+    APO = MA(close, fast) - MA(close, slow)
 
     Args:
-        close (pd.Series): Series of 'close's
-        fast (int): The short period. Default: 12
-        slow (int): The long period. Default: 26
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        fast: Short period. Default: 12
+        slow: Long period. Default: 26
+        mamode: Moving average type. Default: 'sma'
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: APO expression
     """
-    # Validate
-    fast = v_pos_default(fast, 12)
-    slow = v_pos_default(slow, 26)
+    import numpy as np
+    from polars_ti.maps import Imports
+    from polars_ti.ma import ma
+    from polars_ti.utils import v_talib, tal_ma
+
     if slow < fast:
         fast, slow = slow, fast
-    close = v_series(close, max(fast, slow))
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
+    _use_talib = Imports["talib"] and v_talib(talib)
 
-    mamode = v_mamode(mamode, "sma")
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+    if _use_talib:
+        _fast = fast
+        _slow = slow
+        _mamode = mamode
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import APO
+        def compute_apo(s: pl.Series) -> pl.Series:
+            from talib import APO as TALIB_APO
 
-        apo = APO(close, fast, slow, tal_ma(mamode))
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_APO(arr, _fast, _slow, tal_ma(_mamode))
+            return pl.Series(f"APO_{_fast}_{_slow}", result)
+
+        apo_expr = close_expr.map_batches(compute_apo, return_dtype=pl.Float64)
     else:
-        fastma = ma(mamode, close, length=fast, talib=mode_tal)
-        slowma = ma(mamode, close, length=slow, talib=mode_tal)
-        apo = fastma - slowma
+        # Use pl_ma for code reuse
+        fast_ma = ma(name=mamode, source=close_expr, length=fast, talib=False)
+        slow_ma = ma(name=mamode, source=close_expr, length=slow, talib=False)
+        apo_expr = fast_ma - slow_ma
 
-    # Offset
     if offset != 0:
-        apo = apo.shift(offset)
+        apo_expr = apo_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        apo = apo.fillna(kwargs["fillna"])
-    # Name and Category
-    apo.name = f"APO_{fast}_{slow}"
-    apo.category = "momentum"
-
-    return apo
+    return apo_expr.alias(f"APO_{fast}_{slow}")

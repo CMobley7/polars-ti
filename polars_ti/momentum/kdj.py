@@ -1,95 +1,133 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars KDJ Implementation
+# =============================================================================
+import numpy as np
+import polars as pl
+from numba import njit
 
-from polars_ti.utils import (
-    non_zero_range,
-    rma_pandas,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _nb_rma(x: np.ndarray, n: int) -> np.ndarray:
+    """RMA matching OLD pandas-ta ``rma_pandas``.
+
+    OLD: ``series.ewm(alpha=1/length, min_periods=length).mean()`` — i.e. an
+    *adjusted* EWM (``adjust=True``, the pandas default), NOT the recursive
+    ``adjust=False`` form. Output is null until ``length`` valid observations
+    have been seen. We reproduce it with a running weighted numerator/denominator
+    (``ignore_na=False`` ages the weights across internal NaNs).
+    """
+    m = len(x)
+    result = np.full(m, np.nan, dtype=np.float64)
+    alpha = 1.0 / n
+    decay = 1.0 - alpha
+
+    num = 0.0
+    den = 0.0
+    count = 0
+    for i in range(m):
+        if np.isnan(x[i]):
+            # ignore_na=False: weights still age through a missing observation.
+            num *= decay
+            den *= decay
+            continue
+        num = num * decay + x[i]
+        den = den * decay + 1.0
+        count += 1
+        if count >= n:
+            result[i] = num / den
+    return result
 
 
 def kdj(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    signal: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """KDJ (KDJ)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 9,
+    signal: int = 3,
+    offset: int = 0,
+) -> list[pl.Expr]:
+    """Polars: KDJ
 
-    The KDJ indicator is actually a derived form of the Slow
-    Stochastic with the only difference being an extra line
-    called the J line. The J line represents the divergence
-    of the %D value from the %K. The value of J can go
-    beyond [0, 100] for %K and %D lines on the chart.
+    The KDJ indicator is a derived form of the Slow Stochastic with an
+    extra J line (divergence of %D from %K). J can go beyond [0, 100].
 
     Sources:
         https://www.prorealcode.com/prorealtime-indicators/kdj/
         https://docs.anychart.com/Stock_Charts/Technical_Indicators/Mathematical_Description#kdj
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): Default: 9
-        signal (int): Default: 3
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Stochastic lookback. Default: 9
+        signal: Smoothing period. Default: 3
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: k, d, and j columns
+        list[pl.Expr]: [K, D, J] expressions
     """
-    # Validate
-    length = v_pos_default(length, 9)
-    signal = v_pos_default(signal, 3)
-    _length = length + signal + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if high is None or low is None or close is None:
-        return
+    _length = length
+    _signal = signal
 
-    offset = v_offset(offset)
+    def compute(s: pl.Series) -> pl.Series:
+        df = s.struct.unnest()
+        h_arr = df["high"].to_numpy().astype(np.float64)
+        l_arr = df["low"].to_numpy().astype(np.float64)
+        c_arr = df["close"].to_numpy().astype(np.float64)
+        n = len(h_arr)
 
-    # Calculate
-    highest_high = high.rolling(length).max()
-    lowest_low = low.rolling(length).min()
+        # Rolling max/min with window = _length
+        highest_high = np.full(n, np.nan)
+        lowest_low = np.full(n, np.nan)
+        for i in range(_length - 1, n):
+            window_h = h_arr[i - _length + 1 : i + 1]
+            window_l = l_arr[i - _length + 1 : i + 1]
+            if not np.any(np.isnan(window_h)):
+                highest_high[i] = np.max(window_h)
+            if not np.any(np.isnan(window_l)):
+                lowest_low[i] = np.min(window_l)
 
-    fastk = 100 * (close - lowest_low) / non_zero_range(highest_high, lowest_low)
+        # Fast %K — OLD uses non_zero_range(highest_high, lowest_low): the raw
+        # range, with sys.float_info.epsilon added to EVERY element only if any
+        # element is exactly zero (common in crypto where high == low).
+        denom = highest_high - lowest_low
+        if np.any(denom == 0.0):
+            denom = denom + np.finfo(np.float64).eps
+        fastk = 100.0 * (c_arr - lowest_low) / denom
 
-    k = rma_pandas(fastk, length=signal)
-    d = rma_pandas(k, length=signal)
-    j = 3 * k - 2 * d
+        # Smooth with RMA
+        k_arr = _nb_rma(fastk, _signal)
+        d_arr = _nb_rma(k_arr, _signal)
+        j_arr = 3.0 * k_arr - 2.0 * d_arr
 
-    # Offset
-    if offset != 0:
-        k = k.shift(offset)
-        d = d.shift(offset)
-        j = j.shift(offset)
+        return pl.Series([{"K": float(kv), "D": float(dv), "J": float(jv)} for kv, dv, jv in zip(k_arr, d_arr, j_arr)])
 
-    # Fill
-    if "fillna" in kwargs:
-        k = k.fillna(kwargs["fillna"])
-        d = d.fillna(kwargs["fillna"])
-        j = j.fillna(kwargs["fillna"])
+    struct_expr = pl.struct(high=high_expr, low=low_expr, close=close_expr)
+    result = struct_expr.map_batches(
+        compute,
+        return_dtype=pl.Struct({"K": pl.Float64, "D": pl.Float64, "J": pl.Float64}),
+    )
 
-    # Name and Category
     _props = f"_{length}_{signal}"
-    k.name = f"K{_props}"
-    d.name = f"D{_props}"
-    j.name = f"J{_props}"
-    k.category = d.category = j.category = "momentum"
+    k_expr = result.struct.field("K")
+    d_expr = result.struct.field("D")
+    j_expr = result.struct.field("J")
 
-    data = {k.name: k, d.name: d, j.name: j}
-    df = DataFrame(data, index=close.index)
-    df.name = f"KDJ{_props}"
-    df.category = "momentum"
+    if offset != 0:
+        k_expr = k_expr.shift(offset)
+        d_expr = d_expr.shift(offset)
+        j_expr = j_expr.shift(offset)
 
-    return df
+    return [
+        k_expr.alias(f"K{_props}"),
+        d_expr.alias(f"D{_props}"),
+        j_expr.alias(f"J{_props}"),
+    ]

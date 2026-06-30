@@ -1,3687 +1,1448 @@
 # -*- coding: utf-8 -*-
-from dataclasses import dataclass
-from multiprocessing import Pool, cpu_count
-from pathlib import Path
-from time import perf_counter
-from warnings import simplefilter
+"""Polars-TI DataFrame namespace extension.
 
-from numpy import log10, ndarray
-from pandas import DataFrame, Series
-from pandas import options as pd_options
-from pandas.api.extensions import register_dataframe_accessor
-from pandas.errors import PerformanceWarning
+Registers under ``df.ti`` via ``@pl.api.register_dataframe_namespace("ti")``.
 
-from polars_ti._typing import (
-    Args,
-    DictLike,
-    Float,
-    Int,
-    List,
-    ListStr,
-    MaybeSeriesFrame,
-    SeriesFrame,
-    Tuple,
-    Union,
-)
-from polars_ti.candles import cdl_doji, cdl_inside, cdl_pattern, cdl_z, ha
-from polars_ti.custom import create_dir, import_dir
-from polars_ti.cycles import dsp, ebsw, reflex
+Usage::
+
+    import polars as pl
+    import polars_ti  # noqa: F401 — side-effect: registers the 'ti' namespace
+
+    df = pl.read_csv("data.csv")
+
+    # Compute a single indicator (returns a new DataFrame with the result columns)
+    sma_df = df.ti.sma()
+
+    # Append result columns to the existing DataFrame
+    df = df.ti.sma(append=True)
+
+    # Access indicator with custom parameters
+    result = df.ti.macd(fast=12, slow=26, signal=9)
+"""
+
+from __future__ import annotations
+
+from multiprocessing import cpu_count
+
+import polars as pl
+
+from polars_ti._typing import DictLike
+from polars_ti.candles.cdl_doji import cdl_doji
+from polars_ti.candles.cdl_inside import cdl_inside
+from polars_ti.candles.cdl_pattern import cdl, cdl_pattern
+from polars_ti.candles.cdl_z import cdl_z
+from polars_ti.candles.ha import ha
+from polars_ti.cycles.dsp import dsp
+from polars_ti.cycles.ebsw import ebsw
+from polars_ti.cycles.reflex import reflex
 from polars_ti.ma import ma
-from polars_ti.maps import EXCHANGE_TZ, RATE, Category, Imports, version
-from polars_ti.momentum import (
-    ao,
-    apo,
-    bias,
-    bop,
-    brar,
-    cci,
-    cfo,
-    cg,
-    cmo,
-    coppock,
-    crsi,
-    cti,
-    dm,
-    er,
-    eri,
-    exhc,
-    fisher,
-    imi,
-    inertia,
-    kdj,
-    kst,
-    lrsi,
-    macd,
-    mom,
-    pgo,
-    po,
-    ppo,
-    psl,
-    qqe,
-    rmi,
-    roc,
-    rsi,
-    rsx,
-    rvgi,
-    slope,
-    smc,
-    smi,
-    squeeze,
-    squeeze_pro,
-    stc,
-    stoch,
-    stochf,
-    stochrsi,
-    tmo,
-    trix,
-    trixh,
-    tsi,
-    uo,
-    vwmacd,
-    willr,
-)
-from polars_ti.overlap import (
-    alligator,
-    alma,
-    dema,
-    ema,
-    fwma,
-    hilo,
-    hl2,
-    hlc3,
-    hma,
-    hwma,
-    ichimoku,
-    jma,
-    kama,
-    linreg,
-    mama,
-    mcgd,
-    midpoint,
-    midprice,
-    mmar,
-    ohlc4,
-    ott,
-    pivots,
-    pwma,
-    rainbow,
-    rma,
-    sinwma,
-    sma,
-    smma,
-    ssf,
-    ssf3,
-    supertrend,
-    swma,
-    t3,
-    tema,
-    trima,
-    vidya,
-    wcp,
-    wma,
-    zlma,
-)
-from polars_ti.performance import drawdown, log_return, percent_return
-from polars_ti.statistics import (
-    entropy,
-    kurtosis,
-    mad,
-    median,
-    quantile,
-    skew,
-    stdev,
-    tos_stdevall,
-    variance,
-    zscore,
-)
-from polars_ti.transform import cube, ifisher, remap
-from polars_ti.trend import (
-    adx,
-    alphatrend,
-    amat,
-    aroon,
-    chop,
-    cksp,
-    decay,
-    decreasing,
-    dpo,
-    ht_trendline,
-    increasing,
-    long_run,
-    pmax,
-    psar,
-    qstick,
-    rwi,
-    short_run,
-    trama,
-    trendflex,
-    tsignals,
-    ttm_trend,
-    vhf,
-    vortex,
-    xsignals,
-    zigzag,
-)
-from polars_ti.utils import (
-    Study,
-    final_time,
-    get_time,
-    to_utc,
-    total_time,
-    v_dataframe,
-    v_datetime_ordered,
-)
-from polars_ti.volatility import (
-    aberration,
-    accbands,
-    atr,
-    atrts,
-    avsl,
-    bbands,
-    chandelier_exit,
-    donchian,
-    fvg,
-    halftrend,
-    hwc,
-    kc,
-    massi,
-    natr,
-    pdist,
-    rvi,
-    thermo,
-    true_range,
-    ui,
-)
-from polars_ti.volume import (
-    ad,
-    adosc,
-    aobv,
-    avwap,
-    cmf,
-    efi,
-    eom,
-    kvo,
-    mfi,
-    nvi,
-    obv,
-    pvi,
-    pvo,
-    pvol,
-    pvr,
-    pvt,
-    vfi,
-    vhm,
-    vp,
-    vwap,
-    vwma,
-    wb_tsv,
-)
-
-if Imports["dotenv"]:
-    from dotenv import load_dotenv
+from polars_ti.maps import EXCHANGE_TZ, Category, Imports, version
+from polars_ti.momentum.ao import ao
+from polars_ti.momentum.apo import apo
+from polars_ti.momentum.bias import bias
+from polars_ti.momentum.bop import bop
+from polars_ti.momentum.brar import brar
+from polars_ti.momentum.cci import cci
+from polars_ti.momentum.cfo import cfo
+from polars_ti.momentum.cg import cg
+from polars_ti.momentum.cmo import cmo
+from polars_ti.momentum.coppock import coppock
+from polars_ti.momentum.crsi import crsi
+from polars_ti.momentum.cti import cti
+from polars_ti.momentum.dm import dm
+from polars_ti.momentum.er import er
+from polars_ti.momentum.eri import eri
+from polars_ti.momentum.exhc import exhc
+from polars_ti.momentum.fisher import fisher
+from polars_ti.momentum.imi import imi
+from polars_ti.momentum.inertia import inertia
+from polars_ti.momentum.kdj import kdj
+from polars_ti.momentum.kst import kst
+from polars_ti.momentum.lrsi import lrsi
+from polars_ti.momentum.macd import macd
+from polars_ti.momentum.mom import mom
+from polars_ti.momentum.pgo import pgo
+from polars_ti.momentum.po import po
+from polars_ti.momentum.ppo import ppo
+from polars_ti.momentum.psl import psl
+from polars_ti.momentum.qqe import qqe
+from polars_ti.momentum.rmi import rmi
+from polars_ti.momentum.roc import roc
+from polars_ti.momentum.rsi import rsi
+from polars_ti.momentum.rsx import rsx
+from polars_ti.momentum.rvgi import rvgi
+from polars_ti.momentum.slope import slope
+from polars_ti.momentum.smc import smc
+from polars_ti.momentum.smi import smi
+from polars_ti.momentum.squeeze import squeeze
+from polars_ti.momentum.squeeze_pro import squeeze_pro
+from polars_ti.momentum.stc import stc
+from polars_ti.momentum.stoch import stoch
+from polars_ti.momentum.stochf import stochf
+from polars_ti.momentum.stochrsi import stochrsi
+from polars_ti.momentum.tmo import tmo
+from polars_ti.momentum.trix import trix
+from polars_ti.momentum.trixh import trixh
+from polars_ti.momentum.tsi import tsi
+from polars_ti.momentum.uo import uo
+from polars_ti.momentum.vwmacd import vwmacd
+from polars_ti.momentum.willr import willr
+from polars_ti.overlap.alligator import alligator
+from polars_ti.overlap.alma import alma
+from polars_ti.overlap.dema import dema
+from polars_ti.overlap.ema import ema
+from polars_ti.overlap.fwma import fwma
+from polars_ti.overlap.hilo import hilo
+from polars_ti.overlap.hl2 import hl2
+from polars_ti.overlap.hlc3 import hlc3
+from polars_ti.overlap.hma import hma
+from polars_ti.overlap.hwma import hwma
+from polars_ti.overlap.ichimoku import ichimoku
+from polars_ti.overlap.jma import jma
+from polars_ti.overlap.kama import kama
+from polars_ti.overlap.linreg import linreg
+from polars_ti.overlap.mama import mama
+from polars_ti.overlap.mcgd import mcgd
+from polars_ti.overlap.midpoint import midpoint
+from polars_ti.overlap.midprice import midprice
+from polars_ti.overlap.mmar import mmar
+from polars_ti.overlap.ohlc4 import ohlc4
+from polars_ti.overlap.ott import ott
+from polars_ti.overlap.pivots import pivots
+from polars_ti.overlap.pwma import pwma
+from polars_ti.overlap.rainbow import rainbow
+from polars_ti.overlap.rma import rma
+from polars_ti.overlap.sinwma import sinwma
+from polars_ti.overlap.sma import sma
+from polars_ti.overlap.smma import smma
+from polars_ti.overlap.ssf import ssf
+from polars_ti.overlap.ssf3 import ssf3
+from polars_ti.overlap.supertrend import supertrend
+from polars_ti.overlap.swma import swma
+from polars_ti.overlap.t3 import t3
+from polars_ti.overlap.tema import tema
+from polars_ti.overlap.trima import trima
+from polars_ti.overlap.vidya import vidya
+from polars_ti.overlap.wcp import wcp
+from polars_ti.overlap.wma import wma
+from polars_ti.overlap.zlma import zlma
+from polars_ti.performance.drawdown import drawdown
+from polars_ti.performance.log_return import log_return
+from polars_ti.performance.percent_return import percent_return
+from polars_ti.statistics.entropy import entropy
+from polars_ti.statistics.kurtosis import kurtosis
+from polars_ti.statistics.mad import mad
+from polars_ti.statistics.median import median
+from polars_ti.statistics.quantile import quantile
+from polars_ti.statistics.skew import skew
+from polars_ti.statistics.stdev import stdev
+from polars_ti.statistics.tos_stdevall import tos_stdevall
+from polars_ti.statistics.variance import variance
+from polars_ti.statistics.zscore import zscore
+from polars_ti.transform.cube import cube
+from polars_ti.transform.ifisher import ifisher
+from polars_ti.transform.remap import remap
+from polars_ti.trend.adx import adx
+from polars_ti.trend.alphatrend import alphatrend
+from polars_ti.trend.amat import amat
+from polars_ti.trend.aroon import aroon
+from polars_ti.trend.chop import chop
+from polars_ti.trend.cksp import cksp
+from polars_ti.trend.decay import decay
+from polars_ti.trend.decreasing import decreasing
+from polars_ti.trend.dpo import dpo
+from polars_ti.trend.ht_trendline import ht_trendline
+from polars_ti.trend.increasing import increasing
+from polars_ti.trend.long_run import long_run
+from polars_ti.trend.pmax import pmax
+from polars_ti.trend.psar import psar
+from polars_ti.trend.qstick import qstick
+from polars_ti.trend.rwi import rwi
+from polars_ti.trend.short_run import short_run
+from polars_ti.trend.trama import trama
+from polars_ti.trend.trendflex import trendflex
+from polars_ti.trend.tsignals import tsignals
+from polars_ti.trend.ttm_trend import ttm_trend
+from polars_ti.trend.vhf import vhf
+from polars_ti.trend.vortex import vortex
+from polars_ti.trend.xsignals import xsignals
+from polars_ti.trend.zigzag import zigzag
+from polars_ti.volatility.aberration import aberration
+from polars_ti.volatility.accbands import accbands
+from polars_ti.volatility.atr import atr
+from polars_ti.volatility.atrts import atrts
+from polars_ti.volatility.avsl import avsl
+from polars_ti.volatility.bbands import bbands
+from polars_ti.volatility.chandelier_exit import chandelier_exit
+from polars_ti.volatility.donchian import donchian
+from polars_ti.volatility.fvg import fvg
+from polars_ti.volatility.halftrend import halftrend
+from polars_ti.volatility.hwc import hwc
+from polars_ti.volatility.kc import kc
+from polars_ti.volatility.massi import massi
+from polars_ti.volatility.natr import natr
+from polars_ti.volatility.pdist import pdist
+from polars_ti.volatility.rvi import rvi
+from polars_ti.volatility.thermo import thermo
+from polars_ti.volatility.true_range import true_range
+from polars_ti.volatility.ui import ui
+from polars_ti.volume.ad import ad
+from polars_ti.volume.adosc import adosc
+from polars_ti.volume.aobv import aobv
+from polars_ti.volume.avwap import avwap
+from polars_ti.volume.cmf import cmf
+from polars_ti.volume.efi import efi
+from polars_ti.volume.eom import eom
+from polars_ti.volume.kvo import kvo
+from polars_ti.volume.mfi import mfi
+from polars_ti.volume.nvi import nvi
+from polars_ti.volume.obv import obv
+from polars_ti.volume.pvi import pvi
+from polars_ti.volume.pvo import pvo
+from polars_ti.volume.pvol import pvol
+from polars_ti.volume.pvr import pvr
+from polars_ti.volume.pvt import pvt
+from polars_ti.volume.vfi import vfi
+from polars_ti.volume.vhm import vhm
+from polars_ti.volume.vp import vp
+from polars_ti.volume.vwap import vwap
+from polars_ti.volume.vwma import vwma
+from polars_ti.volume.wb_tsv import wb_tsv
 
 
-# Polars TI - DataFrame Extension Indicators
-@register_dataframe_accessor("ti")
-class TechnicalIndicators(object):
-    """
-    This Pandas Extension is named 'ti' for Technical Indicators. In other words,
-    it is a Numerical Time Series Feature Generator where the Time Series data
-    with emphasis on Financial Market data; typical data includes columns
-    named :"open", "high", "low", "close", "volume".
+def _collect(result) -> pl.DataFrame | None:
+    """Collect either a LazyFrame, one or more Expr, or a DataFrame to raw data."""
+    if result is None:
+        return None
+    if isinstance(result, pl.LazyFrame):
+        return result.collect()
+    if isinstance(result, pl.DataFrame):
+        return result
+    # Single or list of pl.Expr — evaluate against a zero-row frame isn't possible
+    # without the parent frame; callers that need raw eval should pass it through
+    return result
 
-    This TI Library hopefully allows you to apply familiar and unique Technical
-    Indicators easily with this DataFrame Extension. Even though 'ti'
-    is a Pandas DataFrame Extension, you can still call Technical
-    Indicators individually if you are more comfortable with that approach or
-    it allows you to easily and automatically apply the indicators with the
-    study method. See: help(ti.study).
 
-    By default, the 'ti' extension uses lower case column names: open, high,
-    low, close, and volume. You can override the defaults by providing the it's
-    replacement name when calling the indicator. For example, to call the
-    indicator hl2().
+@pl.api.register_dataframe_namespace("ti")
+class TechnicalIndicators:
+    """Polars DataFrame namespace extension for Technical Indicators.
 
-    With 'default' columns: open, high, low, close, and volume.
-    >>> df.ti.hl2()
-    >>> df.ti(kind="hl2")
+    Provides a ``df.ti`` accessor that mirrors the behaviour of the legacy
+    pandas ``df.ti`` extension, updated for the native Polars API.
 
-    With DataFrame columns: Open, High, Low, Close, and Volume.
-    >>> df.ti.hl2(high="High", low="Low")
-    >>> df.ti(kind="hl2", high="High", low="Low")
+    All indicator methods:
+    - Accept keyword arguments that override the default column names
+      (e.g. ``close="Close"``, ``high="High"``, …)
+    - Return a **new** ``pl.DataFrame`` containing only the result columns,
+      unless ``append=True`` is passed — in which case the result columns
+      are appended to ``self._df`` and the *full* DataFrame is returned.
 
-    If you do not want to use a DataFrame Extension, just call it normally.
-    >>> sma10 = ti.sma(df["Close"]) # Default length=10
-    >>> sma50 = ti.sma(df["Close"], length=50)
-    >>> ichimoku, span = ti.ichimoku(df["High"], df["Low"], df["Close"])
+    Example::
 
-    Args:
-        kind (str, optional): Default: None. Kind is the 'name' of the indicator.
-            It converts kind to lowercase before calling.
-        timed (bool, optional): Default: False. Curious about the execution
-            speed?
-        kwargs: Extension specific modifiers.
-            append (bool, optional): Default: False. When True, it appends the
-            resultant column(s) to the DataFrame.
+        import polars as pl
+        import polars_ti  # registers 'ti' namespace
 
-    Returns:
-        Most Indicators will return a Pandas Series. Others like MACD, BBANDS,
-        KC, et al will return a Pandas DataFrame. Ichimoku on the other hand
-        will return two DataFrames, the Ichimoku DataFrame for the known period
-        and a Span DataFrame for the future of the Span values.
-
-    Let's get started!
-
-    1. Loading the 'ti' module:
-    >>> import pandas as pd
-    >>> import polars_ti as ti
-
-    2. Load some data:
-    >>> df = pd.read_csv("AAPL.csv", index_col="date", parse_dates=True)
-
-    3. Help!
-    3a. General Help:
-    >>> help(df.ti)
-    >>> df.ti()
-    3b. Indicator Help:
-    >>> help(ti.apo)
-    3c. Indicator Extension Help:
-    >>> help(df.ti.apo)
-
-    4. Ways of calling an indicator.
-    4a. Standard: Calling just the APO indicator without "ti" DataFrame extension.
-    >>> ti.apo(df["close"])  # or ti.apo(df.close)
-    4b. DataFrame Extension: Calling just the APO indicator with "ti" DataFrame extension.
-    >>> df.ti.apo()
-    4c. DataFrame Extension (kind): Calling APO using 'kind'
-    >>> df.ti(kind="apo")
-    4d. Study:
-    >>> df.ti.study("All") # Default
-    >>> df.ti.study(ti.Study("My Strat", ti=[{"kind": "apo"}])) # Custom
-
-    5. Working with kwargs
-    5a. Append the result to the working df.
-    >>> df.ti.apo(append=True)
-    5b. Timing an indicator.
-    >>> apo = df.ti(kind="apo", timed=True)
-    >>> print(apo.timed)
+        df = pl.read_csv("SPY.csv")
+        sma20 = df.ti.sma(length=20)                   # new 1-col DataFrame
+        df    = df.ti.sma(length=20, append=True)       # df + SMA_20 column
+        df    = df.ti(kind="sma", length=20, append=True)
     """
 
-    # DataFrame Extension Properties
-    _adjusted = None
-    _config = None
-    _cores = cpu_count()
-    _custom = None
-    _df = DataFrame()
-    _ds = "yf" if Imports["yfinance"] else None
-    _exchange = "NYSE"
-    _last_run = get_time(_exchange, to_string=True)
-    _time_range = "years"
+    _cores: int = cpu_count()
+    _exchange: str = "NYSE"
 
-    def __init__(self, obj: SeriesFrame):
-        v_dataframe(obj)
-        self._df = obj
-        self._last_run = get_time(self._exchange, to_string=True)
+    def __init__(self, df: pl.DataFrame) -> None:
+        self._df = df
 
-    # DataFrame Behavioral Methods
-    def __call__(
-        self,
-        kind: str = None,
-        timed: bool = False,
-        version: bool = False,
-        **kwargs: DictLike,
-    ):
-        if version:
-            print(f"Polars TI - Technical Indicators - v{self.version}")
-        try:
-            if isinstance(kind, str):
-                kind = kind.lower()
-                fn = getattr(self, kind)
+    # ------------------------------------------------------------------
+    # Dunder helpers
+    # ------------------------------------------------------------------
 
-                if timed:
-                    stime = perf_counter()
+    def __call__(self, kind: str = None, **kwargs: DictLike):
+        """Call an indicator by name: ``df.ti(kind="sma", length=20)``."""
+        if isinstance(kind, str):
+            fn = getattr(self, kind.lower(), None)
+            if fn is None:
+                raise AttributeError(f"Unknown indicator: '{kind}'")
+            return fn(**kwargs)
+        self.help()
 
-                # Run the indicator
-                result = fn(**kwargs)  # = getattr(self, kind)(**kwargs)
+    def help(self) -> None:
+        """Print available indicators."""
+        inds = self.indicators(as_list=True)
+        print(f"Polars TI v{self.version} — {len(inds)} indicators:\n  " + ", ".join(inds))
 
-                if timed:
-                    result.timed = final_time(stime)
-                    print(f"[+] {kind}: {result.timed}")
-
-                self._last_run = get_time(self.exchange, to_string=True)
-                return result
-            else:
-                self.help()
-
-        except BaseException:
-            pass
-
-    # Public Get/Set DataFrame Properties
-    @property
-    def adjusted(self) -> str:
-        """property: df.ti.adjusted"""
-        return self._adjusted
-
-    @adjusted.setter
-    def adjusted(self, value: str) -> None:
-        """property: df.ti.adjusted = 'adj_close'"""
-        if value is not None and isinstance(value, str):
-            self._adjusted = value
-        else:
-            self._adjusted = None
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
 
     @property
-    def cores(self) -> Int:
-        """Returns the number of CPU cores."""
-        return self._cores
-
-    @cores.setter
-    def cores(self, value: Int) -> None:
-        """property: df.ti.cores = 0 <= int <= cpu_count"""
-        cpus = cpu_count()
-        if value is not None and isinstance(value, int):
-            self._cores = int(value) if 0 <= value <= cpus else cpus
-        else:
-            self._cores = cpus
+    def version(self) -> str:
+        return version
 
     @property
     def exchange(self) -> str:
-        """Returns the current Exchange. Default: "NYSE"."""
         return self._exchange
 
     @exchange.setter
     def exchange(self, value: str) -> None:
-        """property: df.ti.exchange = "LSE" """
-        if value is not None and isinstance(value, str) and value in EXCHANGE_TZ.keys():
+        if value in EXCHANGE_TZ:
             self._exchange = value
 
     @property
-    def last_run(self) -> str:
-        """Returns the time when the DataFrame was last run."""
-        return self._last_run
+    def cores(self) -> int:
+        return self._cores
 
-    # Public Get DataFrame Properties
-    @property
-    def config(self) -> str:
-        """Returns the Polars TI JSON config path."""
-        return f"{self._config}"
+    @cores.setter
+    def cores(self, value: int) -> None:
+        cpus = cpu_count()
+        self._cores = int(value) if isinstance(value, int) and 0 <= value <= cpus else cpus
 
-    @config.setter
-    def config(self, value: str) -> None:
-        """property: df.ti.config = None (Default)"""
-        _p = Path(value).expanduser()
-        if _p.exists() and _p.suffix == ".json":
-            self._config = _p
-        else:
-            self._config = None
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
 
-    @property
-    def time_range(self) -> Float:
-        """Returns the time ranges of the DataFrame as a float. Default is in "years". help(ti.total_time)"""
-        return total_time(self._df, self._time_range)
-
-    @time_range.setter
-    def time_range(self, value: str) -> None:
-        """property: df.ti.time_range = "years" (Default)"""
-        if value is not None and isinstance(value, str):
-            self._time_range = value
-        else:
-            self._time_range = "years"
-
-    @property
-    def version(self) -> str:
-        """Returns the version."""
-        return version
-
-    # Private DataFrame Methods
-    def _add_prefix_suffix(
-        self, result: MaybeSeriesFrame = None, **kwargs: DictLike
-    ) -> MaybeSeriesFrame:
-        """Add prefix and/or suffix to the result columns"""
-        if result is None:
-            return
-        else:
-            prefix = suffix = ""
-            delimiter = kwargs.setdefault("delimiter", "_")
-
-            if "prefix" in kwargs:
-                prefix = f"{kwargs['prefix']}{delimiter}"
-            if "suffix" in kwargs:
-                suffix = f"{delimiter}{kwargs['suffix']}"
-
-            if isinstance(result, Series):
-                result.name = prefix + result.name + suffix
-            else:
-                result.columns = [prefix + column + suffix for column in result.columns]
-
-    def _append(
-        self, result: MaybeSeriesFrame = None, **kwargs: DictLike
-    ) -> MaybeSeriesFrame:
-        """Appends a Pandas Series or DataFrame columns to self._df."""
-        if "append" in kwargs and kwargs["append"]:
-            df = self._df
-            if df is None or result is None:
-                return
-            else:
-                simplefilter(action="ignore", category=PerformanceWarning)
-                pd_options.mode.chained_assignment = None
-
-                if "col_names" in kwargs and not isinstance(kwargs["col_names"], tuple):
-                    kwargs["col_names"] = (
-                        kwargs["col_names"],
-                    )  # Note: tuple(kwargs["col_names"]) doesn't work
-
-                if isinstance(result, DataFrame):
-                    # If specified in kwargs, rename the columns.
-                    # If not, use the default names.
-                    if "col_names" in kwargs and isinstance(kwargs["col_names"], tuple):
-                        if len(kwargs["col_names"]) >= len(result.columns):
-                            for col, ind_name in zip(
-                                result.columns, kwargs["col_names"]
-                            ):
-                                df[ind_name] = result.loc[:, col]
-                        else:
-                            print(
-                                f"[!] Not enough col_names were specified : got {len(kwargs['col_names'])}, expected {len(result.columns)}."
-                            )
-                            return
-                    else:
-                        # df = result.copy(deep=True) # Breaks Extension Indicators?
-                        for i, column in enumerate(result.columns):
-                            df[column] = result.iloc[:, i]
-                else:
-                    ind_name = (
-                        kwargs["col_names"][0]
-                        if "col_names" in kwargs
-                        and isinstance(kwargs["col_names"], tuple)
-                        else result.name
-                    )
-                    df[ind_name] = result
-                pd_options.mode.chained_assignment = "warn"
-
-    def _check_na_columns(self):
-        """Returns the columns in which all it's values are na."""
-        return [x for x in self._df.columns if all(self._df[x].isna())]
-
-    def _get_column(self, series: Series | str | None):
-        """Attempts to get the correct series or 'column' and return it."""
-        df = self._df
-        if df is None:
-            return
-
-        # Explicitly passing a pd.Series to override default.
-        if isinstance(series, Series):
-            return series
-        # Apply default if no series nor a default.
-        elif series is None:
-            return df[self.adjusted] if self.adjusted is not None else None
-        # Ok.  So it's a str.
-        elif isinstance(series, str):
-            # Return the df column since it's in there.
-            if series in df.columns:
-                return df[series]
-            else:
-                # Attempt to match the 'series' because it was likely
-                # misspelled.
-                matches = df.columns.str.match(series, case=False)
-                match = [i for i, x in enumerate(matches) if x]
-                # If found, awesome.  Return it or return the 'series'.
-                NOT_FOUND = f"[X] The '{series}' column was not found in"
-                cols = ", ".join(list(df.columns))
-
-                if len(df.columns):
-                    NOT_FOUND += f": {cols}"
-                else:
-                    NOT_FOUND += " the DataFrame"
-
-                if len(match):
-                    return df.iloc[:, match[0]]
-                else:
-                    print(NOT_FOUND)
-
-    def _indicators_by_category(self, name: str) -> List:
-        """Returns indicators by Categorical name."""
-        return Category[name] if name in self.categories() else None
-
-    def _mp_worker(self, arguments: Tuple):
-        """Multiprocessing Worker to handle different Methods."""
-        method, args, kwargs = arguments
-
-        if method != "ichimoku":
-            return getattr(self, method)(*args, **kwargs)
-        else:
-            return getattr(self, method)(*args, **kwargs)[0]
+    def _col(self, name: str) -> pl.Expr:
+        """Return ``pl.col(name)`` if the column exists, else raise."""
+        if name not in self._df.columns:
+            # Try case-insensitive match
+            lower = {c.lower(): c for c in self._df.columns}
+            if name.lower() in lower:
+                return pl.col(lower[name.lower()])
+            raise KeyError(f"Column '{name}' not found. Available: {self._df.columns}")
+        return pl.col(name)
 
     def _post_process(
-        self, result: Series | DataFrame, **kwargs: DictLike
-    ) -> Series | DataFrame:
-        """Applies any additional modifications to the DataFrame
-        * Applies prefixes and/or suffixes
-        * Appends the result to main DataFrame
+        self,
+        exprs,
+        append: bool = False,
+        **kwargs,
+    ) -> pl.DataFrame:
+        """Evaluate *exprs* against the parent DataFrame and optionally append.
+
+        Args:
+            exprs: A single ``pl.Expr``, a list of ``pl.Expr``, or a
+                   ``pl.DataFrame`` already evaluated.
+            append: When True, hstack the result columns onto ``self._df``.
+
+        Returns:
+            Either the result-only DataFrame or (when append=True) the
+            parent DataFrame with result columns hstacked.
         """
-        verbose = kwargs.pop("verbose", False)
-        if not isinstance(result, (Series, DataFrame)):
-            if verbose:
-                print(f"[X] The result is not a Series or DataFrame.")
+        df = self._df
+
+        # Normalise to list[Expr] or DataFrame
+        if isinstance(exprs, pl.Expr):
+            result_df = df.select(exprs)
+        elif isinstance(exprs, list):
+            # Flatten: may contain Expr or nested lists (e.g. from pl_exhc)
+            flat: list[pl.Expr] = []
+            for e in exprs:
+                if isinstance(e, list):
+                    flat.extend(e)
+                else:
+                    flat.append(e)
+            result_df = df.select(flat)
+        elif isinstance(exprs, pl.DataFrame):
+            result_df = exprs
+        elif isinstance(exprs, pl.LazyFrame):
+            result_df = exprs.collect()
+        else:
+            return df
+
+        if append:
+            # Drop columns that already exist (avoid duplicates)
+            new_cols = [c for c in result_df.columns if c not in df.columns]
+            self._df = df.hstack(result_df.select(new_cols))
             return self._df
-        else:
-            # Append only specific columns to the dataframe (via
-            # 'col_numbers':(0,1,3) for example)
-            result = (
-                result.iloc[:, [int(n) for n in kwargs["col_numbers"]]]
-                if isinstance(result, DataFrame)
-                and "col_numbers" in kwargs
-                and kwargs["col_numbers"] is not None
-                else result
-            )
-            # Add prefix/suffix and append to the dataframe
-            self._add_prefix_suffix(result=result, **kwargs)
 
-            if "append" in kwargs and isinstance(kwargs["append"], bool):
-                if not kwargs["append"]:
-                    # Issue 388 - No appending, just print to stdout
-                    # No DatetimeIndex could break execution.
-                    print(result)
-                else:
-                    # Default: Appends result to DataFrame
-                    self._append(result=result, **kwargs)
-        return result
+        return result_df
 
-    def _study_mode(self, *args: Args) -> Tuple:
-        """Helper method to determine the mode and name of the study.
-        Returns tuple: (name:str, mode:dict)"""
-        name = "All"
-        mode = {"all": False, "category": False, "custom": False}
+    # ------------------------------------------------------------------
+    # Utility methods
+    # ------------------------------------------------------------------
 
-        if len(args) == 0:
-            mode["all"] = True
-        else:
-            _categories = self.categories()
-            if isinstance(args[0], str):
-                if args[0].lower() == "all":
-                    name, mode["all"] = name, True
-                if args[0].lower() in _categories:
-                    name, mode["category"] = args[0], True
-
-            if isinstance(args[0], Study):
-                study_ = args[0]
-                if study_.ti is None or study_.name.lower() == "all":
-                    name, mode["all"] = name, True
-                elif study_.name.lower() in _categories:
-                    name, mode["category"] = study_.name, True
-                else:
-                    name, mode["custom"] = study_.name, True
-
-        return name, mode
-
-    # Public DataFrame Methods
-    def categories(self) -> ListStr:
-        """Returns the categories."""
+    def categories(self) -> list[str]:
+        """Return the list of indicator categories."""
         return list(Category.keys())
 
-    def constants(self, append: bool, values: List):
-        """Constants
-
-        Add or remove constants to the DataFrame easily with Numpy's arrays or
-        lists. Useful when you need easily accessible horizontal lines for
-        charting.
-
-        Add constant '1' to the DataFrame
-        >>> df.ti.constants(True, [1])
-        Remove constant '1' to the DataFrame
-        >>> df.ti.constants(False, [1])
-
-        Adding constants for charting
-        >>> import numpy as np
-        >>> chart_lines = np.append(np.arange(-4, 5, 1), np.arange(-100, 110, 10))
-        >>> df.ti.constants(True, chart_lines)
-        Removing some constants from the DataFrame
-        >>> df.ti.constants(False, np.array([-60, -40, 40, 60]))
-
-        Args:
-            append (bool): If True, appends a Numpy range of constants to the
-                working DataFrame. If False, it removes the constant range from
-                the working DataFrame. Default: None.
-
-        Returns:
-            Returns the appended constants
-            Returns nothing to the user.  Either adds or removes constant ranges
-            from the working DataFrame.
-        """
-        if isinstance(values, ndarray) or isinstance(values, list):
-            if append:
-                for x in values:
-                    self._df[f"{x}"] = x
-                return self._df[self._df.columns[-len(values) :]]
-            else:
-                for x in values:
-                    del self._df[f"{x}"]
-
-    def datetime_ordered(self) -> bool:
-        """Returns True if the index is a datetime and ordered."""
-        if hasattr(self, "_df"):
-            return v_datetime_ordered(self._df)
-        return False
-
-    def indicators(self, as_list: bool = None, exclude: ListStr = None) -> List:
-        """List of Indicators
-
-        Args:
-            as_list (bool): When True, it returns a list of the
-                indicators. Default: False.
-            exclude (List): The passed in list will be excluded
-                from the indicators list. Default: None.
-
-        Returns:
-            Prints the list of indicators. If as_list=True, then a list.
-        """
-        as_list = bool(as_list) if isinstance(as_list, bool) else False
-        user_excluded = []
-        if isinstance(exclude, list) and len(exclude):
-            user_excluded = exclude
-
-        # Public DataFrame Extension methods
-        df_ext_methods = [
+    def indicators(self, as_list: bool = False, exclude: list[str] | None = None) -> list[str]:
+        """Return or print the list of available indicators."""
+        skip = {
             "categories",
-            "constants",
-            "datetime_ordered",
             "indicators",
+            "help",
             "reverse",
-            "strategy",
             "study",
+            "strategy",
             "to_utc",
-        ]
-        # Public df.ti.properties
-        ti_properties = [
-            "adjusted",
-            "config",
-            "cores",
-            # "custom",
-            # "ds",
-            "exchange",
-            "last_run",
-            "sample",
-            "ticker",
-            "time_range",
             "version",
-        ]
-
-        # Public non-indicator methods
-        ti_indicators = list(
-            (
-                x
-                for x in dir(DataFrame().ti)
-                if not x.startswith("_") and not x.endswith("_")
-            )
-        )
-
-        # Add Polars TI methods and properties to be removed
-        removed = df_ext_methods + ti_properties
-
-        # Add user excluded methods to be removed
-        if isinstance(user_excluded, list) and len(user_excluded) > 0:
-            removed += user_excluded
-
-        # Remove the unwanted indicators
-        [ti_indicators.remove(x) for x in removed]
-
-        # If as a list, immediately return
+            "exchange",
+            "cores",
+        }
+        user_skip = set(exclude) if exclude else set()
+        inds = sorted(name for name in dir(self) if not name.startswith("_") and name not in skip | user_skip)
         if as_list:
-            return ti_indicators
+            return inds
+        print(f"Polars TI v{self.version} — Available indicators:\n  " + ", ".join(inds))
+        return inds
 
-        indicator_count = len(ti_indicators)
-        header = f"Polars TI - Technical Indicators - v{self.version}"
+    def reverse(self) -> pl.DataFrame:
+        """Return the DataFrame in reverse row order."""
+        return self._df.reverse()
 
-        s, _count = f"{header}\n", 0
-        if indicator_count > 0:
-            from polars_ti.candles.cdl_pattern import ALL_PATTERNS
+    def study(self, study, cores: int = 0, talib: bool = False, errors: str = "warn", **kwargs) -> pl.DataFrame:
+        """Run a :class:`~polars_ti.Study` against this DataFrame.
 
-            s += f"\nIndicators and Utilities [{indicator_count}]:\n    {', '.join(ti_indicators)}\n"
-            _count += indicator_count
-            if Imports["talib"]:
-                s += f"\nCandle Patterns [{len(ALL_PATTERNS)}]:\n    {', '.join(ALL_PATTERNS)}\n"
-                _count += len(ALL_PATTERNS)
-        s += f"\nTotal Candles, Indicators and Utilities: {_count}"
-        print(s)
-
-    def reverse(self) -> DataFrame:
-        """Reverses the DataFrame. Simply: df.iloc[::-1]"""
-        return self._df.iloc[::-1]
-
-    def sample(self, **kwargs: DictLike):
-        """sample
-        See help(ti.sample) for parameters.
-        """
-        return sample(**kwargs)
-
-    def strategy(self, *args: Args, **kwargs: DictLike):
-        """Strategy Method
-
-        An experimental method that by default runs all applicable indicators.
-        Future implementations will allow more specific indicator generation
-        with possibly as json, yaml config file or an sqlite3 table.
-
-        Kwargs:
-            chunksize (bool): Adjust the chunksize for the Multiprocessing
-                Pool. Default: Number of cores of the OS
-            exclude (list): List of indicator names to exclude.
-            name (str): Select all indicators or indicators by
-                Category such as: "candles", "cycles", "momentum",
-                "overlap", "performance", "statistics", "trend", "volatility",
-                "volume", or "all". Default: "all"
-            ordered (bool): Whether to run "all" in order. Default: True
-            timed (bool): Show the process time of the study().
-                Default: False
-            verbose (bool): Provide some additional insight on the progress
-                of the study() execution. Default: False
-            warning (bool): Disables depreciation message. Automatically
-                disabled when using it's replacement method: df.ti.study().
-                Default: True
-        """
-        kwargs.update({"warning": True})
-        return self.study(*args, **kwargs)
-
-    def study(self, *args: Args, **kwargs: DictLike) -> dataclass:
-        """Study Method
-
-        An experimental method that by default runs all applicable indicators.
-
-        Kwargs:
-            chunksize (int): Adjust the chunksize for the Multiprocessing Pool.
-                Default: Number of cores of the OS
-            exclude (list): List of indicator names to exclude. Some are
-                excluded by default for various reasons; they require additional
-                sources (tsignals, xsignals), performance, , not a time series
-                chart (vp) etc.
-            name (str): Select all indicators or indicators by
-                Category such as: "candles", "cycles", "momentum", "overlap",
-                "performance", "statistics", "trend", "volatility", "volume", or
-                "all". Default: "all"
-            ordered (bool): Whether to run "all" in order. Default: True
-            timed (bool): Show the process time of the study().
-                Default: False
-            verbose (bool): Provide some additional insight on the progress of
-                the study() execution. Default: False
-        """
-        _dep_warning = kwargs.pop("warning", False)
-        all_ordered = kwargs.pop("ordered", True)
-        # Append indicators to the DataFrame by default
-        kwargs.setdefault("append", True)
-        # If True, it returns the resultant DataFrame. Default: False
-        returns = kwargs.pop("returns", False)
-
-        mp_chunksize = kwargs.pop("chunksize", self.cores)
-        cores = kwargs.pop("cores", self.cores)
-        self.cores = cores
-
-        if _dep_warning:
-            print(
-                f"\n[!] DEPRECIATION WARNING:\n    Use study() instead of strategy().\n"
-            )
-
-        # Initialize
-        initial_column_count = self._df.shape[1]
-        excluded = ["long_run", "short_run", "tsignals", "xsignals"]
-
-        # Get the Study Name and mode
-        name, mode = self._study_mode(*args)
-
-        # If All or a Category, exclude user list if any
-        user_excluded = kwargs.pop("exclude", [])
-        if isinstance(user_excluded, str) and len(user_excluded) > 1:
-            user_excluded = [user_excluded]
-        if mode["all"] or mode["category"]:
-            excluded += user_excluded
-
-        # Collect the indicators, remove excluded or include kwarg["append"]
-        if mode["category"]:
-            ti = self._indicators_by_category(name.lower())
-            [ti.remove(x) for x in excluded if x in ti]
-        elif mode["custom"]:
-            if hasattr(args[0], "cores") and isinstance(args[0].cores, int):
-                self.cores = min(self.cores, args[0].cores)
-            ti = args[0].ti
-            for kwds in ti:
-                kwds["append"] = True
-        elif mode["all"]:
-            ti = self.indicators(as_list=True, exclude=excluded)
-        else:
-            print(f"[X] Study not available.")
-            return None
-
-        verbose = kwargs.pop("verbose", False)
-        if verbose:
-            print(f"[+] Study: {name}\n[i] Indicator arguments: {kwargs}")
-            if mode["all"] or mode["category"]:
-                excluded_str = ", ".join(excluded)
-                print(f"[i] Excluded[{len(excluded)}]: {excluded_str}")
-
-        timed = kwargs.pop("timed", False)
-        results = []
-        use_multiprocessing = True if self.cores > 0 else False
-        has_col_names = False
-
-        if timed:
-            stime = perf_counter()
-
-        if use_multiprocessing and mode["custom"]:
-            # Determine if the Custom Model has 'col_names' parameter
-            has_col_names = (
-                True
-                if len(
-                    [
-                        True
-                        for x in ti
-                        if "col_names" in x and isinstance(x["col_names"], tuple)
-                    ]
-                )
-                else False
-            )
-
-            if has_col_names:
-                use_multiprocessing = False
-
-        if Imports["tqdm"]:
-            from tqdm import tqdm
-
-        if use_multiprocessing:
-            _total_ti = len(ti)
-            with Pool(self.cores) as pool:
-                # Some magic to optimize chunksize for speed
-                # based on total ti indicators
-                if mp_chunksize > _total_ti:
-                    _chunksize = mp_chunksize - 1
-                elif mp_chunksize > 0:
-                    _chunksize = mp_chunksize
-                else:
-                    _chunksize = int(log10(_total_ti)) + 1
-                if verbose:
-                    print(
-                        f"[i] Multiprocessing {_total_ti} indicators with chunksize {_chunksize} and {self.cores}/{cpu_count()} cpus."
-                    )
-
-                results = None
-                if mode["custom"]:
-                    # Create a list of all the custom indicators into a list
-                    custom_ti = [
-                        (
-                            ind["kind"],
-                            (
-                                ind["params"]
-                                if "params" in ind and isinstance(ind["params"], tuple)
-                                else ()
-                            ),
-                            {**ind, **kwargs},
-                        )
-                        for ind in ti
-                    ]
-                    # Custom multiprocessing pool. Must be ordered for Chained Strategies
-                    # May fix this to cpus if Chaining/Composition if it remains
-                    if Imports["tqdm"] and verbose:
-                        results = tqdm(
-                            pool.map(self._mp_worker, custom_ti, _chunksize),
-                            total=len(custom_ti) // _chunksize,
-                        )
-                    else:
-                        results = pool.map(self._mp_worker, custom_ti, _chunksize)
-                else:
-                    default_ti = [(ind, tuple(), kwargs) for ind in ti]
-                    tqdm_total = len(default_ti) // _chunksize
-                    # All and Categorical multiprocessing pool.
-                    if all_ordered:
-                        if Imports["tqdm"] and verbose:
-                            results = tqdm(
-                                pool.imap(self._mp_worker, default_ti, _chunksize),
-                                total=tqdm_total,
-                            )  # Order over Speed
-                        else:
-                            results = pool.imap(
-                                self._mp_worker, default_ti, _chunksize
-                            )  # Order over Speed
-                    else:
-                        if Imports["tqdm"] and verbose:
-                            results = tqdm(
-                                pool.imap_unordered(
-                                    self._mp_worker, default_ti, _chunksize
-                                ),
-                                total=tqdm_total,
-                            )  # Speed over Order
-                        else:
-                            results = pool.imap_unordered(
-                                self._mp_worker, default_ti, _chunksize
-                            )  # Speed over Order
-                if results is None:
-                    print(f"[X] ti.study('{name}') has no results.")
-                    return
-
-                pool.close()
-                pool.join()
-                self._last_run = get_time(self.exchange, to_string=True)
-
-        else:
-            # Without multiprocessing:
-            if verbose:
-                _col_msg = f"[i] No multiprocessing (cores = 0)."
-                if has_col_names:
-                    _col_msg = f"[i] No multiprocessing support for 'col_names' option."
-                print(_col_msg)
-
-            if mode["custom"]:
-                if Imports["tqdm"] and verbose:
-                    pbar = tqdm(ti, f"[i] Progress")
-                    for ind in pbar:
-                        params = (
-                            ind["params"]
-                            if "params" in ind and isinstance(ind["params"], tuple)
-                            else tuple()
-                        )
-                        getattr(self, ind["kind"])(*params, **{**ind, **kwargs})
-                else:
-                    for ind in ti:
-                        params = (
-                            ind["params"]
-                            if "params" in ind and isinstance(ind["params"], tuple)
-                            else tuple()
-                        )
-                        getattr(self, ind["kind"])(*params, **{**ind, **kwargs})
-            else:
-                if Imports["tqdm"] and verbose:
-                    pbar = tqdm(ti, f"[i] Progress")
-                    for ind in pbar:
-                        getattr(self, ind)(*tuple(), **kwargs)
-                else:
-                    for ind in ti:
-                        getattr(self, ind)(*tuple(), **kwargs)
-                self._last_run = get_time(self.exchange, to_string=True)
-
-        # Apply prefixes/suffixes and appends indicator results to the DataFrame
-        [self._post_process(r, **kwargs) for r in results]
-
-        final_column_count = self._df.shape[1]
-        _added_columns = final_column_count - initial_column_count
-
-        if verbose:
-            print(f"[i] Total indicators: {len(ti)}")
-            print(f"[i] Columns added: {_added_columns}")
-            print(f"[i] Last Run: {self._last_run}")
-        if timed:
-            ft = final_time(stime)
-            if _added_columns > 0:
-                avgtd = (perf_counter() - stime) / _added_columns
-            else:
-                avgtd = perf_counter() - stime
-            print(
-                f"[i] Analysis Time: {ft} for {_added_columns} columns (avg {avgtd * 1000:2.4f} ms / col)"
-            )
-
-        if returns:
-            return self._df
-
-    def ticker(self, ticker: str = None, period: str = None, **kwargs: DictLike):
-        """ticker
-
-        This method downloads Historical Data using the yfinance package if it
-        is installed. Additionally it can run a ti.Study after download.
-
-        Historical Data
-        >>> df = df.ti.ticker("aapl")
-        More specifically (for Yahoo Finance)
-        >>> df = df.ti.ticker("aapl", period="max", interval="1d")
-
-        Changing the period of Historical Data
-        Period is used instead of start/end
-        >>> df = df.ti.ticker("aapl", period="1y")
-
-        Changing the period and interval of Historical Data
-        Retrieves the past year in weeks
-        >>> df = df.ti.ticker("aapl", period="1y", interval="1wk")
-        Retrieves the past month in hours
-        >>> df = df.ti.ticker("aapl", period="1mo", interval="1h")
+        Mirrors the original pandas-ti ``df.ti.study()`` API. Each indicator
+        dict in ``study.ti`` is dispatched to the matching ``df.ti.<kind>``
+        method with ``append=True``.  The *all* study (``study.ti is None``)
+        runs every registered indicator.
 
         Args:
-            ticker (str): Any string for a ticker you would use with yfinance.
-                Default: "SPY"
-            period (str): See the yfinance history() method for more options.
-                Default: "max"
+            study: A :class:`~polars_ti.Study` instance, or a category string
+                (e.g. ``"momentum"``), or a ``type`` reference such as
+                ``ti.AllStudy`` / ``ti.CommonStudy``.
+            cores (int): Reserved for future multiprocessing support.
+                Currently ignored; all indicators run sequentially.
+            talib (bool): Pass ``talib=True`` to each indicator call.
+            errors (str): How to surface indicators that fail during the study.
 
-        Kwargs:
-            study (str | ti.Study): Which study to apply after downloading.
-                Default: None
-            timed (bool): Print download time to stdout. Default: False
-
-            For additional yfinance history() keyword arguments:
-                https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py
+                * ``"warn"`` (default): collect every failing indicator + its
+                  exception and emit a single ``warnings.warn`` summary at the
+                  end, while still completing the rest of the study.
+                * ``"raise"``: re-raise the first indicator failure immediately.
+                * ``"ignore"``: silently skip failing indicators (the historical
+                  behaviour).
+            **kwargs: Additional keyword arguments forwarded to every indicator.
 
         Returns:
-            DataFrame or None
+            The DataFrame with all study columns appended.
         """
-        if not Imports["yfinance"]:
-            print(
-                f"[X] Please install yfinance to use this method. (pip install yfinance)"
-            )
-            return
-
-        # Polars TI keywords to remove from **kwargs
-        strategy = kwargs.pop("strategy", None)
-        study = kwargs.pop("study", strategy)
-        timed = kwargs.pop("timed", False)
-
-        # yfinance keywords to filter from **kwargs
-        ticker = v_str(ticker, "SPY")
-        period = v_str(period, "max")
-        interval = kwargs.pop("interval", "1d")
-        proxy = kwargs.pop("proxy", {})
-
-        df, stime = DataFrame(), None
-        if ticker is not None:
-            import yfinance as yf
-
-            yfd = yf.Ticker(ticker)
-
-            if timed:
-                stime = perf_counter()
-            df = yfd.history(period=period, interval=interval, proxy=proxy, **kwargs)
-        else:
-            return None
-
-        if timed:
-            df.timed = final_time(stime)
-            print(f"[+] yf | {ticker}{df.shape}: {df.timed}")
-
-        self._df = df
-
-        if study is not None:
-            self.study(study, **kwargs)
-
-        return self._df
-
-    def to_utc(self) -> None:
-        """Sets the DataFrame index to UTC format"""
-        self._df = to_utc(self._df)
-
-    # Public DataFrame Methods: Indicators and Utilities
-    # Candles
-    def cdl_pattern(self, name: str = "all", offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cdl_pattern(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            name=name,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def cdl_doji(
-        self,
-        length=None,
-        factor=None,
-        scalar=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cdl_doji(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            factor=factor,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def cdl_inside(self, asbool=False, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cdl_inside(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            asbool=asbool,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def cdl_z(self, full=None, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cdl_z(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            full=full,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def ha(self, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ha(
-            open_=open_, high=high, low=low, close=close, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    # Cycles
-    def ebsw(self, close=None, length=None, bars=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ebsw(close=close, length=length, bars=bars, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def reflex(
-        self,
-        close=None,
-        length=None,
-        smooth=None,
-        alpha=None,
-        pi=None,
-        sqrt2=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = reflex(
-            close=close,
-            length=length,
-            smooth=smooth,
-            alpha=alpha,
-            pi=pi,
-            sqrt2=sqrt2,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def dsp(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = dsp(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    # Momentum
-    def ao(self, fast=None, slow=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = ao(high=high, low=low, fast=fast, slow=slow, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def apo(self, fast=None, slow=None, mamode=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = apo(
-            close=close, fast=fast, slow=slow, mamode=mamode, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def bias(self, length=None, mamode=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = bias(
-            close=close, length=length, mamode=mamode, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def bop(self, percentage=False, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = bop(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            percentage=percentage,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def brar(
-        self, length=None, scalar=None, drift=None, offset=None, **kwargs: DictLike
-    ):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = brar(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def cci(self, length=None, c=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cci(
-            high=high, low=low, close=close, length=length, c=c, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def cfo(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cfo(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def cg(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cg(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def cmo(
-        self, length=None, scalar=None, drift=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cmo(
-            close=close,
-            length=length,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def coppock(
-        self, length=None, fast=None, slow=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = coppock(
-            close=close, length=length, fast=fast, slow=slow, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def crsi(
-        self,
-        length_rsi=None,
-        length_streak=None,
-        length_rank=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = crsi(
-            close=close,
-            length_rsi=length_rsi,
-            length_streak=length_streak,
-            length_rank=length_rank,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def cti(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cti(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def dm(self, drift=None, offset=None, mamode=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = dm(
-            high=high, low=low, drift=drift, mamode=mamode, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def er(self, length=None, drift=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = er(close=close, length=length, drift=drift, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def eri(self, length=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = eri(
-            high=high, low=low, close=close, length=length, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def exhc(
-        self,
-        length=None,
-        cap=None,
-        asint=None,
-        show_all=None,
-        nozeros=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = exhc(
-            close=close,
-            length=length,
-            cap=cap,
-            asint=asint,
-            show_all=show_all,
-            nozeros=nozeros,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def fisher(self, length=None, signal=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = fisher(
-            high=high, low=low, length=length, signal=signal, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def imi(self, length=None, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = imi(open_=open_, close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def inertia(
-        self,
-        length=None,
-        rvi_length=None,
-        scalar=None,
-        refined=None,
-        thirds=None,
-        mamode=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        if refined is not None or thirds is not None:
-            high = self._get_column(kwargs.pop("high", "high"))
-            low = self._get_column(kwargs.pop("low", "low"))
-            result = inertia(
-                close=close,
-                high=high,
-                low=low,
-                length=length,
-                rvi_length=rvi_length,
-                scalar=scalar,
-                refined=refined,
-                thirds=thirds,
-                mamode=mamode,
-                drift=drift,
-                offset=offset,
-                **kwargs,
-            )
-        else:
-            result = inertia(
-                close=close,
-                length=length,
-                rvi_length=rvi_length,
-                scalar=scalar,
-                refined=refined,
-                thirds=thirds,
-                mamode=mamode,
-                drift=drift,
-                offset=offset,
-                **kwargs,
-            )
-
-        return self._post_process(result, **kwargs)
-
-    def kdj(self, length=None, signal=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = kdj(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            signal=signal,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def kst(
-        self,
-        roc1=None,
-        roc2=None,
-        roc3=None,
-        roc4=None,
-        sma1=None,
-        sma2=None,
-        sma3=None,
-        sma4=None,
-        signal=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = kst(
-            close=close,
-            roc1=roc1,
-            roc2=roc2,
-            roc3=roc3,
-            roc4=roc4,
-            sma1=sma1,
-            sma2=sma2,
-            sma3=sma3,
-            sma4=sma4,
-            signal=signal,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def macd(self, fast=None, slow=None, signal=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = macd(
-            close=close, fast=fast, slow=slow, signal=signal, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def mom(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = mom(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def pgo(self, length=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = pgo(
-            high=high, low=low, close=close, length=length, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def ppo(
-        self,
-        fast=None,
-        slow=None,
-        scalar=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ppo(
-            close=close,
-            fast=fast,
-            slow=slow,
-            scalar=scalar,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def psl(
-        self,
-        open_=None,
-        length=None,
-        scalar=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        if open_ is not None:
-            open_ = self._get_column(kwargs.pop("open", "open"))
-
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = psl(
-            close=close,
-            open_=open_,
-            length=length,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def qqe(
-        self,
-        length=None,
-        smooth=None,
-        factor=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = qqe(
-            close=close,
-            length=length,
-            smooth=smooth,
-            factor=factor,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def roc(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = roc(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def rmi(
-        self,
-        length=None,
-        momentum=None,
-        scalar=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rmi(
-            close=close,
-            length=length,
-            momentum=momentum,
-            scalar=scalar,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def rsi(
-        self, length=None, scalar=None, drift=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rsi(
-            close=close,
-            length=length,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def rsx(self, length=None, drift=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rsx(close=close, length=length, drift=drift, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def rvgi(self, length=None, swma_length=None, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rvgi(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            swma_length=swma_length,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def slope(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = slope(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def smc(
-        self,
-        abr_length=None,
-        close_length=None,
-        vol_length=None,
-        percent=None,
-        vol_ratio=None,
-        asint=None,
-        mamode=None,
-        talib=None,
-        offset=None,
-        **kwargs,
-    ):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = smc(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            abr_length=abr_length,
-            close_length=close_length,
-            vol_length=vol_length,
-            percent=percent,
-            vol_ratio=vol_ratio,
-            asint=asint,
-            mamode=mamode,
-            talib=talib,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def smi(
-        self,
-        fast=None,
-        slow=None,
-        signal=None,
-        scalar=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = smi(
-            close=close,
-            fast=fast,
-            slow=slow,
-            signal=signal,
-            scalar=scalar,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def squeeze(
-        self,
-        bb_length=None,
-        bb_std=None,
-        kc_length=None,
-        kc_scalar=None,
-        mom_length=None,
-        mom_smooth=None,
-        use_tr=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = squeeze(
-            high=high,
-            low=low,
-            close=close,
-            bb_length=bb_length,
-            bb_std=bb_std,
-            kc_length=kc_length,
-            kc_scalar=kc_scalar,
-            mom_length=mom_length,
-            mom_smooth=mom_smooth,
-            use_tr=use_tr,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def squeeze_pro(
-        self,
-        bb_length=None,
-        bb_std=None,
-        kc_length=None,
-        kc_scalar_wide=None,
-        kc_scalar_normal=None,
-        kc_scalar_narrow=None,
-        mom_length=None,
-        mom_smooth=None,
-        use_tr=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = squeeze_pro(
-            high=high,
-            low=low,
-            close=close,
-            bb_length=bb_length,
-            bb_std=bb_std,
-            kc_length=kc_length,
-            kc_scalar_wide=kc_scalar_wide,
-            kc_scalar_normal=kc_scalar_normal,
-            kc_scalar_narrow=kc_scalar_narrow,
-            mom_length=mom_length,
-            mom_smooth=mom_smooth,
-            use_tr=use_tr,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def stc(
-        self,
-        tclength=None,
-        ma1=None,
-        ma2=None,
-        osc=None,
-        fast=None,
-        slow=None,
-        factor=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = stc(
-            close=close,
-            tclength=tclength,
-            ma1=ma1,
-            ma2=ma2,
-            osc=osc,
-            fast=fast,
-            slow=slow,
-            factor=factor,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def stoch(
-        self,
-        k=None,
-        d=None,
-        smooth_k=None,
-        mamode=None,
-        talib=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = stoch(
-            high=high,
-            low=low,
-            close=close,
-            k=k,
-            d=d,
-            smooth_k=smooth_k,
-            mamode=mamode,
-            talib=talib,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def stochf(
-        self, k=None, d=None, mamode=None, talib=None, offset=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = stochf(
-            high=high,
-            low=low,
-            close=close,
-            k=k,
-            d=d,
-            mamode=mamode,
-            talib=talib,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def stochrsi(
-        self,
-        length=None,
-        rsi_length=None,
-        k=None,
-        d=None,
-        mamode=None,
-        talib=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = stochrsi(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            rsi_length=rsi_length,
-            k=k,
-            d=d,
-            mamode=mamode,
-            talib=talib,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def tmo(
-        self,
-        tmo_length=None,
-        calc_length=None,
-        smooth_length=None,
-        mamode=None,
-        compute_momentum=False,
-        normalize_signal=False,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = tmo(
-            open_=open_,
-            close=close,
-            tmo_length=tmo_length,
-            calc_length=calc_length,
-            smooth_length=smooth_length,
-            mamode=mamode,
-            compute_momentum=compute_momentum,
-            normalize_signal=normalize_signal,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def trix(
-        self,
-        length=None,
-        signal=None,
-        scalar=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = trix(
-            close=close,
-            length=length,
-            signal=signal,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def tsi(
-        self,
-        fast=None,
-        slow=None,
-        drift=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = tsi(
-            close=close,
-            fast=fast,
-            slow=slow,
-            drift=drift,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def uo(
-        self,
-        fast=None,
-        medium=None,
-        slow=None,
-        fast_w=None,
-        medium_w=None,
-        slow_w=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = uo(
-            high=high,
-            low=low,
-            close=close,
-            fast=fast,
-            medium=medium,
-            slow=slow,
-            fast_w=fast_w,
-            medium_w=medium_w,
-            slow_w=slow_w,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def willr(self, length=None, percentage=True, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = willr(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            percentage=percentage,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def lrsi(self, gamma=None, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = lrsi(close=close, gamma=gamma, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def po(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = po(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def trixh(
-        self, length=None, signal=None, scalar=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = trixh(
-            close=close,
-            length=length,
-            signal=signal,
-            scalar=scalar,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def vwmacd(
-        self, fast=None, slow=None, signal=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = vwmacd(
-            close=close,
-            volume=volume,
-            fast=fast,
-            slow=slow,
-            signal=signal,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    # Overlap
-    def alligator(
-        self, jaw=None, teeth=None, lips=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = alligator(
-            close=close, jaw=jaw, teeth=teeth, lips=lips, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def alma(
-        self,
-        length=None,
-        sigma=None,
-        distribution_offset=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = alma(
-            close=close,
-            length=length,
-            sigma=sigma,
-            distribution_offset=distribution_offset,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def dema(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = dema(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def ema(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ema(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def fwma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = fwma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def hilo(
-        self,
-        high_length=None,
-        low_length=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = hilo(
-            high=high,
-            low=low,
-            close=close,
-            high_length=high_length,
-            low_length=low_length,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def hl2(self, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = hl2(high=high, low=low, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def hlc3(self, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = hlc3(high=high, low=low, close=close, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def hma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = hma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def hwma(self, na=None, nb=None, nc=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = hwma(close=close, na=na, nb=nb, nc=nc, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def jma(self, length=None, phase=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = jma(close=close, length=length, phase=phase, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def kama(self, length=None, fast=None, slow=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = kama(
-            close=close, length=length, fast=fast, slow=slow, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def ichimoku(
-        self,
-        tenkan=None,
-        kijun=None,
-        senkou=None,
-        include_chikou=True,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result, span = ichimoku(
-            high=high,
-            low=low,
-            close=close,
-            tenkan=tenkan,
-            kijun=kijun,
-            senkou=senkou,
-            include_chikou=include_chikou,
-            offset=offset,
-            **kwargs,
-        )
-        self._add_prefix_suffix(result, **kwargs)
-        self._add_prefix_suffix(span, **kwargs)
-        self._append(result, **kwargs)
-        # return self._post_process(result, **kwargs), span
-        return result, span
-
-    def linreg(self, length=None, offset=None, adjust=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = linreg(
-            close=close, length=length, offset=offset, adjust=adjust, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def mama(
-        self,
-        fastlimit=None,
-        slowlimit=None,
-        prenan=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = mama(
-            close=close,
-            fastlimit=fastlimit,
-            slowlimit=slowlimit,
-            prenan=prenan,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def mcgd(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = mcgd(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def midpoint(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = midpoint(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def midprice(self, length=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = midprice(high=high, low=low, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def mmar(
-        self, length=None, step=None, num_ribbons=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = mmar(
-            close=close,
-            length=length,
-            step=step,
-            num_ribbons=num_ribbons,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def ohlc4(self, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ohlc4(
-            open_=open_, high=high, low=low, close=close, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def ott(
-        self,
-        length=None,
-        multiplier=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ott(
-            close=close,
-            length=length,
-            multiplier=multiplier,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def pivots(self, method=None, anchor=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = pivots(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            method=method,
-            anchor=anchor,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def pwma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = pwma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def rainbow(self, length=None, num_ribbons=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rainbow(
-            close=close,
-            length=length,
-            num_ribbons=num_ribbons,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def rma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def rwi(self, length=None, offset=None, **kwargs):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rwi(
-            high=high, low=low, close=close, length=length, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def sinwma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = sinwma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def sma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = sma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def smma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = smma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def ssf(
-        self,
-        length=None,
-        everget=None,
-        pi=None,
-        sqrt2=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ssf(
-            close=close,
-            length=length,
-            everget=everget,
-            pi=pi,
-            sqrt2=sqrt2,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def ssf3(self, length=None, pi=None, sqrt3=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ssf3(
-            close=close, length=length, pi=pi, sqrt3=sqrt3, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def supertrend(self, length=None, multiplier=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = supertrend(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            multiplier=multiplier,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def swma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = swma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def t3(self, length=None, a=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = t3(close=close, length=length, a=a, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def tema(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = tema(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def trima(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = trima(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def vidya(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = vidya(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def wcp(self, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = wcp(high=high, low=low, close=close, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def wma(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = wma(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def zlma(self, length=None, mamode=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = zlma(
-            close=close, length=length, mamode=mamode, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    # Performance
-    def drawdown(self, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = drawdown(close=close, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def log_return(
-        self,
-        length=None,
-        cumulative=False,
-        percent=False,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = log_return(
-            close=close,
-            length=length,
-            cumulative=cumulative,
-            percent=percent,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def percent_return(
-        self,
-        length=None,
-        cumulative=False,
-        percent=False,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = percent_return(
-            close=close,
-            length=length,
-            cumulative=cumulative,
-            percent=percent,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    # Statistics
-    def entropy(self, length=None, base=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = entropy(close=close, length=length, base=base, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def kurtosis(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = kurtosis(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def mad(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = mad(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def median(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = median(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def quantile(self, length=None, q=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = quantile(close=close, length=length, q=q, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def skew(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = skew(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def stdev(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = stdev(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def tos_stdevall(self, length=None, stds=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = tos_stdevall(
-            close=close, length=length, stds=stds, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def variance(self, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = variance(close=close, length=length, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def zscore(self, length=None, std=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = zscore(close=close, length=length, std=std, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    # Transform
-    def cube(
-        self, cubing_exponent=None, signal_offset=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cube(
-            close=close,
-            cubing_exponent=cubing_exponent,
-            signal_offset=signal_offset,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def ifisher(
-        self,
-        amplifying_factor=None,
-        signal_offset=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ifisher(
-            close=close,
-            amplifying_factor=amplifying_factor,
-            signal_offset=signal_offset,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def remap(
-        self,
-        from_min=None,
-        from_max=None,
-        to_min=None,
-        to_max=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = remap(
-            close=close,
-            from_min=from_min,
-            from_max=from_max,
-            to_min=to_min,
-            to_max=to_max,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    # Trend
-    def adx(
-        self,
-        length=None,
-        lensig=None,
-        mamode=None,
-        scalar=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = adx(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            lensig=lensig,
-            mamode=mamode,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def alphatrend(
-        self,
-        volume=None,
-        src=None,
-        length=None,
-        multiplier=None,
-        threshold=None,
-        lag=None,
-        mamode=None,
-        talib=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        if volume is not None:
-            volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = alphatrend(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            src=src,
-            length=length,
-            multiplier=multiplier,
-            threshold=threshold,
-            lag=lag,
-            mamode=mamode,
-            talib=talib,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def amat(
-        self,
-        fast=None,
-        slow=None,
-        mamode=None,
-        lookback=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = amat(
-            close=close,
-            fast=fast,
-            slow=slow,
-            mamode=mamode,
-            lookback=lookback,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def aroon(self, length=None, scalar=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = aroon(
-            high=high, low=low, length=length, scalar=scalar, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def chop(
-        self,
-        length=None,
-        atr_length=None,
-        ln=None,
-        scalar=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = chop(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            atr_length=atr_length,
-            ln=ln,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def cksp(
-        self, p=None, x=None, q=None, mamode=None, offset=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = cksp(
-            high=high,
-            low=low,
-            close=close,
-            p=p,
-            x=x,
-            q=q,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def decay(self, length=None, mode=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = decay(close=close, length=length, mode=mode, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
-
-    def decreasing(
-        self, length=None, strict=None, asint=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = decreasing(
-            close=close,
-            length=length,
-            strict=strict,
-            asint=asint,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def dpo(self, length=None, centered=True, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = dpo(
-            close=close, length=length, centered=centered, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def ht_trendline(self, talib=None, prenan=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ht_trendline(
-            close=close, talib=talib, prenan=prenan, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
-
-    def increasing(
-        self, length=None, strict=None, asint=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = increasing(
-            close=close,
-            length=length,
-            strict=strict,
-            asint=asint,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
-
-    def long_run(
-        self, fast=None, slow=None, length=None, offset=None, **kwargs: DictLike
-    ):
-        if fast is None and slow is None:
+        import warnings
+
+        from polars_ti.utils._study import Study
+        from polars_ti.maps import Category
+
+        if errors not in ("warn", "raise", "ignore"):
+            raise ValueError(f"errors must be one of 'warn'|'raise'|'ignore', got {errors!r}")
+
+        # Collected (indicator, exception) pairs for the "warn" summary.
+        failures: list[tuple[str, BaseException]] = []
+
+        def _handle_failure(kind: str, exc: BaseException) -> None:
+            """Apply the configured error policy to a failed indicator."""
+            if errors == "raise":
+                raise exc
+            if errors == "warn":
+                failures.append((kind, exc))
+            # "ignore" -> do nothing
+
+        def _run(kind: str, kw: dict) -> None:
+            """Dispatch one indicator and hstack new columns onto self._df."""
+            fn = getattr(self, kind.lower(), None)
+            if fn is None:
+                return
+            try:
+                result = fn(**kw)
+            except TypeError as exc:
+                if "talib" not in kw or "unexpected keyword argument" not in str(exc):
+                    _handle_failure(kind, exc)
+                    return
+                kw = {k: v for k, v in kw.items() if k != "talib"}
+                try:
+                    result = fn(**kw)
+                except Exception as exc2:
+                    _handle_failure(kind, exc2)
+                    return
+            except Exception as exc:
+                _handle_failure(kind, exc)
+                return  # Skip indicators that fail (e.g. missing required columns)
+
+            try:
+                if isinstance(result, pl.DataFrame) and result.width > 0:
+                    new_cols = [c for c in result.columns if c not in self._df.columns]
+                    if new_cols:
+                        self._df = self._df.hstack(result.select(new_cols))
+            except Exception as exc:
+                _handle_failure(kind, exc)
+                return
+
+        def _finalize() -> pl.DataFrame:
+            """Emit the collected-failure summary (warn mode) and return df."""
+            if errors == "warn" and failures:
+                names = ", ".join(sorted({k for k, _ in failures}))
+                detail = "; ".join(f"{k}: {type(e).__name__}: {e}" for k, e in failures)
+                warnings.warn(
+                    f"study(): {len(failures)} indicator(s) failed and were skipped [{names}]. Details — {detail}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
             return self._df
-        else:
-            result = long_run(
-                fast=fast, slow=slow, length=length, offset=offset, **kwargs
-            )
-            return self._post_process(result, **kwargs)
 
-    def pmax(
-        self,
-        length=None,
-        multiplier=None,
-        mamode=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = pmax(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            multiplier=multiplier,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
+        # Accept a Study class/instance, a category string, or AllStudy sentinel
+        if isinstance(study, type) and issubclass(study, Study):
+            study = study()  # instantiate if a class was passed
+
+        if isinstance(study, str):
+            # Category shorthand: "momentum", "overlap", etc.
+            category = study.lower()
+            if category not in Category:
+                raise ValueError(f"Unknown category '{category}'. Valid: {list(Category.keys())}")
+            for kind in Category[category]:
+                kw = dict(kwargs)
+                kw["talib"] = talib
+                _run(kind, kw)
+            return _finalize()
+
+        # AllStudy (ti is None) -> run every indicator in every category
+        if not isinstance(study, Study) or study.ti is None:
+            for category_inds in Category.values():
+                for kind in category_inds:
+                    kw = dict(kwargs)
+                    kw["talib"] = talib
+                    _run(kind, kw)
+            return _finalize()
+
+        # Custom Study: study.ti is a list of indicator dicts
+        for ind_spec in study.ti:
+            if not isinstance(ind_spec, dict) or "kind" not in ind_spec:
+                continue
+            # Shallow-copy so we never mutate the Study definition
+            kw = {k: v for k, v in ind_spec.items() if k != "kind"}
+            kw.update(kwargs)
+            kw["talib"] = talib
+            _run(ind_spec["kind"], kw)
+
+        return _finalize()
+
+    # Alias for backwards-compatibility with the original pandas-ti API
+    strategy = study
+
+    # ------------------------------------------------------------------
+    # Helpers for repeated OHLCV column extraction
+    # ------------------------------------------------------------------
+
+    def _open(self, kw: dict) -> pl.Expr:
+        return self._col(kw.pop("open", "open"))
+
+    def _high(self, kw: dict) -> pl.Expr:
+        return self._col(kw.pop("high", "high"))
+
+    def _low(self, kw: dict) -> pl.Expr:
+        return self._col(kw.pop("low", "low"))
+
+    def _close(self, kw: dict) -> pl.Expr:
+        return self._col(kw.pop("close", "close"))
+
+    def _volume(self, kw: dict) -> pl.Expr:
+        return self._col(kw.pop("volume", "volume"))
+
+    # ==================================================================
+    #  Candles
+    # ==================================================================
+
+    def cdl_doji(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_doji(o, h, lo, c, **kw), **kw)
+
+    def cdl_inside(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(cdl_inside(h, lo, **kw), **kw)
+
+    def cdl_pattern(self, name="all", **kw):
+        result = cdl_pattern(self._df, name=name, **kw)
+        return self._post_process(result, **kw)
+
+    def cdl_z(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_z(o, h, lo, c, **kw), **kw)
+
+    def ha(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ha(o, h, lo, c, **kw), **kw)
+
+    # ==================================================================
+    #  Cycles
+    # ==================================================================
+
+    def dsp(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(dsp(c, **kw), **kw)
+
+    def ebsw(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ebsw(c, **kw), **kw)
+
+    def reflex(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(reflex(c, **kw), **kw)
+
+    # ==================================================================
+    #  Momentum
+    # ==================================================================
+
+    def ao(self, high=None, low=None, **kw):
+        return self._post_process(
+            ao(
+                self._high(kw) if not high else self._col(high),
+                self._low(kw) if not low else self._col(low),
+                **kw,
+            ),
+            **kw,
         )
-        return self._post_process(result, **kwargs)
 
-    def psar(
-        self, af0=None, af=None, max_af=None, tv=False, offset=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", None))
-        result = psar(
-            high=high,
-            low=low,
-            close=close,
-            af0=af0,
-            af=af,
-            max_af=max_af,
-            tv=tv,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def apo(self, close=None, **kw):
+        return self._post_process(apo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def qstick(self, length=None, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = qstick(
-            open_=open_, close=close, length=length, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def bias(self, close=None, **kw):
+        return self._post_process(bias(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def rwi(
-        self,
-        length=None,
-        lensig=None,
-        mamode=None,
-        scalar=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rwi(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            lensig=lensig,
-            mamode=mamode,
-            scalar=scalar,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def bop(self, open_=None, high=None, low=None, close=None, **kw):
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
+        return self._post_process(bop(o, h, lo, c, **kw), **kw)
 
-    def short_run(
-        self, fast=None, slow=None, length=None, offset=None, **kwargs: DictLike
-    ):
-        if fast is None and slow is None:
-            return self._df
-        else:
-            result = short_run(
-                fast=fast, slow=slow, length=length, offset=offset, **kwargs
-            )
-            return self._post_process(result, **kwargs)
+    def brar(self, open_=None, high=None, low=None, close=None, **kw):
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
+        return self._post_process(brar(o, h, lo, c, **kw), **kw)
 
-    def supertrend(
-        self,
-        period=None,
-        multiplier=None,
-        mamode=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = supertrend(
-            high=high,
-            low=low,
-            close=close,
-            period=period,
-            multiplier=multiplier,
-            mamode=mamode,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def cci(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cci(h, lo, c, **kw), **kw)
 
-    def trama(self, length=None, mamode=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = trama(
-            close=close, length=length, mamode=mamode, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def cfo(self, close=None, **kw):
+        return self._post_process(cfo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def trendflex(
-        self,
-        close=None,
-        length=None,
-        smooth=None,
-        alpha=None,
-        pi=None,
-        sqrt2=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = trendflex(
-            close=close,
-            length=length,
-            smooth=smooth,
-            alpha=alpha,
-            pi=pi,
-            sqrt2=sqrt2,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def cg(self, close=None, **kw):
+        return self._post_process(cg(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def tsignals(
-        self,
-        trend=None,
-        asbool=None,
-        trend_reset=None,
-        trend_offset=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        if trend is None:
-            return self._df
-        else:
-            result = tsignals(
-                trend,
-                asbool=asbool,
-                trend_offset=trend_offset,
-                trend_reset=trend_reset,
-                offset=offset,
-                **kwargs,
-            )
-            return self._post_process(result, **kwargs)
+    def cmo(self, close=None, **kw):
+        return self._post_process(cmo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def ttm_trend(self, length=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ttm_trend(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def coppock(self, close=None, **kw):
+        return self._post_process(coppock(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def vhf(self, length=None, drift=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = vhf(close=close, length=length, drift=drift, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
+    def crsi(self, close=None, **kw):
+        return self._post_process(crsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def vortex(self, drift=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = vortex(
-            high=high, low=low, close=close, drift=drift, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def cti(self, close=None, **kw):
+        return self._post_process(cti(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def xsignals(
-        self,
-        signal=None,
-        xa=None,
-        xb=None,
-        above=None,
-        long=None,
-        asbool=None,
-        trend_reset=None,
-        trend_offset=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        if signal is None:
-            return self._df
-        else:
-            result = xsignals(
-                signal=signal,
-                xa=xa,
-                xb=xb,
-                above=above,
-                long=long,
-                asbool=asbool,
-                trend_offset=trend_offset,
-                trend_reset=trend_reset,
-                offset=offset,
-                **kwargs,
-            )
-            return self._post_process(result, **kwargs)
+    def dm(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(dm(h, lo, **kw), **kw)
 
-    def zigzag(
-        self,
-        close=None,
-        legs=None,
-        deviation=None,
-        retrace=None,
-        last_extreme=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        if close is not None:
-            close = self._get_column(kwargs.pop("close", "close"))
-        result = zigzag(
-            high=high,
-            low=low,
-            close=close,
-            legs=legs,
-            deviation=deviation,
-            retrace=retrace,
-            last_extreme=last_extreme,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def er(self, close=None, **kw):
+        return self._post_process(er(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    # Volatility
-    def aberration(self, length=None, atr_length=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = aberration(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            atr_length=atr_length,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def eri(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(eri(h, lo, c, **kw), **kw)
 
-    def accbands(
-        self, length=None, c=None, mamode=None, offset=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = accbands(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            c=c,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def exhc(self, close=None, **kw):
+        return self._post_process(exhc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def atr(self, length=None, mamode=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = atr(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def fisher(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(fisher(h, lo, **kw), **kw)
 
-    def atrts(
-        self,
-        length=None,
-        ma_length=None,
-        multiplier=None,
-        mamode=None,
-        talib=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = atrts(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            ma_length=ma_length,
-            multiplier=multiplier,
-            mamode=mamode,
-            talib=talib,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def imi(self, open_=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(imi(o, c, **kw), **kw)
 
-    def avsl(
-        self,
-        fast_period=None,
-        slow_period=None,
-        scalar=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = avsl(
-            close=close,
-            low=low,
-            volume=volume,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            scalar=scalar,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def inertia(self, close=None, **kw):
+        return self._post_process(inertia(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def halftrend(
-        self,
-        atr_length=None,
-        amplitude=None,
-        channel_deviation=None,
-        smoothing=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = halftrend(
-            high=high,
-            low=low,
-            close=close,
-            atr_length=atr_length,
-            amplitude=amplitude,
-            channel_deviation=channel_deviation,
-            smoothing=smoothing,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def kdj(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(kdj(h, lo, c, **kw), **kw)
 
-    def bbands(
-        self, length=None, std=None, mamode=None, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = bbands(
-            close=close, length=length, std=std, mamode=mamode, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def kst(self, close=None, **kw):
+        return self._post_process(kst(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def chandelier_exit(
-        self,
-        high_length=None,
-        low_length=None,
-        atr_length=None,
-        multiplier=None,
-        mamode=None,
-        talib=None,
-        use_close=None,
-        drift=None,
-        offset=None,
-        **kwargs,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = chandelier_exit(
-            high=high,
-            low=low,
-            close=close,
-            high_length=high_length,
-            low_length=low_length,
-            atr_length=atr_length,
-            multiplier=multiplier,
-            mamode=mamode,
-            talib=talib,
-            use_close=use_close,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def lrsi(self, close=None, **kw):
+        return self._post_process(lrsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def donchian(
-        self,
-        lower_length=None,
-        upper_length=None,
-        offset: Int = None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = donchian(
-            high=high,
-            low=low,
-            lower_length=lower_length,
-            upper_length=upper_length,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def macd(self, close=None, **kw):
+        return self._post_process(macd(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def fvg(self, min_gap=None, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = fvg(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            min_gap=min_gap,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def mom(self, close=None, **kw):
+        return self._post_process(mom(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def hwc(
-        self,
-        na=None,
-        nb=None,
-        nc=None,
-        nd=None,
-        scalar=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = hwc(
-            close=close,
-            na=na,
-            nb=nb,
-            nc=nc,
-            nd=nd,
-            scalar=scalar,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def pgo(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(pgo(h, lo, c, **kw), **kw)
 
-    def kc(
-        self, length=None, scalar=None, mamode=None, offset=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = kc(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            scalar=scalar,
-            mamode=mamode,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def po(self, close=None, **kw):
+        return self._post_process(po(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def massi(self, fast=None, slow=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = massi(
-            high=high, low=low, fast=fast, slow=slow, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def ppo(self, close=None, **kw):
+        return self._post_process(ppo(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def natr(
-        self, length=None, mamode=None, scalar=None, offset=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = natr(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            mamode=mamode,
-            scalar=scalar,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def psl(self, close=None, **kw):
+        return self._post_process(psl(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def pdist(self, drift=None, offset=None, **kwargs: DictLike):
-        open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = pdist(
-            open_=open_,
-            high=high,
-            low=low,
-            close=close,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def qqe(self, close=None, **kw):
+        return self._post_process(qqe(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def rvi(
-        self,
-        length=None,
-        scalar=None,
-        refined=None,
-        thirds=None,
-        mamode=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = rvi(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            scalar=scalar,
-            refined=refined,
-            thirds=thirds,
-            mamode=mamode,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def rmi(self, close=None, **kw):
+        return self._post_process(rmi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def thermo(
-        self,
-        long=None,
-        short=None,
-        length=None,
-        mamode=None,
-        drift=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        result = thermo(
-            high=high,
-            low=low,
-            long=long,
-            short=short,
-            length=length,
-            mamode=mamode,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def roc(self, close=None, **kw):
+        return self._post_process(roc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def true_range(self, drift=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = true_range(
-            high=high, low=low, close=close, drift=drift, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def rsi(self, close=None, **kw):
+        return self._post_process(rsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def ui(self, length=None, scalar=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        result = ui(close=close, length=length, scalar=scalar, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
+    def rsx(self, close=None, **kw):
+        return self._post_process(rsx(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    # Volume
-    def ad(self, open_=None, signed=True, offset=None, **kwargs: DictLike):
-        if open_ is not None:
-            open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = ad(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            open_=open_,
-            signed=signed,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def rvgi(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(rvgi(o, h, lo, c, **kw), **kw)
 
-    def adosc(
-        self,
-        open_=None,
-        fast=None,
-        slow=None,
-        signed=True,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        if open_ is not None:
-            open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = adosc(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            open_=open_,
-            fast=fast,
-            slow=slow,
-            signed=signed,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def slope(self, close=None, **kw):
+        return self._post_process(slope(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def aobv(
-        self,
-        fast=None,
-        slow=None,
-        mamode=None,
-        max_lookback=None,
-        min_lookback=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = aobv(
-            close=close,
-            volume=volume,
-            fast=fast,
-            slow=slow,
-            mamode=mamode,
-            max_lookback=max_lookback,
-            min_lookback=min_lookback,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def smc(self, open_=None, high=None, low=None, close=None, **kw):
+        # smc() signature is smc(open_, high, low, close, ...).
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(smc(o, h, lo, c, **kw), **kw)
 
-    def avwap(
-        self,
-        left_strength=None,
-        right_strength=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = avwap(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            left_strength=left_strength,
-            right_strength=right_strength,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def smi(self, close=None, **kw):
+        return self._post_process(smi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def cmf(self, open_=None, length=None, offset=None, **kwargs: DictLike):
-        if open_ is not None:
-            open_ = self._get_column(kwargs.pop("open", "open"))
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = cmf(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            open_=open_,
-            length=length,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def squeeze(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(squeeze(h, lo, c, **kw), **kw)
 
-    def efi(
-        self, length=None, mamode=None, offset=None, drift=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = efi(
-            close=close,
-            volume=volume,
-            length=length,
-            offset=offset,
-            mamode=mamode,
-            drift=drift,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def squeeze_pro(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(squeeze_pro(h, lo, c, **kw), **kw)
 
-    def eom(
-        self, length=None, divisor=None, offset=None, drift=None, **kwargs: DictLike
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = eom(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            length=length,
-            divisor=divisor,
-            offset=offset,
-            drift=drift,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def stc(self, close=None, **kw):
+        return self._post_process(stc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def kvo(
-        self,
-        fast=None,
-        slow=None,
-        length_sig=None,
-        mamode=None,
-        offset=None,
-        drift=None,
-        **kwargs: DictLike,
-    ):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = kvo(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            fast=fast,
-            slow=slow,
-            length_sig=length_sig,
-            mamode=mamode,
-            offset=offset,
-            drift=drift,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def stoch(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(stoch(h, lo, c, **kw), **kw)
 
-    def mfi(self, length=None, drift=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = mfi(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            length=length,
-            drift=drift,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def stochf(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(stochf(h, lo, c, **kw), **kw)
 
-    def nvi(
-        self, length=None, initial=None, signed=True, offset=None, **kwargs: DictLike
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = nvi(
-            close=close,
-            volume=volume,
-            length=length,
-            initial=initial,
-            signed=signed,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def stochrsi(self, close=None, **kw):
+        return self._post_process(stochrsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def obv(self, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = obv(close=close, volume=volume, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
+    def tmo(self, open_=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(tmo(o, c, **kw), **kw)
 
-    def pvi(
-        self,
-        length=None,
-        initial=None,
-        mamode=None,
-        overlay=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = pvi(
-            close=close,
-            volume=volume,
-            length=length,
-            initial=initial,
-            mamode=mamode,
-            overlay=overlay,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def trix(self, close=None, **kw):
+        return self._post_process(trix(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def pvo(
-        self,
-        fast=None,
-        slow=None,
-        signal=None,
-        scalar=None,
-        offset=None,
-        **kwargs: DictLike,
-    ):
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = pvo(
-            volume=volume,
-            fast=fast,
-            slow=slow,
-            signal=signal,
-            scalar=scalar,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def trixh(self, high=None, low=None, close=None, **kw):
+        # trixh() signature is trixh(close, ...); high/low are unused.
+        c = self._col(close or kw.pop("close", "close"))
+        kw.pop("high", None)
+        kw.pop("low", None)
+        return self._post_process(trixh(c, **kw), **kw)
 
-    def pvol(self, volume=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = pvol(close=close, volume=volume, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
+    def tsi(self, close=None, **kw):
+        return self._post_process(tsi(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def pvr(self, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = pvr(close=close, volume=volume)
-        return self._post_process(result, **kwargs)
+    def uo(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(uo(h, lo, c, **kw), **kw)
 
-    def pvt(self, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = pvt(close=close, volume=volume, offset=offset, **kwargs)
-        return self._post_process(result, **kwargs)
+    def vwmacd(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(vwmacd(c, v, **kw), **kw)
 
-    def vfi(self, length=None, smoothing=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = vfi(
-            close=close,
-            volume=volume,
-            length=length,
-            smoothing=smoothing,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def willr(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(willr(h, lo, c, **kw), **kw)
 
-    def vhm(self, length=None, slength=None, offset=None, **kwargs: DictLike):
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = vhm(
-            volume=volume, length=length, slength=slength, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    # ==================================================================
+    #  Overlap
+    # ==================================================================
 
-    def vwap(self, anchor=None, offset=None, **kwargs: DictLike):
-        high = self._get_column(kwargs.pop("high", "high"))
-        low = self._get_column(kwargs.pop("low", "low"))
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
+    def alligator(self, close=None, **kw):
+        return self._post_process(alligator(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-        if not self.datetime_ordered():
-            volume.index = self._df.index
+    def alma(self, close=None, **kw):
+        return self._post_process(alma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-        result = vwap(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            anchor=anchor,
-            offset=offset,
-            **kwargs,
-        )
-        return self._post_process(result, **kwargs)
+    def dema(self, close=None, **kw):
+        return self._post_process(dema(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def vwma(self, volume=None, length=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = vwma(
-            close=close, volume=volume, length=length, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def ema(self, close=None, **kw):
+        return self._post_process(ema(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
-    def wb_tsv(self, length=None, signal=None, offset=None, **kwargs: DictLike):
-        close = self._get_column(kwargs.pop("close", "close"))
-        volume = self._get_column(kwargs.pop("volume", "volume"))
-        result = wb_tsv(
-            close=close, volume=volume, signal=signal, offset=offset, **kwargs
-        )
-        return self._post_process(result, **kwargs)
+    def fwma(self, close=None, **kw):
+        return self._post_process(fwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def hilo(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(hilo(h, lo, c, **kw), **kw)
+
+    def hl2(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(hl2(h, lo, **kw), **kw)
+
+    def hlc3(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(hlc3(h, lo, c, **kw), **kw)
+
+    def hma(self, close=None, **kw):
+        return self._post_process(hma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def hwma(self, close=None, **kw):
+        return self._post_process(hwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def ichimoku(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ichimoku(h, lo, c, **kw), **kw)
+
+    def jma(self, close=None, **kw):
+        return self._post_process(jma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def kama(self, close=None, **kw):
+        return self._post_process(kama(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def linreg(self, close=None, **kw):
+        return self._post_process(linreg(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def mama(self, close=None, **kw):
+        return self._post_process(mama(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def mcgd(self, close=None, **kw):
+        return self._post_process(mcgd(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def midpoint(self, close=None, **kw):
+        return self._post_process(midpoint(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def midprice(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(midprice(h, lo, **kw), **kw)
+
+    def mmar(self, close=None, **kw):
+        return self._post_process(mmar(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def ohlc4(self, open_=None, high=None, low=None, close=None, **kw):
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
+        return self._post_process(ohlc4(o, h, lo, c, **kw), **kw)
+
+    def ott(self, close=None, **kw):
+        return self._post_process(ott(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def pivots(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(pivots(h, lo, c, **kw), **kw)
+
+    def pwma(self, close=None, **kw):
+        return self._post_process(pwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def rainbow(self, close=None, **kw):
+        return self._post_process(rainbow(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def rma(self, close=None, **kw):
+        return self._post_process(rma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def sinwma(self, close=None, **kw):
+        return self._post_process(sinwma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def sma(self, close=None, **kw):
+        return self._post_process(sma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def smma(self, close=None, **kw):
+        return self._post_process(smma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def ssf(self, close=None, **kw):
+        return self._post_process(ssf(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def ssf3(self, close=None, **kw):
+        return self._post_process(ssf3(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def supertrend(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(supertrend(h, lo, c, **kw), **kw)
+
+    def swma(self, close=None, **kw):
+        return self._post_process(swma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def t3(self, close=None, **kw):
+        return self._post_process(t3(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def tema(self, close=None, **kw):
+        return self._post_process(tema(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def trima(self, close=None, **kw):
+        return self._post_process(trima(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def vidya(self, close=None, **kw):
+        return self._post_process(vidya(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def wcp(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(wcp(h, lo, c, **kw), **kw)
+
+    def wma(self, close=None, **kw):
+        return self._post_process(wma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def zlma(self, close=None, **kw):
+        return self._post_process(zlma(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    # ==================================================================
+    #  Performance
+    # ==================================================================
+
+    def drawdown(self, close=None, **kw):
+        return self._post_process(drawdown(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def log_return(self, close=None, **kw):
+        return self._post_process(log_return(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def percent_return(self, close=None, **kw):
+        return self._post_process(percent_return(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    # ==================================================================
+    #  Statistics
+    # ==================================================================
+
+    def entropy(self, close=None, **kw):
+        return self._post_process(entropy(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def kurtosis(self, close=None, **kw):
+        return self._post_process(kurtosis(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def mad(self, close=None, **kw):
+        return self._post_process(mad(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def median(self, close=None, **kw):
+        return self._post_process(median(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def quantile(self, close=None, **kw):
+        return self._post_process(quantile(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def skew(self, close=None, **kw):
+        return self._post_process(skew(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def stdev(self, close=None, **kw):
+        return self._post_process(stdev(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def tos_stdevall(self, close=None, **kw):
+        return self._post_process(tos_stdevall(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def variance(self, close=None, **kw):
+        return self._post_process(variance(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def zscore(self, close=None, **kw):
+        return self._post_process(zscore(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    # ==================================================================
+    #  Transform
+    # ==================================================================
+
+    def cube(self, close=None, **kw):
+        return self._post_process(cube(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def ifisher(self, close=None, **kw):
+        return self._post_process(ifisher(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def remap(self, close=None, **kw):
+        return self._post_process(remap(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    # ==================================================================
+    #  Trend
+    # ==================================================================
+
+    def adx(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(adx(h, lo, c, **kw), **kw)
+
+    def alphatrend(self, high=None, low=None, close=None, volume=None, **kw):
+        # alphatrend() signature is alphatrend(high, low, close, ...); volume unused.
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        kw.pop("volume", None)
+        return self._post_process(alphatrend(h, lo, c, **kw), **kw)
+
+    def amat(self, close=None, **kw):
+        return self._post_process(amat(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def aroon(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(aroon(h, lo, **kw), **kw)
+
+    def chop(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(chop(h, lo, c, **kw), **kw)
+
+    def cksp(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cksp(h, lo, c, **kw), **kw)
+
+    def decay(self, close=None, **kw):
+        return self._post_process(decay(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def decreasing(self, close=None, **kw):
+        return self._post_process(decreasing(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def dpo(self, close=None, **kw):
+        return self._post_process(dpo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def ht_trendline(self, close=None, **kw):
+        return self._post_process(ht_trendline(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def increasing(self, close=None, **kw):
+        return self._post_process(increasing(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def long_run(self, fast=None, slow=None, **kw):
+        f = self._col(fast or kw.pop("fast", "fast"))
+        s = self._col(slow or kw.pop("slow", "slow"))
+        return self._post_process(long_run(f, s, **kw), **kw)
+
+    def pmax(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(pmax(h, lo, c, v, **kw), **kw)
+
+    def psar(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(psar(h, lo, c, **kw), **kw)
+
+    def qstick(self, open_=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(qstick(o, c, **kw), **kw)
+
+    def rwi(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(rwi(h, lo, c, **kw), **kw)
+
+    def short_run(self, fast=None, slow=None, **kw):
+        f = self._col(fast or kw.pop("fast", "fast"))
+        s = self._col(slow or kw.pop("slow", "slow"))
+        return self._post_process(short_run(f, s, **kw), **kw)
+
+    def trama(self, close=None, **kw):
+        return self._post_process(trama(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def trendflex(self, close=None, **kw):
+        return self._post_process(trendflex(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def tsignals(self, trend=None, **kw):
+        t = self._col(trend or kw.pop("trend", "trend"))
+        return self._post_process(tsignals(t, **kw), **kw)
+
+    def ttm_trend(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ttm_trend(h, lo, c, **kw), **kw)
+
+    def vhf(self, close=None, **kw):
+        return self._post_process(vhf(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def vortex(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(vortex(h, lo, c, **kw), **kw)
+
+    def xsignals(self, signal=None, xa=None, xb=None, **kw):
+        s = self._col(signal or kw.pop("signal", "signal"))
+        a = self._col(xa or kw.pop("above", "above"))
+        b = self._col(xb or kw.pop("below", "below"))
+        return self._post_process(xsignals(s, a, b, **kw), **kw)
+
+    def zigzag(self, high=None, low=None, close=None, **kw):
+        # zigzag() signature is zigzag(high, low, ...); 'close' is unused.
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        kw.pop("close", None)
+        return self._post_process(zigzag(h, lo, **kw), **kw)
+
+    # ==================================================================
+    #  Volatility
+    # ==================================================================
+
+    def aberration(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(aberration(h, lo, c, **kw), **kw)
+
+    def accbands(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(accbands(h, lo, c, **kw), **kw)
+
+    def atr(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(atr(h, lo, c, **kw), **kw)
+
+    def atrts(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(atrts(h, lo, c, **kw), **kw)
+
+    def avsl(self, close=None, low=None, volume=None, **kw):
+        # avsl() signature is avsl(close, low, volume, ...); 'high' is unused.
+        c = self._col(close or kw.pop("close", "close"))
+        lo = self._col(low or kw.pop("low", "low"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("high", None)
+        return self._post_process(avsl(c, lo, v, **kw), **kw)
+
+    def bbands(self, close=None, **kw):
+        return self._post_process(bbands(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def chandelier_exit(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(chandelier_exit(h, lo, c, **kw), **kw)
+
+    def donchian(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(donchian(h, lo, **kw), **kw)
+
+    def fvg(self, open_=None, high=None, low=None, close=None, **kw):
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
+        return self._post_process(fvg(o, h, lo, c, **kw), **kw)
+
+    def halftrend(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(halftrend(h, lo, c, **kw), **kw)
+
+    def hwc(self, close=None, **kw):
+        return self._post_process(hwc(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def kc(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(kc(h, lo, c, **kw), **kw)
+
+    def massi(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(massi(h, lo, **kw), **kw)
+
+    def natr(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(natr(h, lo, c, **kw), **kw)
+
+    def pdist(self, open_=None, high=None, low=None, close=None, **kw):
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
+        return self._post_process(pdist(o, h, lo, c, **kw), **kw)
+
+    def rvi(self, open_=None, high=None, low=None, close=None, **kw):
+        # rvi() signature is rvi(close, high, low, ...); 'open' is unused.
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        kw.pop("open", None)
+        return self._post_process(rvi(c, h, lo, **kw), **kw)
+
+    def thermo(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(thermo(h, lo, **kw), **kw)
+
+    def true_range(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(true_range(h, lo, c, **kw), **kw)
+
+    def ui(self, close=None, **kw):
+        return self._post_process(ui(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    # ==================================================================
+    #  Volume
+    # ==================================================================
+
+    def ad(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(ad(h, lo, c, v, **kw), **kw)
+
+    def adosc(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(adosc(h, lo, c, v, **kw), **kw)
+
+    def aobv(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(aobv(c, v, **kw), **kw)
+
+    def avwap(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(avwap(h, lo, c, v, **kw), **kw)
+
+    def cmf(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(cmf(h, lo, c, v, **kw), **kw)
+
+    def efi(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(efi(c, v, **kw), **kw)
+
+    def eom(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(eom(h, lo, c, v, **kw), **kw)
+
+    def kvo(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(kvo(h, lo, c, v, **kw), **kw)
+
+    def mfi(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(mfi(h, lo, c, v, **kw), **kw)
+
+    def nvi(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(nvi(c, v, **kw), **kw)
+
+    def obv(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(obv(c, v, **kw), **kw)
+
+    def pvi(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(pvi(c, v, **kw), **kw)
+
+    def pvo(self, volume=None, **kw):
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(pvo(v, **kw), **kw)
+
+    def pvol(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(pvol(c, v, **kw), **kw)
+
+    def pvr(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(pvr(c, v, **kw), **kw)
+
+    def pvt(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(pvt(c, v, **kw), **kw)
+
+    def vfi(self, high=None, low=None, close=None, volume=None, **kw):
+        # vfi() signature is vfi(close, volume, ...); high/low are unused.
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("high", None)
+        kw.pop("low", None)
+        return self._post_process(vfi(c, v, **kw), **kw)
+
+    def vhm(self, close=None, volume=None, **kw):
+        # vhm() signature is vhm(volume, ...); 'close' is unused.
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("close", None)
+        return self._post_process(vhm(v, **kw), **kw)
+
+    def vp(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(vp(c, v, **kw), **kw)
+
+    def vwap(self, high=None, low=None, close=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        # Anchor on a datetime column when one is present (daily reset, like the
+        # OLD DatetimeIndex behaviour); otherwise VWAP is cumulative.
+        if kw.get("datetime_col") is None:
+            for cand in ("date", "datetime", "time", "timestamp"):
+                if cand in self._df.columns and self._df.schema[cand] in (pl.Date, pl.Datetime):
+                    kw["datetime_col"] = cand
+                    break
+        return self._post_process(vwap(h, lo, c, v, **kw), **kw)
+
+    def vwma(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(vwma(c, v, **kw), **kw)
+
+    def wb_tsv(self, close=None, volume=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        return self._post_process(wb_tsv(c, v, **kw), **kw)
+
+
+# ---------------------------------------------------------------------------
+# Wrap every indicator accessor so the DataFrame-level ``append=`` keyword is
+# handled centrally instead of leaking into the indicator function (which would
+# raise ``TypeError: <ind>() got an unexpected keyword argument 'append'``).
+# When ``append=True`` the original DataFrame is returned with the new indicator
+# columns hstacked on; otherwise the result-only DataFrame is returned (default).
+# ``study``/``categories`` and private methods are excluded.
+# ---------------------------------------------------------------------------
+import functools as _functools
+
+_NON_INDICATOR_METHODS = {"categories", "study"}
+
+
+def _support_append(method):
+    @_functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        append = bool(kwargs.pop("append", False))
+        result = method(self, *args, **kwargs)
+        if append and isinstance(result, pl.DataFrame):
+            new_cols = [c for c in result.columns if c not in self._df.columns]
+            return self._df.hstack(result.select(new_cols))
+        return result
+
+    return wrapper
+
+
+for _m_name, _m_attr in list(vars(TechnicalIndicators).items()):
+    if _m_name.startswith("_") or _m_name in _NON_INDICATOR_METHODS:
+        continue
+    if callable(_m_attr):
+        setattr(TechnicalIndicators, _m_name, _support_append(_m_attr))

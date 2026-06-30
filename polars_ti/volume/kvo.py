@@ -1,112 +1,79 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars KVO (Klinger Volume Oscillator) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.ma import ma
-from polars_ti.overlap import hlc3
-from polars_ti.utils import (
-    signed_series,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def kvo(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    signal: int | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Klinger Volume Oscillator (KVO)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    fast: int = 34,
+    slow: int = 55,
+    signal: int = 13,
+    mamode: str = "ema",
+    talib: bool = True,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Klinger Volume Oscillator (KVO)
 
-    This indicator was developed by Stephen J. Klinger. It attempts to
-    predict price reversals in a market by comparing volume to price.
-
-    Sources:
-        https://www.investopedia.com/terms/k/klingeroscillator.asp
-        https://www.daytrading.com/klinger-volume-oscillator
+    This indicator attempts to predict price reversals by comparing volume to price.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        fast (int): The fast period. Default: 34
-        slow (int): The slow period. Default: 55
-        signal (int): The signal period. Default: 13
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        fast: Fast MA period. Default: 34
+        slow: Slow MA period. Default: 55
+        signal: Signal MA period. Default: 13
+        mamode: MA type. Default: 'ema'
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: KVO and Signal columns.
+        list[pl.Expr]: List of expressions [KVO, KVO_signal]
     """
-    # Validate
-    fast = v_pos_default(fast, 34)
-    slow = v_pos_default(slow, 55)
-    signal = v_pos_default(signal, 13)
-    _length = max(fast, slow) + signal
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
+    from polars_ti.overlap.hlc3 import hlc3
+    from polars_ti.ma import ma
 
-    if high is None or low is None or close is None or volume is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    mamode = v_mamode(mamode, "ema")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
 
-    # Pop length from kwargs to avoid passing it twice to ma()
-    if "length" in kwargs:
-        kwargs.pop("length")
-
-    # Calculate
-    signed_volume = volume * signed_series(hlc3(high, low, close), -1)
-    sv = signed_volume.loc[signed_volume.first_valid_index() :,]
-
-    kvo = ma(mamode, sv, length=fast, **kwargs) - ma(mamode, sv, length=slow, **kwargs)
-    if kvo is None or all(isnan(kvo.to_numpy())):
-        return  # Emergency Break
-
-    kvo_signal = ma(
-        mamode, kvo.loc[kvo.first_valid_index() :,], length=signal, **kwargs
-    )
-    if kvo_signal is None or all(isnan(kvo_signal.to_numpy())):
-        return  # Emergency Break
-
-    # Offset
-    if offset != 0:
-        kvo = kvo.shift(offset)
-        kvo_signal = kvo_signal.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        kvo = kvo.fillna(kwargs["fillna"])
-        kvo_signal = kvo_signal.fillna(kwargs["fillna"])
-
-    # Name and Category
     _props = f"_{fast}_{slow}_{signal}"
-    kvo.name = f"KVO{_props}"
-    kvo_signal.name = f"KVOs{_props}"
-    kvo.category = kvo_signal.category = "volume"
 
-    data = {kvo.name: kvo, kvo_signal.name: kvo_signal}
-    df = DataFrame(data, index=close.index)
-    df.name = f"KVO{_props}"
-    df.category = kvo.category
+    # Use pl_hlc3 for code reuse
+    hlc3_expr = hlc3(high_expr, low_expr, close_expr)
 
-    return df
+    # signed_volume = volume * sign(hlc3.diff())
+    # Note: diff() on first row is null, which propagates to signed_volume (matches Pandas NaN)
+    hlc3_diff = hlc3_expr.diff()
+    sign = pl.when(hlc3_diff > 0).then(1.0).when(hlc3_diff < 0).then(-1.0).otherwise(pl.lit(None))
+    signed_volume = volume_expr * sign
+
+    # KVO = MA(signed_volume, fast) - MA(signed_volume, slow)
+    kvo_fast = ma(name=mamode, source=signed_volume, length=fast, talib=talib)
+    kvo_slow = ma(name=mamode, source=signed_volume, length=slow, talib=talib)
+    kvo_expr = kvo_fast - kvo_slow
+
+    # Signal = MA(KVO, signal)
+    kvo_signal_expr = ma(name=mamode, source=kvo_expr, length=signal, talib=talib)
+
+    if offset != 0:
+        kvo_expr = kvo_expr.shift(offset)
+        kvo_signal_expr = kvo_signal_expr.shift(offset)
+
+    return [
+        kvo_expr.alias(f"KVO{_props}"),
+        kvo_signal_expr.alias(f"KVOs{_props}"),
+    ]

@@ -1,109 +1,126 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars HILO Implementation
+# =============================================================================
+import polars as pl
 import numpy as np
-from pandas import DataFrame, Series
+from numba import njit
 
+from polars_ti._typing import IntoExpr
 from polars_ti.ma import ma
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def nb_hilo(close: np.ndarray, high_ma: np.ndarray, low_ma: np.ndarray) -> tuple:
+    """Numba-optimized HILO calculation.
+
+    Returns: (hilo, long, short) arrays
+    """
+    m = len(close)
+    hilo = np.empty(m, dtype=np.float64)
+    long = np.empty(m, dtype=np.float64)
+    short = np.empty(m, dtype=np.float64)
+
+    hilo[0] = np.nan
+    long[0] = np.nan
+    short[0] = np.nan
+
+    for i in range(1, m):
+        if close[i] > high_ma[i - 1]:
+            hilo[i] = low_ma[i]
+            long[i] = low_ma[i]
+            short[i] = np.nan
+        elif close[i] < low_ma[i - 1]:
+            hilo[i] = high_ma[i]
+            long[i] = np.nan
+            short[i] = high_ma[i]
+        else:
+            hilo[i] = hilo[i - 1]
+            long[i] = hilo[i - 1]
+            short[i] = hilo[i - 1]
+
+    return hilo, long, short
 
 
 def hilo(
-    high: Series,
-    low: Series,
-    close: Series,
-    high_length: int | None = None,
-    low_length: int | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Gann HiLo Activator(HiLo)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    high_length: int = 13,
+    low_length: int = 21,
+    mamode: str = "sma",
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Gann HiLo Activator
 
-    The Gann High Low Activator Indicator was created by Robert Krausz in
-    a 1998 issue of Stocks & Commodities Magazine. It is a moving average
-    based trend indicator consisting of two different simple moving averages.
-
-    The indicator tracks both curves (of the highs and the lows). The close
-    of the bar defines which of the two gets plotted.
-
-    Increasing high_length and decreasing low_length better for short trades,
-    vice versa for long positions.
-
-    Sources:
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=447&Name=Gann_HiLo_Activator
-        https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/simple-moving-average-sma/
-        https://www.tradingview.com/script/XNQSLIYb-Gann-High-Low/
+    The Gann High Low Activator Indicator tracks both curves (of the highs
+    and lows). The close of the bar defines which of the two gets plotted.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        high_length (int): It's period. Default: 13
-        low_length (int): It's period. Default: 21
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        adjust (bool): Default: True
-        presma (bool, optional): If True, uses SMA for initial value.
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        high_length: Period for high MA. Default: 13
+        low_length: Period for low MA. Default: 21
+        mamode: MA type (sma, ema, etc.). Default: "sma"
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: HILO (line), HILOl (long), HILOs (short) columns.
+        pl.Expr: Struct expression with HILO, HILOl, HILOs columns
     """
-    # Validate
-    high_length = v_pos_default(high_length, 13)
-    low_length = v_pos_default(low_length, 21)
-    _length = max(high_length, low_length) + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if high is None or low is None or close is None:
-        return
-
-    mamode = v_mamode(mamode, "sma")
-    offset = v_offset(offset)
-
-    # Pop length from kwargs to avoid passing it twice to ma()
-    if "length" in kwargs:
-        kwargs.pop("length")
-
-    # Calculate
-    m = close.size
-    hilo = Series(np.nan, index=close.index)
-    long = Series(np.nan, index=close.index)
-    short = Series(np.nan, index=close.index)
-
-    high_ma = ma(mamode, high, length=high_length, **kwargs)
-    low_ma = ma(mamode, low, length=low_length, **kwargs)
-
-    for i in range(1, m):
-        if close.iat[i] > high_ma.iat[i - 1]:
-            hilo.iat[i] = long.iat[i] = low_ma.iat[i]
-        elif close.iat[i] < low_ma.iat[i - 1]:
-            hilo.iat[i] = short.iat[i] = high_ma.iat[i]
-        else:
-            hilo.iat[i] = hilo.iat[i - 1]
-            long.iat[i] = short.iat[i] = hilo.iat[i - 1]
-
-    # Offset
-    if offset != 0:
-        hilo = hilo.shift(offset)
-        long = long.shift(offset)
-        short = short.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        hilo = hilo.fillna(kwargs["fillna"])
-        long = long.fillna(kwargs["fillna"])
-        short = short.fillna(kwargs["fillna"])
-
-    # Name and Category
     _props = f"_{high_length}_{low_length}"
-    data = {f"HILO{_props}": hilo, f"HILOl{_props}": long, f"HILOs{_props}": short}
-    df = DataFrame(data, index=close.index)
+    hilo_name = f"HILO{_props}"
+    long_name = f"HILOl{_props}"
+    short_name = f"HILOs{_props}"
+    _offset = offset
 
-    df.name = f"HILO{_props}"
-    df.category = "overlap"
+    high_ma_expr = ma(mamode, high_expr, length=high_length, talib=talib)
+    low_ma_expr = ma(mamode, low_expr, length=low_length, talib=talib)
 
-    return df
+    def compute_hilo(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        close_np = df["_close"].to_numpy().astype(np.float64)
+        high_ma_np = df["_high_ma"].to_numpy().astype(np.float64)
+        low_ma_np = df["_low_ma"].to_numpy().astype(np.float64)
+
+        hilo, long, short = nb_hilo(close_np, high_ma_np, low_ma_np)
+
+        if _offset != 0:
+            for arr in (hilo, long, short):
+                arr[:] = np.roll(arr, _offset)
+            if _offset > 0:
+                hilo[:_offset] = np.nan
+                long[:_offset] = np.nan
+                short[:_offset] = np.nan
+            else:
+                hilo[_offset:] = np.nan
+                long[_offset:] = np.nan
+                short[_offset:] = np.nan
+
+        n = len(close_np)
+        return pl.Series([{hilo_name: hilo[i], long_name: long[i], short_name: short[i]} for i in range(n)])
+
+    fields = [
+        pl.Field(hilo_name, pl.Float64),
+        pl.Field(long_name, pl.Float64),
+        pl.Field(short_name, pl.Float64),
+    ]
+
+    return (
+        pl.struct(
+            [
+                close_expr.alias("_close"),
+                high_ma_expr.alias("_high_ma"),
+                low_ma_expr.alias("_low_ma"),
+            ]
+        )
+        .map_batches(compute_hilo, return_dtype=pl.Struct(fields))
+        .alias("HILO")
+    )

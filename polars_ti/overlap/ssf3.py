@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import copy, cos, exp, zeros_like
-from pandas import Series
-
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from numba import njit
 
 
-# John F. Ehler's Super Smoother Filter by Everget (3 poles), Tradingview
-# https://www.tradingview.com/script/VdJy0yBJ-Ehlers-Super-Smoother-Filter/
 @njit(cache=True)
 def nb_ssf3(x, n, pi, sqrt3):
     m, result = x.size, copy(x)
@@ -22,79 +17,52 @@ def nb_ssf3(x, n, pi, sqrt3):
 
     # result[:3] = x[:3]
     for i in range(3, m):
-        result[i] = (
-            d1 * x[i] + d2 * result[i - 1] + d3 * result[i - 2] + d4 * result[i - 3]
-        )
+        result[i] = d1 * x[i] + d2 * result[i - 1] + d3 * result[i - 2] + d4 * result[i - 3]
 
     return result
 
 
+# =============================================================================
+# Polars SSF3 Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def ssf3(
-    close: Series,
-    length: int | None = None,
-    pi: int | float | None = None,
-    sqrt3: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-):
-    """Ehler's 3 Pole Super Smoother Filter (SSF) © 2013
+    close: IntoExpr,
+    length: int = 20,
+    pi: float = 3.14159,
+    sqrt3: float = 1.732,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Ehler's 3 Pole Super Smoother Filter (SSF3)
 
-    John F. Ehlers's solution to reduce lag and remove aliasing noise
-    with his research in aerospace analog filter design. This is
-    implementation has three poles. Since SSF is a (Recursive) Digital
-    Filter, the number of poles determine how many prior recursive SSF bars
-    to include in the filter design.
-
-    For Everget's calculation on TradingView, set arguments:
-        pi = np.pi, sqrt3 = 1.738
-
-    Sources:
-        https://www.tradingview.com/script/VdJy0yBJ-Ehlers-Super-Smoother-Filter/
-        https://www.mql5.com/en/code/589
+    Recursive digital filter to reduce lag and remove aliasing noise.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 20
-        pi (float): The value of PI to use. The default is Ehler's
-            truncated value 3.14159. Adjust the value for more precision.
-            Default: 3.14159
-        sqrt3 (float): The value of sqrt(3) to use. The default is Ehler's
-            truncated value 1.732. Adjust the value for more precision.
-            Default: 1.732
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 20
+        pi: Value of PI. Default: 3.14159
+        sqrt3: Value of sqrt(3). Default: 1.732
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: SSF3 expression
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    def compute_ssf3(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        # Use existing Numba kernel directly
+        result = nb_ssf3(arr, length, pi, sqrt3)
+        if offset != 0:
+            result = np.roll(result, offset)
+            if offset > 0:
+                result[:offset] = np.nan
+        return pl.Series(result)
 
-    pi = v_pos_default(pi, 3.14159)
-    sqrt3 = v_pos_default(sqrt3, 1.732)
-    offset = v_offset(offset)
-
-    # Calculate
-    np_close = close.to_numpy()
-    ssf = nb_ssf3(np_close, length, pi, sqrt3)
-    ssf = Series(ssf, index=close.index)
-
-    # Offset
-    if offset != 0:
-        ssf = ssf.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        ssf = ssf.fillna(kwargs["fillna"])
-
-    # Name and Category
-    ssf.name = f"SSF3_{length}"
-    ssf.category = "overlap"
-
-    return ssf
+    return close_expr.map_batches(compute_ssf3, return_dtype=pl.Float64).alias(f"SSF3_{length}")

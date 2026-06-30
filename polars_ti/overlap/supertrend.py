@@ -1,125 +1,146 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars SUPERTREND Implementation (pl_hl2 + pl_atr composition)
+# =============================================================================
+import polars as pl
 import numpy as np
-from pandas import DataFrame, Series
+from numba import njit
 
-from polars_ti.overlap import hl2
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.overlap.hl2 import hl2
+from polars_ti.volatility.atr import atr
 
 
-def supertrend(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    atr_length: int | None = None,
-    multiplier: int | float | None = None,
-    atr_mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Supertrend (supertrend)
+@njit(cache=True)
+def nb_supertrend_bands(close: np.ndarray, lb: np.ndarray, ub: np.ndarray, length: int) -> tuple:
+    """Numba kernel for recursive Supertrend band preservation logic."""
+    m = len(close)
 
-    Supertrend is an overlap indicator created by Olivier Seban. It is used
-    to help identify trend direction, setting stop loss, identify support
-    and resistance, and/or generate buy & sell signals.
+    dir_ = np.ones(m, dtype=np.int64)
+    trend = np.zeros(m, dtype=np.float64)
+    long = np.empty(m, dtype=np.float64)
+    short = np.empty(m, dtype=np.float64)
+    long[:] = np.nan
+    short[:] = np.nan
 
-    The indicator combines trend detection and volatility using ATR. Band
-    preservation logic per TradingView:
-        upperBand = basicUpperBand < prev upperBand or prev close > prev upperBand
-                    ? basicUpperBand : prev upperBand
-        lowerBand = basicLowerBand > prev lowerBand or prev close < prev lowerBand
-                    ? basicLowerBand : prev lowerBand
-
-    Sources:
-        https://www.tradingview.com/support/solutions/43000634738-supertrend/
-        https://www.investopedia.com/supertrend-indicator-7976167
-        http://www.freebsensetips.com/blog/detail/7/What-is-supertrend-indicator-its-calculation
-
-    Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int) : Length for ATR calculation. Default: 7
-        atr_length (int) : If None, defaults to length otherwise, provides
-            variable of control. Default: length
-        multiplier (float): Coefficient for upper and lower band distance to
-            midrange. Default: 3.0
-        atr_mamode (str) : MA type to be used for ATR calculation.
-            See ``help(ti.ma)``. Default: 'rma'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
-
-    Returns:
-        pd.DataFrame: SUPERT (trend), SUPERTd (direction),
-            SUPERTl (long), SUPERTs (short) columns.
-    """
-    # Validate
-    length = v_pos_default(length, 7)
-    atr_length = v_pos_default(atr_length, length)
-    high = v_series(high, length + 1)
-    low = v_series(low, length + 1)
-    close = v_series(close, length + 1)
-
-    if high is None or low is None or close is None:
-        return
-
-    multiplier = v_pos_default(multiplier, 3.0)
-    atr_mamode = v_mamode(atr_mamode, "rma")
-    offset = v_offset(offset)
-
-    # Calculate
-    m = close.size
-    dir_, trend = [1] * m, [0] * m
-    long, short = [np.nan] * m, [np.nan] * m
-
-    hl2_ = hl2(high, low)
-    matr = multiplier * atr(high, low, close, atr_length, mamode=atr_mamode)
-    lb = hl2_ - matr
-    ub = hl2_ + matr
+    # Make copies so we can modify in-place
+    lb = lb.copy()
+    ub = ub.copy()
 
     for i in range(1, m):
-        if close.iat[i] > ub.iat[i - 1]:
+        if close[i] > ub[i - 1]:
             dir_[i] = 1
-        elif close.iat[i] < lb.iat[i - 1]:
+        elif close[i] < lb[i - 1]:
             dir_[i] = -1
         else:
             dir_[i] = dir_[i - 1]
 
-        # Preserve bands in trend direction (moved outside else for TV match)
-        if dir_[i] > 0 and lb.iat[i] < lb.iat[i - 1]:
-            lb.iat[i] = lb.iat[i - 1]
-        if dir_[i] < 0 and ub.iat[i] > ub.iat[i - 1]:
-            ub.iat[i] = ub.iat[i - 1]
+        # Band preservation logic (TradingView style)
+        if dir_[i] > 0 and lb[i] < lb[i - 1]:
+            lb[i] = lb[i - 1]
+        if dir_[i] < 0 and ub[i] > ub[i - 1]:
+            ub[i] = ub[i - 1]
 
         if dir_[i] > 0:
-            trend[i] = long[i] = lb.iat[i]
+            trend[i] = lb[i]
+            long[i] = lb[i]
         else:
-            trend[i] = short[i] = ub.iat[i]
+            trend[i] = ub[i]
+            short[i] = ub[i]
 
     trend[0] = np.nan
-    dir_[:length] = [np.nan] * length
+    return trend, dir_, long, short
 
+
+def supertrend(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 7,
+    multiplier: float = 3.0,
+    mamode: str = "rma",
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Supertrend - uses HL2 and ATR composition.
+
+    Returns struct with SUPERT, SUPERTd, SUPERTl, SUPERTs.
+
+    Args:
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        length: ATR period. Default: 7
+        multiplier: Band distance multiplier. Default: 3.0
+        mamode: MA type for ATR ('rma', 'sma', 'ema'). Default: 'rma'
+        offset: Shift result by N periods. Default: 0
+
+    Returns:
+        pl.Expr: Struct with SUPERT, SUPERTd, SUPERTl, SUPERTs
+    """
     _props = f"_{length}_{multiplier}"
-    data = {
-        f"SUPERT{_props}": trend,
-        f"SUPERTd{_props}": dir_,
-        f"SUPERTl{_props}": long,
-        f"SUPERTs{_props}": short,
-    }
-    df = DataFrame(data, index=close.index)
+    _length = length
+    _multiplier = multiplier
+    _offset = offset
 
-    df.name = f"SUPERT{_props}"
-    df.category = "overlap"
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    # Offset
-    if offset != 0:
-        df = df.shift(offset)
+    # Use pl_hl2 and pl_atr composition!
+    hl2_expr = hl2(high_expr, low_expr)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
 
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
+    def compute_supertrend(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        close_arr = df["_close"].to_numpy().astype(np.float64)
+        hl2_arr = df["_hl2"].to_numpy().astype(np.float64)
+        atr_arr = df["_atr"].to_numpy().astype(np.float64)
 
-    return df
+        # Compute basic bands
+        lb = hl2_arr - _multiplier * atr_arr
+        ub = hl2_arr + _multiplier * atr_arr
+
+        # Numba for recursive band logic only
+        trend, dir_, long, short = nb_supertrend_bands(close_arr, lb, ub, _length)
+        dir_f = dir_.astype(np.float64)
+        dir_f[:_length] = np.nan
+
+        if _offset != 0:
+            for arr in [trend, dir_f, long, short]:
+                arr[:] = np.roll(arr, _offset)
+                if _offset > 0:
+                    arr[:_offset] = np.nan
+
+        n = len(close_arr)
+        return pl.Series(
+            [
+                {
+                    f"SUPERT{_props}": trend[i],
+                    f"SUPERTd{_props}": dir_f[i],
+                    f"SUPERTl{_props}": long[i],
+                    f"SUPERTs{_props}": short[i],
+                }
+                for i in range(n)
+            ]
+        )
+
+    fields = [
+        pl.Field(f"SUPERT{_props}", pl.Float64),
+        pl.Field(f"SUPERTd{_props}", pl.Float64),
+        pl.Field(f"SUPERTl{_props}", pl.Float64),
+        pl.Field(f"SUPERTs{_props}", pl.Float64),
+    ]
+
+    return (
+        pl.struct(
+            [
+                close_expr.alias("_close"),
+                hl2_expr.alias("_hl2"),
+                atr_expr.alias("_atr"),
+            ]
+        )
+        .map_batches(compute_supertrend, return_dtype=pl.Struct(fields))
+        .alias(f"SUPERT{_props}")
+    )

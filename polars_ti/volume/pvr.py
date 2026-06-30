@@ -1,58 +1,54 @@
 # -*- coding: utf-8 -*-
-import numpy as np
-from pandas import Series
+# =============================================================================
+# Polars PVR (Price Volume Rank) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti._typing import Int
-from polars_ti.utils import v_drift, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def pvr(
-    close: Series,
-    volume: Series,
-    drift: Int = None,
-    **kwargs: dict,
-) -> Series:
-    """Price Volume Rank
+    close: IntoExpr,
+    volume: IntoExpr,
+    drift: int = 1,
+) -> PlExpr:
+    """Polars: Price Volume Rank (PVR)
 
-    The Price Volume Rank was developed by Anthony J. Macek and is described
-    in his article in the June, 1994 issue of Technical Analysis of
-    Stocks & Commodities (TASC) Magazine. It was developed as a simple
-    indicator that could be calculated even without a computer. The basic
-    interpretation is to buy when the PV Rank is below 2.5 and
-    sell when it is above 2.5.
-
-    Sources:
-        https://www.fmlabs.com/reference/default.htm?url=PVrank.htm
+    Returns categorical rank 1-4 based on price and volume change directions.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        drift (int): The difference period. Default: 1
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        drift: Difference period. Default: 1
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PVR expression (values 1-4)
     """
-    # Validate
-    drift = v_drift(drift)
-    close = v_series(close, drift)
-    volume = v_series(volume, drift)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    if close is None or volume is None:
-        return
+    if close_expr is None or volume_expr is None:
+        return None
 
-    # Calculate
-    close_diff = close.diff(drift).fillna(0)
-    volume_diff = volume.diff(drift).fillna(0)
+    close_diff = close_expr.diff(drift)
+    volume_diff = volume_expr.diff(drift)
 
-    pvr = Series(np.nan, index=close.index)
+    # PVR categories:
+    # 1: close up, volume up
+    # 2: close up, volume down
+    # 3: close down, volume up
+    # 4: close down, volume down
+    pvr_expr = (
+        pl.when((close_diff >= 0) & (volume_diff >= 0))
+        .then(1)
+        .when((close_diff >= 0) & (volume_diff < 0))
+        .then(2)
+        .when((close_diff < 0) & (volume_diff >= 0))
+        .then(3)
+        .when((close_diff < 0) & (volume_diff < 0))
+        .then(4)
+        .otherwise(None)
+    )
 
-    pvr.loc[(close_diff >= 0) & (volume_diff >= 0)] = 1
-    pvr.loc[(close_diff >= 0) & (volume_diff < 0)] = 2
-    pvr.loc[(close_diff < 0) & (volume_diff >= 0)] = 3
-    pvr.loc[(close_diff < 0) & (volume_diff < 0)] = 4
-
-    # Name and Category
-    pvr.name = f"PVR"
-    pvr.category = "volume"
-
-    return pvr
+    return pvr_expr.alias("PVR")

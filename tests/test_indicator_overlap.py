@@ -259,24 +259,18 @@ def test_mama(df):
 
     try:
         expected = tal.MAMA(df.close)
-        expecteddf = DataFrame(
-            {"MAMA_0.5_0.05": expected[0], "FAMA_0.5_0.05": expected[1]}
-        )
+        expecteddf = DataFrame({"MAMA_0.5_0.05": expected[0], "FAMA_0.5_0.05": expected[1]})
         pdt.assert_frame_equal(result, expecteddf)
     except AssertionError:
         try:
-            mama_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 0], expecteddf.iloc[:, 0]
-            )
+            mama_corr = ti.utils.df_error_analysis(result.iloc[:, 0], expecteddf.iloc[:, 0])
             assert mama_corr > CORRELATION_THRESHOLD
             print(f"{mama_corr=}")
         except Exception as ex:
             error_analysis(result.iloc[:, 0], CORRELATION, ex)
 
         try:
-            fama_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 1], expecteddf.iloc[:, 1]
-            )
+            fama_corr = ti.utils.df_error_analysis(result.iloc[:, 1], expecteddf.iloc[:, 1])
             assert fama_corr > CORRELATION_THRESHOLD
             print(f"{fama_corr=}")
         except Exception as ex:

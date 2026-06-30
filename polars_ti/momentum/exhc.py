@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-from math import isnan
-
-from numba import njit
 from numpy import (
     clip,
     cumsum,
-    diff,
     float64,
     int64,
     isnan,
@@ -14,18 +10,9 @@ from numpy import (
     where,
     zeros_like,
 )
-from pandas import DataFrame, Series
+from numba import njit
 
-from polars_ti.utils import (
-    nb_ffill,
-    nb_idiff,
-    nb_shift,
-    v_bool,
-    v_int,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
+from polars_ti.utils import nb_ffill, nb_idiff
 
 
 @njit(cache=True)
@@ -54,75 +41,68 @@ def nb_exhc(x, n, cap, lb, ub, show_all):
     return dn, up
 
 
+# =============================================================================
+# Polars EXHC (Exhaustion Count) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def exhc(
-    close: Series,
-    length: int | None = None,
-    cap: int | None = None,
-    asint: bool | None = None,
-    show_all: bool | None = None,
-    nozeros: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Exhaustion Count (EXHC)
+    close: IntoExpr,
+    length: int = 4,
+    cap: int = 13,
+    show_all: bool = True,
+    asint: bool = False,
+    nozeros: bool = False,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Exhaustion Count (EXHC)
 
-    Inspired by Tom DeMark's Sequential indicator which attempts
-    to identify where an uptrend or a downtrend exhausts and reverses.
-
-    Sources:
-        https://demark.com
-        http://practicaltechnicalanalysis.blogspot.com/2013/01/tom-demark-sequential.html
+    Inspired by Tom DeMark's Sequential - identifies where trends exhaust.
 
     Args:
-        close (pd.Series): Series of close's
-        length (int): Difference for the sequences. Default: 4
-        cap (int): Maximum sequence number to cap at. Set to zero for
-            no max. Default: 13
-        show_all (bool): Show 1 - 13. If set to False, show 6 - 9.
-            Default: True
-        asint (bool): If True, fillna's with 0 and change type to int.
-            Default: False
-        nozeros (bool): If True, replaces zeros with nan. Default: False
-        offset (int): How many periods to offset the result. Default: 0
+        close: Column name or pl.Expr for 'close' prices
+        length: Difference for sequences. Default: 4
+        cap: Max sequence number (0 = no cap). Default: 13
+        show_all: Show 1-13, if False show 6-9. Default: True
+        asint: Convert to int. Default: False
+        nozeros: Replace zeros with null. Default: False
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: Down count, Up count
+        list[pl.Expr]: [EXHC_DN, EXHC_UP] expressions
     """
-    # Validate
-    length = v_pos_default(length, 4)
-    close = v_series(close, length + 1)
+    close_expr = v_expr(close)
+    _length = length
+    _cap = cap
+    _show_all = show_all
 
-    if close is None:
-        return
+    def compute_exhc(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        dn, up = nb_exhc(arr, _length, _cap, 6, 9, _show_all)
+        # Return as struct
+        return pl.Series([{"dn": d, "up": u} for d, u in zip(dn, up)])
 
-    cap = v_int(cap, 13, -1)
-    show_all = v_bool(show_all, True)
-    asint = v_bool(asint, False)
-    nozeros = v_bool(nozeros, False)
-    offset = v_offset(offset)
+    struct_expr = close_expr.map_batches(compute_exhc, return_dtype=pl.Struct({"dn": pl.Float64, "up": pl.Float64}))
 
-    # Calculate
-    np_close = close.values
-    dn, up = nb_exhc(np_close, length, cap, 6, 9, show_all)
+    dn_expr = struct_expr.struct.field("dn")
+    up_expr = struct_expr.struct.field("up")
 
     if asint:
-        dn = dn.astype(int64)
-        up = up.astype(int64)
-
-    # Name and Category
-    data = {
-        "EXHC_DNa" if show_all else "EXHC_DN": dn,
-        "EXHC_UPa" if show_all else "EXHC_UP": up,
-    }
-    df = DataFrame(data, index=close.index)
-    df.name = "EXHCa" if show_all else "EXHC"
-    df.category = "momentum"
+        dn_expr = dn_expr.cast(pl.Int64)
+        up_expr = up_expr.cast(pl.Int64)
 
     if nozeros:
-        df = df.replace({0: nan})
+        dn_expr = pl.when(dn_expr == 0).then(None).otherwise(dn_expr)
+        up_expr = pl.when(up_expr == 0).then(None).otherwise(up_expr)
 
-    # Offset
     if offset != 0:
-        df = df.shift(offset)
+        dn_expr = dn_expr.shift(offset)
+        up_expr = up_expr.shift(offset)
 
-    return df
+    suffix = "a" if show_all else ""
+    return [dn_expr.alias(f"EXHC_DN{suffix}"), up_expr.alias(f"EXHC_UP{suffix}")]

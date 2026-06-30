@@ -1,81 +1,139 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import Series
+# =============================================================================
+# Polars MASSI Implementation (Composition: pl_ema + Numba for cascade)
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.overlap import ema
-from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._math import non_zero_range
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def nb_massi_from_ema1(ema1: np.ndarray, fast: int, slow: int) -> np.ndarray:
+    """MASSI calculation from first EMA - handles second EMA, ratio, and rolling sum."""
+    n = len(ema1)
+
+    # Second EMA with presma=True behavior (SMA of first 'fast' valid values)
+    ema2 = np.empty(n, dtype=np.float64)
+    ema2[:] = np.nan
+
+    # Find first valid index
+    first_valid = -1
+    for i in range(n):
+        if not np.isnan(ema1[i]):
+            first_valid = i
+            break
+
+    if first_valid >= 0 and first_valid + fast <= n:
+        # SMA of first 'fast' valid values for presma=True behavior
+        sma_start = first_valid + fast - 1
+        sma_sum = 0.0
+        for i in range(first_valid, first_valid + fast):
+            sma_sum += ema1[i]
+        ema2[sma_start] = sma_sum / fast
+
+        # EMA for rest
+        alpha = 2.0 / (fast + 1)
+        for i in range(sma_start + 1, n):
+            if np.isnan(ema1[i]):
+                ema2[i] = ema2[i - 1]
+            else:
+                ema2[i] = alpha * ema1[i] + (1 - alpha) * ema2[i - 1]
+
+    # Ratio
+    ratio = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        if np.isnan(ema1[i]) or np.isnan(ema2[i]) or ema2[i] == 0:
+            ratio[i] = np.nan
+        else:
+            ratio[i] = ema1[i] / ema2[i]
+
+    # Rolling sum
+    result = np.empty(n, dtype=np.float64)
+    result[:] = np.nan
+    for i in range(slow - 1, n):
+        window_sum = 0.0
+        valid = True
+        for j in range(slow):
+            if np.isnan(ratio[i - j]):
+                valid = False
+                break
+            window_sum += ratio[i - j]
+        if valid:
+            result[i] = window_sum
+
+    return result
 
 
 def massi(
-    high: Series,
-    low: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Mass Index (MASSI)
+    high: IntoExpr,
+    low: IntoExpr,
+    fast: int = 9,
+    slow: int = 25,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Mass Index (MASSI)
 
-    The Mass Index is a non-directional volatility indicator that
-    utilizes the High-Low Range to identify trend reversals based on
-    range expansions.
+    Composition: pl_ema for first EMA, Numba for cascaded EMA + rolling sum.
+
+    The Mass Index identifies trend reversals based on range expansions.
 
     Sources:
         https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:mass_index
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        fast (int): The short period. Default: 9
-        slow (int): The long period. Default: 25
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        fast: The short period. Default: 9
+        slow: The long period. Default: 25
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Mass Index expression
     """
-    # Validate
-    fast = v_pos_default(fast, 9)
-    slow = v_pos_default(slow, 25)
-    if slow < fast:
-        fast, slow = slow, fast
-    _length = 2 * max(fast, slow) - min(fast, slow)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
+    from polars_ti.overlap.ema import ema
 
-    if high is None or low is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
 
-    offset = v_offset(offset)
-    if "length" in kwargs:
-        kwargs.pop("length")
+    if high_expr is None or low_expr is None:
+        return None
 
-    # Calculate
-    high_low_range = non_zero_range(high, low)
-    hl_ema1 = ema(close=high_low_range, length=fast, **kwargs)
-    if all(isnan(hl_ema1)):
-        return  # Emergency Break
-    hl_ema2 = ema(close=hl_ema1, length=fast, **kwargs)
-    if all(isnan(hl_ema2)):
-        return  # Emergency Break
+    # Swap if slow < fast (matches Pandas behavior)
+    _fast = min(fast, slow)
+    _slow = max(fast, slow)
+    _offset = offset
 
-    hl_ratio = hl_ema1 / hl_ema2
-    massi = hl_ratio.rolling(slow, min_periods=slow).sum()
-    if all(isnan(massi)):
-        return  # Emergency Break
+    # High-Low range (non-zero protection like Pandas non_zero_range)
+    hl_range = non_zero_range(high_expr, low_expr)
 
-    # Offset
-    if offset != 0:
-        massi = massi.shift(offset)
+    # First EMA using pl_ema composition
+    ema1 = ema(hl_range, length=_fast, talib=False, presma=True)
 
-    # Fill
-    if "fillna" in kwargs:
-        massi = massi.fillna(kwargs["fillna"])
+    def compute_massi(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        ema1_vals = df["_ema1"].to_numpy().astype(np.float64)
 
-    # Name and Category
-    massi.name = f"MASSI_{fast}_{slow}"
-    massi.category = "volatility"
+        result = nb_massi_from_ema1(ema1_vals, _fast, _slow)
 
-    return massi
+        if _offset != 0:
+            result = np.roll(result, _offset)
+            if _offset > 0:
+                result[:_offset] = np.nan
+
+        return pl.Series(result)
+
+    _props = f"_{_fast}_{_slow}"
+
+    return (
+        pl.struct(
+            [
+                ema1.alias("_ema1"),
+            ]
+        )
+        .map_batches(compute_massi, return_dtype=pl.Float64)
+        .alias(f"MASSI{_props}")
+    )

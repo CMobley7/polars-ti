@@ -1,99 +1,58 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars RWI Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def rwi(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Random Walk Index (RWI)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    mamode: str = "rma",
+    talib: bool = False,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Random Walk Index (RWI)
 
-    This indicator aims to differntiate whether the price is following a specific trend
-    or is doing a random walk
+    Differentiates whether price follows a trend or a random walk.
 
-    Sources:
-        https://www.technicalindicators.net/indicators-technical-analysis/168-rwi-random-walk-index
+    Formula:
+        RWI_High = (high - low.shift(length)) / (ATR * sqrt(length))
+        RWI_Low  = (high.shift(length) - low) / (ATR * sqrt(length))
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        mamode (str): See ```help(ti.ma)```. Default: 'rma'
-        talib (bool): If TA Lib is installed and talib is True, Returns the
-            TA Lib version. Default: True
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: high, low columns.
+        pl.Expr: Struct with RWIh and RWIl columns
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    _length = length + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    from polars_ti.volatility.atr import atr
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    mamode = v_mamode(mamode, "rma")
-    mode_tal = v_talib(talib)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
+    denom = atr_expr * (length**0.5)
 
-    # Calculate
-    atr_ = atr(
-        high=high, low=low, close=close, length=length, mamode=mamode, talib=mode_tal
-    )
-    if all(isnan(atr_)):
-        return  # Emergency Break
+    rwi_high = (high_expr - low_expr.shift(length)) / denom
+    rwi_low = (high_expr.shift(length) - low_expr) / denom
 
-    denom = atr_ * (length**0.5)
-    rwi_high = (high - low.shift(length)) / denom
-    rwi_low = (high.shift(length) - low) / denom
-
-    # Offset
     if offset != 0:
         rwi_high = rwi_high.shift(offset)
         rwi_low = rwi_low.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        rwi_high = rwi_high.fillna(kwargs["fillna"])
-        rwi_low = rwi_low.fillna(kwargs["fillna"])
-
-    # Name and Category
-    rwi_high.name = f"RWIh_{length}"
-    rwi_low.name = f"RWIl_{length}"
-    rwi_high.category = rwi_low.category = "trend"
-
-    # Prepare DataFrame to return
-    data = {rwi_high.name: rwi_high, rwi_low.name: rwi_low}
-    df = DataFrame(data, index=close.index)
-    df.name = f"RWI_{length}"
-    df.category = "trend"
-
-    return df
+    return pl.struct(
+        rwi_high.alias(f"RWIh_{length}"),
+        rwi_low.alias(f"RWIl_{length}"),
+    ).alias(f"RWI_{length}")

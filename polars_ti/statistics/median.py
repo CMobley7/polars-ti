@@ -1,56 +1,39 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars MEDIAN Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def median(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Rolling Median
+    close: IntoExpr,
+    length: int = 30,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Rolling Median
 
-    Calculates the Median over a rolling period.
-
-    Sources:
-        https://www.incrediblecharts.com/indicators/median_price.php
+    Calculates the Median over a rolling period using native Polars.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 30
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 30
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Median expression
     """
-    # Validate
-    length = v_pos_default(length, 30)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
-    else:
-        min_periods = length
-    close = v_series(close, max(length, min_periods))
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    # Use native Polars rolling_median
+    result = close_expr.rolling_median(window_size=length, min_samples=length)
 
-    offset = v_offset(offset)
-
-    # Calculate
-    median = close.rolling(length, min_periods=min_periods).median()
-
-    # Offset
+    # Apply offset if needed
     if offset != 0:
-        median = median.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        median = median.fillna(kwargs["fillna"])
-
-    # Name and Category
-    median.name = f"MEDIAN_{length}"
-    median.category = "statistics"
-
-    return median
+    return result.alias(f"MEDIAN_{length}")

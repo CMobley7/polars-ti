@@ -1,12 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import isnan, nan, zeros_like
-from pandas import DataFrame, Series
-
-from polars_ti.momentum import rsi
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series, v_str, v_talib
-from polars_ti.volatility import atr
-from polars_ti.volume.mfi import mfi
+from numba import njit
 
 
 @njit(cache=True)
@@ -30,134 +24,156 @@ def nb_alpha(low_atr, high_atr, momo_threshold):
     return result
 
 
+# =============================================================================
+# Polars AlphaTrend Implementation (reuses nb_alpha kernel)
+# =============================================================================
+import numpy as np
+import polars as pl
+from numba import njit as _njit_at
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@_njit_at(cache=True)
+def _nb_rma(arr, length):
+    """RMA (Wilder's smoothing) for ATR/RSI computation."""
+    n = len(arr)
+    result = np.full(n, np.nan)
+    # SMA seed
+    s = 0.0
+    for i in range(length):
+        s += arr[i]
+    result[length - 1] = s / length
+    alpha = 1.0 / length
+    for i in range(length, n):
+        result[i] = alpha * arr[i] + (1 - alpha) * result[i - 1]
+    return result
+
+
+@_njit_at(cache=True)
+def _nb_atr_raw(high, low, close, length):
+    """Compute ATR array from raw OHLC data."""
+    n = len(high)
+    tr = np.zeros(n)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        hl = high[i] - low[i]
+        hc = abs(high[i] - close[i - 1])
+        lc = abs(low[i] - close[i - 1])
+        tr[i] = max(hl, hc, lc)
+    return _nb_rma(tr, length)
+
+
+@_njit_at(cache=True)
+def _nb_rsi_raw(close, length):
+    """Compute RSI array from raw close data."""
+    n = len(close)
+    gains = np.zeros(n)
+    losses = np.zeros(n)
+    for i in range(1, n):
+        diff = close[i] - close[i - 1]
+        if diff > 0:
+            gains[i] = diff
+        else:
+            losses[i] = -diff
+
+    avg_gain = _nb_rma(gains, length)
+    avg_loss = _nb_rma(losses, length)
+
+    rsi = np.full(n, np.nan)
+    for i in range(n):
+        if not np.isnan(avg_gain[i]) and not np.isnan(avg_loss[i]):
+            if avg_loss[i] == 0:
+                rsi[i] = 100.0
+            else:
+                rs = avg_gain[i] / avg_loss[i]
+                rsi[i] = 100.0 - (100.0 / (1.0 + rs))
+    return rsi
+
+
 def alphatrend(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series | None = None,
-    src: str | None = None,
-    length: int | None = None,
-    multiplier: int | float | None = None,
-    threshold: int | float | None = None,
-    lag: int | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-):
-    """Alpha Trend (alphatrend)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    multiplier: float = 1,
+    threshold: float = 50,
+    lag: int = 2,
+    mamode: str = "sma",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Alpha Trend
 
-    Alpha Trend attemps to solve the problems of Magic Trend. For instance, it
-    tries to ilter out sideways market conditions and yield more accurate
-    BUY/SELL signals
-
-    Sources:
-        https://www.tradingview.com/script/o50NYLAZ-AlphaTrend/
-        https://github.com/OnlyFibonacci/AlgoSeyri/blob/main/alphaTrendIndicator.py
+    Filters out sideways conditions for more accurate trend signals.
 
     Args:
-        open (pd.series): series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's. Default: None
-        src (str): One of 'open', 'high', 'low' or 'close'. Default: 'close'
-        length (int): Length for ATR, MFI, or RSI. Default: 14
-        multiplier (float): Trailing ATR value. Default: 1
-        threshold (float): Momentum threshold. Default: 50
-        lag (int): Lag period of main trend. Default: 2
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        multiplier: ATR multiplier. Default: 1
+        threshold: Momentum threshold. Default: 50
+        lag: Lag period. Default: 2
+        mamode: MA used by the internal ATR/RSI. Default: 'sma' (matches OLD)
+        talib: Use TA-Lib for the internal ATR/RSI when available. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: trend, trendlag of all the input.
+        pl.Expr: Struct with ALPHAT and ALPHATl columns
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    open_ = v_series(open_, length)
-    high = v_series(high, length)
-    low = v_series(low, length)
-    close = v_series(close, length)
+    from polars_ti.volatility.atr import atr
+    from polars_ti.momentum.rsi import rsi
 
-    if open_ is None or high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    _src = {"open": open_, "high": high, "low": low, "close": close}
-    src = v_str(src, "close")
-    src = src if src in _src.keys() else "close"
+    # ATR bands and RSI momentum via the library's own (talib-aware) indicators,
+    # matching OLD alphatrend (mamode='sma'). Momentum uses RSI (no-volume mode).
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
+    lower_atr = low_expr - atr_expr * multiplier
+    upper_atr = high_expr + atr_expr * multiplier
+    momo = rsi(close_expr, length=length, mamode=mamode, talib=talib)
 
-    multiplier = v_pos_default(multiplier, 1)
-    threshold = v_pos_default(threshold, 50)
-    lag = v_pos_default(lag, 2)
-
-    mamode = v_mamode(mamode, "sma")
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    if volume is not None:
-        volume = v_series(volume)
-        if volume is None:
-            return
-
-    # Calculate
-    atr_ = atr(
-        high=high, low=low, close=close, length=length, mamode=mamode, talib=mode_tal
-    )
-
-    if atr_ is None or all(isnan(atr_)):
-        return
-
-    lower_atr = low - atr_ * multiplier
-    upper_atr = high + atr_ * multiplier
-
-    momo = None
-    if volume is None:
-        momo = rsi(close=_src[src], length=length, mamode=mamode, talib=mode_tal)
-    else:
-        momo = mfi(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            length=length,
-            talib=mode_tal,
-        )
-
-    if momo is None:
-        return
-
-    np_upper_atr, np_lower_atr = upper_atr.to_numpy(), lower_atr.to_numpy()
-
-    at = nb_alpha(np_lower_atr, np_upper_atr, momo.to_numpy() >= threshold)
-    at = Series(at, index=close.index)
-
-    atl = at.shift(lag)
-
-    if all(isnan(at)) or all(isnan(atl)):
-        return  # Emergency Break
-
-    # Offset
-    if offset != 0:
-        at = at.shift(offset)
-        atl = atl.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        at.fillna(kwargs["fillna"])
-        atl.fillna(kwargs["fillna"])
-
-    # Name and Category
     _props = f"_{length}_{multiplier}_{threshold}"
-    at.name = f"ALPHAT{_props}"
-    atl.name = f"ALPHATl{_props}_{lag}"
-    at.category = atl.category = "trend"
+    at_name = f"ALPHAT{_props}"
+    atl_name = f"ALPHATl{_props}_{lag}"
 
-    data = {at.name: at, atl.name: atl}
-    df = DataFrame(data, index=close.index)
-    df.name = at.name
-    df.category = at.category
+    def _compute(s: pl.Series) -> pl.Series:
+        data = s.struct.unnest()
+        la = data["_la"].to_numpy().astype(np.float64)
+        ua = data["_ua"].to_numpy().astype(np.float64)
+        mo = data["_mo"].to_numpy().astype(np.float64)
 
-    return df
+        # NaN >= threshold -> False (numpy), so warmup is "not momentum".
+        momo_th = mo >= threshold
+
+        at = nb_alpha(la, ua, momo_th)
+        atl = np.roll(at, lag)
+        atl[:lag] = np.nan
+
+        if offset != 0:
+            at = np.roll(at, offset)
+            atl = np.roll(atl, offset)
+            if offset > 0:
+                at[:offset] = np.nan
+                atl[:offset] = np.nan
+
+        n = len(la)
+        return pl.Series(values=[{at_name: at[i], atl_name: atl[i]} for i in range(n)])
+
+    fields = [
+        pl.Field(at_name, pl.Float64),
+        pl.Field(atl_name, pl.Float64),
+    ]
+    return (
+        pl.struct(
+            lower_atr.alias("_la"),
+            upper_atr.alias("_ua"),
+            momo.alias("_mo"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(at_name)
+    )

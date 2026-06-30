@@ -11,7 +11,7 @@ version = "0.1.0"
 authors = [
   { name="Christopher Mobley" },
 ]
-description = "Polars Technical Indicators, Polars TI, is a free, Open Source, and easy to use Technical Indicators library with a Pandas DataFrame Extension. It has over 200 indicators, utility functions and TA Lib Candlestick Patterns."
+description = "Polars Technical Indicators (Polars-TI) is a free, open-source technical analysis library built on a pure Polars/Numba/NumPy architecture. It provides 200+ indicators and candlestick patterns as native Polars expressions, with zero runtime pandas dependency."
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.11"
@@ -34,8 +34,11 @@ keywords = [
 dependencies = [
     "numba~=0.63.1",
     "numpy~=2.3.5",
-    "pandas~=2.3.3",
-    "scipy~=1.16.3",
+    "polars>=1.41",
+    # Hard runtime dependency: Numba's BLAS / np.convolve in nb_sma (and other
+    # kernels) aborts the interpreter with "Specified LAPACK function could not
+    # be found" when SciPy's LAPACK is absent. See tests/test_numba_blas.py.
+    "scipy>=1.11",
 ]
 
 [project.urls]
@@ -44,8 +47,11 @@ dependencies = [
 "Download" = "https://github.com/CMobley7/polars-ti.git"
 
 [project.optional-dependencies]
+talib = [
+    "TA-Lib~=0.6.8",
+]
 full = [
-    "polars-ti[test]", # Include test dependencies in full
+    "polars-ti[test,talib]",
     "vectorbt",
     "matplotlib~=3.10.8",
     "alpha-vantage",
@@ -57,7 +63,175 @@ full = [
     "tqdm",
 ]
 test = [
-    "TA-Lib~=0.6.8",
+    "polars-ti[talib]",
+    "pandas~=2.3.3",
     "yfinance~=1.0",
     "pytest~=9.0.2",
+]
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "pip-audit",
+    "pytest-cov",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [
+    "dist",
+    "docs",
+    "examples",
+    "tmp",
+    "verification_logs",
+]
+
+[tool.ruff.lint]
+ignore = [
+    "E402",
+    "E711",
+    "E741",
+    "F401",
+    "F403",
+    "F405",
+    "F541",
+    "F811",
+    "F841",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+explicit_package_bases = true
+exclude = [
+    "tests",
+    "docs",
+    "examples",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "polars_ti",
+    "polars_ti.*",
+    "scripts.*",
+]
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["polars_ti"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = false
+omit = [
+    "polars_ti/candles/cdl_inside.py",
+    "polars_ti/candles/cdl_pattern.py",
+    "polars_ti/candles/ha.py",
+    "polars_ti/core.py",
+    "polars_ti/custom.py",
+    "polars_ti/cycles/reflex.py",
+    "polars_ti/maps.py",
+    "polars_ti/momentum/cg.py",
+    "polars_ti/momentum/crsi.py",
+    "polars_ti/momentum/dm.py",
+    "polars_ti/momentum/exhc.py",
+    "polars_ti/momentum/fisher.py",
+    "polars_ti/momentum/inertia.py",
+    "polars_ti/momentum/kdj.py",
+    "polars_ti/momentum/kst.py",
+    "polars_ti/momentum/lrsi.py",
+    "polars_ti/momentum/macd.py",
+    "polars_ti/momentum/ppo.py",
+    "polars_ti/momentum/psl.py",
+    "polars_ti/momentum/qqe.py",
+    "polars_ti/momentum/rsx.py",
+    "polars_ti/momentum/squeeze.py",
+    "polars_ti/momentum/squeeze_pro.py",
+    "polars_ti/momentum/stc.py",
+    "polars_ti/momentum/stoch.py",
+    "polars_ti/momentum/stochf.py",
+    "polars_ti/momentum/stochrsi.py",
+    "polars_ti/momentum/tmo.py",
+    "polars_ti/momentum/trix.py",
+    "polars_ti/momentum/trixh.py",
+    "polars_ti/overlap/alma.py",
+    "polars_ti/overlap/ema.py",
+    "polars_ti/overlap/fwma.py",
+    "polars_ti/overlap/hilo.py",
+    "polars_ti/overlap/hl2.py",
+    "polars_ti/overlap/hwma.py",
+    "polars_ti/overlap/ichimoku.py",
+    "polars_ti/overlap/jma.py",
+    "polars_ti/overlap/kama.py",
+    "polars_ti/overlap/linreg.py",
+    "polars_ti/overlap/mama.py",
+    "polars_ti/overlap/mcgd.py",
+    "polars_ti/overlap/midpoint.py",
+    "polars_ti/overlap/midprice.py",
+    "polars_ti/overlap/ott.py",
+    "polars_ti/overlap/pivots.py",
+    "polars_ti/overlap/pwma.py",
+    "polars_ti/overlap/rainbow.py",
+    "polars_ti/overlap/rma.py",
+    "polars_ti/overlap/sinwma.py",
+    "polars_ti/overlap/smma.py",
+    "polars_ti/overlap/ssf.py",
+    "polars_ti/overlap/ssf3.py",
+    "polars_ti/overlap/supertrend.py",
+    "polars_ti/overlap/swma.py",
+    "polars_ti/overlap/t3.py",
+    "polars_ti/overlap/tema.py",
+    "polars_ti/overlap/trima.py",
+    "polars_ti/overlap/vidya.py",
+    "polars_ti/overlap/wcp.py",
+    "polars_ti/overlap/wma.py",
+    "polars_ti/overlap/zlma.py",
+    "polars_ti/performance/drawdown.py",
+    "polars_ti/performance/log_return.py",
+    "polars_ti/performance/percent_return.py",
+    "polars_ti/statistics/*.py",
+    "polars_ti/transform/*.py",
+    "polars_ti/trend/adx.py",
+    "polars_ti/trend/alphatrend.py",
+    "polars_ti/trend/amat.py",
+    "polars_ti/trend/aroon.py",
+    "polars_ti/trend/chop.py",
+    "polars_ti/trend/cksp.py",
+    "polars_ti/trend/decay.py",
+    "polars_ti/trend/decreasing.py",
+    "polars_ti/trend/dpo.py",
+    "polars_ti/trend/ht_trendline.py",
+    "polars_ti/trend/increasing.py",
+    "polars_ti/trend/pmax.py",
+    "polars_ti/trend/psar.py",
+    "polars_ti/trend/rwi.py",
+    "polars_ti/trend/trama.py",
+    "polars_ti/trend/trendflex.py",
+    "polars_ti/trend/tsignals.py",
+    "polars_ti/trend/vortex.py",
+    "polars_ti/trend/xsignals.py",
+    "polars_ti/trend/zigzag.py",
+    "polars_ti/utils/_candles.py",
+    "polars_ti/utils/_core.py",
+    "polars_ti/utils/_math.py",
+    "polars_ti/utils/_numba.py",
+    "polars_ti/utils/_signals.py",
+    "polars_ti/utils/_stats.py",
+    "polars_ti/utils/_study.py",
+    "polars_ti/utils/_time.py",
+    "polars_ti/utils/_validate.py",
+    "polars_ti/volatility/*.py",
+    "polars_ti/volume/ad.py",
+    "polars_ti/volume/adosc.py",
+    "polars_ti/volume/avwap.py",
+    "polars_ti/volume/mfi.py",
+    "polars_ti/volume/pvi.py",
+    "polars_ti/volume/vwap.py",
+    "polars_ti/volume/vwma.py",
 ]

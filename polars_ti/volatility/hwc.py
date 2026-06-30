@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
-from sys import float_info as sflt
-
-import numpy as np
+from numpy import sqrt, zeros
 from numba import njit
-from pandas import DataFrame, Series
-
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
 
 
 @njit(cache=True)
@@ -27,9 +22,7 @@ def nb_hwc(close, na, nb, nc, nd, scalar):
         curr_res = F + V + 0.5 * A
         result[i] = curr_res
 
-        var = (1.0 - nd) * last_var + nd * (last_price - last_result) * (
-            last_price - last_result
-        )
+        var = (1.0 - nd) * last_var + nd * (last_price - last_result) * (last_price - last_result)
         stddev = np.sqrt(last_var)
 
         upper[i] = curr_res + scalar * stddev
@@ -46,107 +39,77 @@ def nb_hwc(close, na, nb, nc, nd, scalar):
     return result, upper, lower
 
 
+# =============================================================================
+# Polars HWC Implementation (Numba @njit via map_batches)
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def hwc(
-    close: Series,
-    scalar: int | float | None = None,
-    channels: bool | None = None,
-    na: int | float | None = None,
-    nb: int | float | None = None,
-    nc: int | float | None = None,
-    nd: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """HWC (Holt-Winter Channel)
+    close: IntoExpr,
+    scalar: float = 1.0,
+    na: float = 0.2,
+    nb: float = 0.1,
+    nc: float = 0.1,
+    nd: float = 0.1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: HWC (Holt-Winter Channel)
 
-    Channel indicator HWC (Holt-Winters Channel) based on HWMA - a
-    three-parameter moving average calculated by the method of Holt-Winters.
+    Uses Numba @njit kernel via map_batches.
 
-    Coded by rengel8 based on a publication for MetaTrader 5 extended by
-    width and percentage price position against width of channel.
+    Channel indicator based on HWMA - three-parameter moving average
+    calculated by the method of Holt-Winters.
 
     Sources:
         https://www.mql5.com/en/code/20857
 
     Args:
-        close (pd.Series): Series of 'close's
-        scaler (float): Width multiplier of the channel. Default: 1
-        channels (bool): Return width and percentage price position
-            against price. Default: False
-        na (float): Smoothed series (from 0 to 1). Default: 0.2
-        nb (float): Trend value (from 0 to 1). Default: 0.1
-        nc (float): Seasonality value (from 0 to 1). Default: 0.1
-        nd (float): Channel value (from 0 to 1). Default: 0.1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        scalar: Width multiplier of the channel. Default: 1
+        na: Smoothed series (from 0 to 1). Default: 0.2
+        nb: Trend value (from 0 to 1). Default: 0.1
+        nc: Seasonality value (from 0 to 1). Default: 0.1
+        nd: Channel value (from 0 to 1). Default: 0.1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: HWM (Mid), HWU (Upper), HWL (Lower) columns.
+        pl.Expr: Struct with HWM (Mid), HWU (Upper), HWL (Lower) columns
     """
-    # Validate
-    close = v_series(close, 1)
-    scalar = v_pos_default(scalar, 1)
-    channels = v_bool(channels, False)
-    na = v_pos_default(na, 0.2)
-    nb = v_pos_default(nb, 0.1)
-    nc = v_pos_default(nc, 0.1)
-    nd = v_pos_default(nd, 0.1)
-    offset = v_offset(offset)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    if close_expr is None:
+        return None
 
-    # Calculate Result
-    np_close = close.to_numpy(dtype=np.float64)
-    result, upper, lower = nb_hwc(np_close, na, nb, nc, nd, scalar)
+    _na = na
+    _nb = nb
+    _nc = nc
+    _nd = nd
+    _scalar = scalar
+    _offset = offset
 
-    # Aggregate
-    hwc = Series(result, index=close.index)
-    hwc_upper = Series(upper, index=close.index)
-    hwc_lower = Series(lower, index=close.index)
-    if channels:
-        hwc_width = hwc_upper - hwc_lower
-        hwc_pctwidth = (close - hwc_lower) / (hwc_width + sflt.epsilon)
+    def compute_hwc(s: pl.Series) -> pl.Series:
+        np_close = s.to_numpy().astype(np.float64)
+        result, upper, lower = nb_hwc(np_close, _na, _nb, _nc, _nd, _scalar)
 
-    # Offset
-    if offset != 0:
-        hwc = hwc.shift(offset)
-        hwc_upper = hwc_upper.shift(offset)
-        hwc_lower = hwc_lower.shift(offset)
-        if channels:
-            hwc_width = hwc_width.shift(offset)
-            hwc_pctwidth = hwc_pctwidth.shift(offset)
+        if _offset != 0:
+            result = np.roll(result, _offset)
+            upper = np.roll(upper, _offset)
+            lower = np.roll(lower, _offset)
+            if _offset > 0:
+                result[:_offset] = np.nan
+                upper[:_offset] = np.nan
+                lower[:_offset] = np.nan
 
-    # Fill
-    if "fillna" in kwargs:
-        hwc = hwc.fillna(kwargs["fillna"])
-        hwc_upper = hwc_upper.fillna(kwargs["fillna"])
-        hwc_lower = hwc_lower.fillna(kwargs["fillna"])
-        if channels:
-            hwc_width = hwc_width.fillna(kwargs["fillna"])
-            hwc_pctwidth = hwc_pctwidth.fillna(kwargs["fillna"])
+        return pl.DataFrame({"hwm": result, "hwu": upper, "hwl": lower}).to_struct("hwc")
 
-    # Name and Category
-    _props = f"_{scalar}"
-    hwc.name = f"HWM{_props}"
-    hwc_upper.name = f"HWU{_props}"
-    hwc_lower.name = f"HWL{_props}"
-    hwc.category = hwc_upper.category = hwc_lower.category = "volatility"
+    _props = f"_{int(scalar)}"
 
-    if channels:
-        data = {
-            hwc.name: hwc,
-            hwc_upper.name: hwc_upper,
-            hwc_lower.name: hwc_lower,
-            f"HWW{_props}": hwc_width,
-            f"HWPCT{_props}": hwc_pctwidth,
-        }
-    else:
-        data = {hwc.name: hwc, hwc_upper.name: hwc_upper, hwc_lower.name: hwc_lower}
-    df = DataFrame(data, index=close.index)
-    df.name = f"HWC_{scalar}"
-    df.category = hwc.category
-
-    return df
+    return close_expr.map_batches(
+        compute_hwc,
+        return_dtype=pl.Struct({"hwm": pl.Float64, "hwu": pl.Float64, "hwl": pl.Float64}),
+    ).alias(f"HWC{_props}")

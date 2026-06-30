@@ -1,67 +1,41 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars DSP Implementation
+# =============================================================================
+import polars as pl
 
+from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.overlap.ema import ema
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti.utils._validate import v_expr
 
 
-def dsp(
-    close: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Detrended Synthetic Price (DSP)
+def dsp(close: IntoExpr, length: int = 14, offset: int = 0) -> PlExpr:
+    """Polars: Detrended Synthetic Price (DSP)
 
-    Detrended Synthetic Price removes the trend component from price data to
-    reveal the cyclical component. It's useful for cycle analysis and
-    identifying periodic patterns in price movement.
+    Removes the trend component from price data to reveal cycles.
+    DSP = close - EMA(close, length)
 
     Sources:
-        https://www.mesasoftware.com/papers/TheInverseFisherTransform.pdf
         Cycle Analytics for Traders by John F. Ehlers
 
-    Calculation:
-        Default Inputs:
-            length=14
-
-        EMA = EMA(close, length)
-        DSP = close - EMA
-
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): The EMA period. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: The EMA period. Default: 14
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: DSP expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    # Use pl_ema for proper EMA initialization matching Pandas
+    ema_expr = ema(close, length=length)
 
-    offset = v_offset(offset)
+    # DSP = close - EMA(close)
+    dsp_expr = close_expr - ema_expr
 
-    # Calculate
-    ema_value = ema(close, length=length)
-    dsp = close - ema_value
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        dsp = dsp.shift(offset)
+        dsp_expr = dsp_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        dsp = dsp.fillna(kwargs["fillna"])
-
-    # Name and Category
-    dsp.name = f"DSP_{length}"
-    dsp.category = "cycles"
-
-    return dsp
+    return dsp_expr.alias(f"DSP_{length}")

@@ -1,58 +1,58 @@
 # -*- coding: utf-8 -*-
-from numpy import pi, sin
-from pandas import Series
+# =============================================================================
+# Polars SINWMA Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_pos_default, v_series, weights
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def sinwma(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Sine Weighted Moving Average (SWMA)
+    close: IntoExpr,
+    length: int = 14,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Sine Weighted Moving Average (SINWMA)
 
     A weighted average using sine cycles. The middle term(s) of the average
     have the highest weight(s).
 
     Source:
         https://www.tradingview.com/script/6MWFvnPO-Sine-Weighted-Moving-Average/
-        Author: Everget (https://www.tradingview.com/u/everget/)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 14
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: SINWMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    # Calculate sine weights
+    import numpy as np
 
-    offset = v_offset(offset)
+    sine_weights = np.array([np.sin((i + 1) * np.pi / (length + 1)) for i in range(length)])
+    weights_sum = sine_weights.sum()
+    weights_list = (sine_weights / weights_sum).tolist()
 
-    # Calculate
-    sines = Series([sin((i + 1) * pi / (length + 1)) for i in range(0, length)])
-    w = sines / sines.sum()
+    _length = length
+    _weights = weights_list
 
-    sinwma = close.rolling(length, min_periods=length).apply(weights(w), raw=True)
+    def sine_weighted_mean(s: pl.Series) -> float:
+        vals = s.to_numpy()
+        if len(vals) < _length:
+            return float("nan")
+        return (vals * _weights[-len(vals) :]).sum()
 
-    # Offset
+    sinwma_expr = close_expr.rolling_map(function=sine_weighted_mean, window_size=length, min_samples=length)
+
+    # Apply offset
     if offset != 0:
-        sinwma = sinwma.shift(offset)
+        sinwma_expr = sinwma_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        sinwma = sinwma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    sinwma.name = f"SINWMA_{length}"
-    sinwma.category = "overlap"
-
-    return sinwma
+    return sinwma_expr.alias(f"SINWMA_{length}")

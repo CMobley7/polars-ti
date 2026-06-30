@@ -1,77 +1,50 @@
 # -*- coding: utf-8 -*-
-from statistics import pstdev
+# =============================================================================
+# Polars VHM (Volume Heatmap) Implementation
+# =============================================================================
+import polars as pl
 
-from pandas import Series
-
-from polars_ti.ma import ma
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def vhm(
-    volume: Series,
-    length: int | None = None,
-    slength=None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Volume Heatmap (VHM)
+    volume: IntoExpr,
+    length: int = 610,
+    slength: int | None = None,
+    mamode: str = "sma",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Volume Heatmap (VHM)
 
-    Volume Heatmap is a volume indicator. It is used to indicate market/trend
-    strength in a given time.
-
-        Signal Table
-        ==========================
-        - extremely_cold <= -0.5
-        - cold <= 1.0
-        - medium <= 2.5
-        - hot <= 4.0
-        - extremely_hot >= 4+ (4 or more)
-
-    Sources:
-        https://www.tradingview.com/script/unWex8N4-Heatmap-Volume-xdecow/
+    Indicates market/trend strength based on volume deviation.
 
     Args:
-        volume (pd.Series): Series of 'volume's
-        length (int): Length for mean calculation. Default: 610
-        length (int): Length for standard devation calculation. Default: 610
-        mamode (str): MA used to calculate the mean. See ```help(ti.ma)```.
-            Default: 'sma'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        volume: Column name or pl.Expr for 'volume'
+        length: Mean calculation period. Default: 610
+        slength: StdDev calculation period. Default: length
+        mamode: MA type. Default: 'sma'
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: VHM expression
     """
-    # Validate
-    length = v_pos_default(length, 610)
-    slength = v_pos_default(slength, length)
-    _length = max(length, slength)
-    volume = v_series(volume, _length)
+    from polars_ti.ma import ma
 
-    if volume is None:
-        return
+    volume_expr = v_expr(volume)
+    if volume_expr is None:
+        return None
 
-    mamode = v_mamode(mamode, "sma")
-    offset = v_offset(offset)
+    _slength = slength if slength is not None else length
 
-    # Calculate
-    mu = ma(mamode, volume, length=length, **kwargs)
-    vhm = (volume - mu) / pstdev(volume, slength)
+    # VHM = (volume - MA(volume)) / rolling_std(volume)
+    mu = ma(name=mamode, source=volume_expr, length=length)
+    std = volume_expr.rolling_std(window_size=_slength, min_samples=_slength)
 
-    # Offset
+    vhm_expr = (volume_expr - mu) / std
+
     if offset != 0:
-        vhm = vhm.shift(offset)
+        vhm_expr = vhm_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        vhm = vhm.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _props = f"VHM_{length}"
-    vhm.name = _props if length == slength else f"{_props}_{slength}"
-    vhm.category = "volume"
-
-    return vhm
+    _name = f"VHM_{length}" if length == _slength else f"VHM_{length}_{_slength}"
+    return vhm_expr.alias(_name)

@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --extra test --dev
+
+      - name: Ruff lint
+        run: uv run ruff check polars_ti tests scripts
+
+      - name: Ruff format
+        run: uv run ruff format --check polars_ti tests scripts
+
+      - name: Mypy strict
+        run: uv run mypy --strict polars_ti scripts
+
+      - name: Syntax check
+        run: uv run python -m compileall -q polars_ti tests scripts
+
+      - name: Enforce runtime pandas purge
+        run: |
+          ! grep -R -n -E "import pandas|from pandas|\bpd\." polars_ti --include="*.py"
+          ! grep -R -n -E "import pandas|from pandas|\bpd\." tests --include="*_polars.py"
+          ! grep -R -n -E "import pandas|from pandas|\bpd\." tests/conftest.py
+
+  test:
+    # Matrix over {oldest-supported, latest} Polars AND {TA-Lib installed,
+    # TA-Lib absent}. The no-TA-Lib leg exercises the native (Numba) code paths
+    # that previously shipped broken because CI only ever ran with TA-Lib.
+    name: Test (py${{ matrix.python-version }}, polars ${{ matrix.polars }}, talib=${{ matrix.talib }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+        # "lock" = whatever uv.lock pins (latest, currently polars 1.41.x).
+        # "1.41" = the declared oldest-supported floor.
+        polars: ["lock", "1.41"]
+        talib: ["on", "off"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies (with TA-Lib)
+        if: matrix.talib == 'on'
+        run: uv sync --extra test --dev
+
+      - name: Install dependencies (without TA-Lib)
+        if: matrix.talib == 'off'
+        # Sync only the runtime + test deps, omitting the TA-Lib extra, so the
+        # native (no-TA-Lib) code paths are exercised. scipy is a hard runtime
+        # dep and is installed here too (guards the Numba BLAS regression).
+        run: |
+          uv sync --dev --no-default-groups
+          uv pip install pytest pytest-cov pandas yfinance
+
+      - name: Pin oldest-supported Polars
+        if: matrix.polars == '1.41'
+        run: uv pip install "polars==1.41.*"
+
+      # TA-Lib present: full suite with coverage gate.
+      - name: Run tests (with TA-Lib)
+        if: matrix.talib == 'on'
+        run: uv run pytest tests/ -q --tb=short --cov=polars_ti --cov-report=term-missing --cov-fail-under=90
+
+      # TA-Lib absent: exercises the native (Numba) code paths. WS2-WS4 fixed
+      # the native indicators; parity tests that grade against the TA-Lib golden
+      # skip automatically when TA-Lib is missing (tests/conftest.py HAS_TALIB),
+      # and native-mode parity is enforced against the OLD native golden by
+      # tests/test_native_parity.py. This leg is now a hard gate.
+      - name: Run tests (without TA-Lib)
+        if: matrix.talib == 'off'
+        run: uv run pytest tests/ -q --tb=short
+
+  security:
+    name: Runtime Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: pip-audit
+        run: |
+          uv export --format requirements-txt --no-hashes --output-file requirements-audit.txt
+          uv run pip-audit -r requirements-audit.txt --desc off --progress-spinner off

@@ -1,81 +1,52 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars RAINBOW Implementation (pl_sma composition)
+# =============================================================================
+import polars as pl
+import numpy as np
 
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 from polars_ti.overlap.sma import sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 def rainbow(
-    close: Series,
-    length: int | None = None,
-    num_ribbons: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Rainbow Charts
+    close: IntoExpr,
+    length: int = 2,
+    num_ribbons: int = 10,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Rainbow Charts
 
-    Rainbow Charts use multiple moving averages calculated sequentially, where
-    each MA is calculated on the previous MA rather than the price. This
-    creates a "rainbow" effect that helps visualize trend strength and
-    potential reversals.
-
-    Sources:
-        https://www.investopedia.com/articles/trading/06/rainbow.asp
-        https://www.prorealcode.com/prorealtime-indicators/rainbow-oscillator/
-
-    Calculation:
-        Default Inputs:
-            length=2, num_ribbons=10
-
-        MA1 = SMA(close, length)
-        MA2 = SMA(MA1, length)
-        MA3 = SMA(MA2, length)
-        ...
-        MA[n] = SMA(MA[n-1], length)
+    Sequential SMAs where each is calculated on the previous SMA.
+    Returns a struct with RAINBOW_1 through RAINBOW_{num_ribbons} fields.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): SMA period. Default: 2
-        num_ribbons (int): Number of rainbow bands. Default: 10
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        length: SMA period. Default: 2
+        num_ribbons: Number of rainbow bands. Default: 10
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: New features generated.
+        pl.Expr: Struct with RAINBOW_1 through RAINBOW_{num_ribbons} fields
     """
-    # Validate
-    length = v_pos_default(length, 2)
-    num_ribbons = v_pos_default(num_ribbons, 10)
-    close = v_series(close, length * num_ribbons)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    offset = v_offset(offset)
-
-    # Calculate - Each SMA is calculated on the previous SMA
-    ribbons = {}
-    prev_sma = close
+    # Build chained SMA expressions - just like Pandas version!
+    ribbon_exprs = []
+    prev_expr = close_expr
 
     for i in range(1, num_ribbons + 1):
-        current_sma = sma(prev_sma, length=length)
-        ribbons[f"RAINBOW_{i}"] = current_sma
-        prev_sma = current_sma
+        # Each SMA is calculated on the previous SMA
+        sma_expr = sma(prev_expr, length=length, talib=False)
 
-    df = DataFrame(ribbons, index=close.index)
+        # Apply offset if needed
+        if offset != 0:
+            sma_expr = sma_expr.shift(offset)
 
-    # Offset
-    if offset != 0:
-        df = df.shift(offset)
+        ribbon_exprs.append(sma_expr.alias(f"RAINBOW_{i}"))
+        prev_expr = sma_expr
 
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
-
-    # Name and Category
-    df.name = f"RAINBOW_{length}_{num_ribbons}"
-    df.category = "overlap"
-
-    return df
+    return pl.struct(ribbon_exprs).alias(f"RAINBOW_{length}_{num_ribbons}")

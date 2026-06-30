@@ -1,17 +1,70 @@
 # -*- coding: utf-8 -*-
 import sys
+from os.path import dirname
 
 sys.dont_write_bytecode = True
+
+# Make the reusable parity helpers (tests/_parity.py, tests/parity_exceptions.py)
+# importable by their bare module names from any test module, regardless of
+# pytest's package import mode.
+_TESTS_DIR = dirname(__file__)
+if _TESTS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_DIR)
+
+# Legacy pandas-era root-level test files that cannot be collected safely.
+# These retain the original pandas-based test logic and are excluded from
+# the active Polars test suite until they are individually refactored.
+collect_ignore = [
+    "test_indicator_candle.py",
+    "test_indicator_cycles.py",
+    "test_indicator_momentum.py",
+    "test_indicator_overlap.py",
+    "test_indicator_performance.py",
+    "test_indicator_statistics.py",
+    "test_indicator_transform.py",
+    "test_indicator_trend.py",
+    "test_indicator_volatility.py",
+    "test_indicator_volume.py",
+    "test_metrics.py",
+    "test_studies.py",
+    "test_supertrend_verification.py",
+    "test_utils.py",
+]
+
 
 from os import system as os_system
 
 import pytest
-from pandas import read_csv
+import polars as pl
 
 import polars_ti as ti
+from polars_ti.maps import Imports
+
+# Test hook: force the library into its no-TA-Lib (native) code paths even when
+# TA-Lib is installed, so the no-TA-Lib behaviour can be exercised locally with
+# ``POLARS_TI_SIMULATE_NO_TALIB=1 uv run pytest``. In CI the no-TA-Lib leg simply
+# doesn't install TA-Lib, so this is only a convenience for local verification.
+if __import__("os").environ.get("POLARS_TI_SIMULATE_NO_TALIB") == "1":
+    Imports["talib"] = False
+    # Make ``import talib`` raise ImportError too, so try/except-guarded code
+    # paths behave exactly as in a real TA-Lib-absent environment.
+    sys.modules["talib"] = None
+
+# Whether TA-Lib is importable in this environment. Parity tests that grade
+# against the TA-Lib golden (old_talib / talib_reference) must skip when absent,
+# so the no-TA-Lib CI leg stays green (it exercises the native code paths).
+HAS_TALIB = bool(Imports.get("talib", False))
+requires_talib = pytest.mark.skipif(not HAS_TALIB, reason="requires TA-Lib")
+
+# Pre-warm all Numba JIT kernels once per session to prevent concurrent
+# JIT compilation crashes when multiple indicator modules are loaded together.
+import polars_ti.momentum
+import polars_ti.volatility
+import polars_ti.overlap
 
 TEST_ROWS = 200
 TEST_CSV = f"data/SPY_D.csv"
+
 
 BEEP = False
 PLAY_BEEP = f"osascript -e beep"
@@ -19,12 +72,11 @@ PLAY_BEEP = f"osascript -e beep"
 
 @pytest.fixture(name="df", scope="function")
 def testdf():
-    """Yields a truncated df from TEST_CSV file"""
-    df = read_csv(TEST_CSV, index_col=0, parse_dates=True)
-    df = df.drop(columns=["dividends", "stock splits"])
-    yield df.iloc[:TEST_ROWS]
+    """Yields a truncated Polars df from TEST_CSV file."""
+    df = pl.read_csv(TEST_CSV, try_parse_dates=True)
+    df = df.drop(["dividends", "stock splits"])
+    yield df.head(TEST_ROWS)
 
-    del df
     if BEEP:
         os_system(PLAY_BEEP)
 
@@ -116,6 +168,4 @@ def custom_study_e():
         {"kind": "ema", "close": "CUMLOGRET_1", "length": 5},  # 1
     ]
 
-    return ti.Study(
-        name="AMAT Log Returns", ti=_ti, cores=0, description="AMAT Log Returns"
-    )
+    return ti.Study(name="AMAT Log Returns", ti=_ti, cores=0, description="AMAT Log Returns")

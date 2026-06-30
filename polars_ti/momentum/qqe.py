@@ -1,180 +1,192 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan, maximum, minimum, nan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars QQE (Quantitative Qualitative Estimation) Implementation
+# =============================================================================
+import numpy as np
+import polars as pl
+from numba import jit
 
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.momentum.rsi import rsi
 from polars_ti.ma import ma
-from polars_ti.utils import (
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-)
-
-from .rsi import rsi
 
 
-def qqe(
-    close: Series,
-    length: int | None = None,
-    smooth: int | None = None,
-    factor: int | float | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Quantitative Qualitative Estimation (QQE)
+@jit(nopython=True, cache=True)
+def nb_qqe_loop(
+    rsi_ma: np.ndarray,
+    upperband: np.ndarray,
+    lowerband: np.ndarray,
+) -> tuple:
+    """Numba-optimized QQE stateful loop.
 
-    The Quantitative Qualitative Estimation (QQE) is similar to SuperTrend
-    but uses a Smoothed RSI with an upper and lower bands. The band width
-    is a combination of a one period True Range of the Smoothed RSI which
-    is double smoothed using Wilder's smoothing length (2 * rsiLength - 1)
-    and multiplied by the default factor of 4.236. A Long trend is
-    determined when the Smoothed RSI crosses the previous upperband and
-    a Short trend when the Smoothed RSI crosses the previous lowerband.
-
-    Based on QQE.mq5 by EarnForex Copyright © 2010
-    Based on version by Tim Hyder (2008),
-    Based on version by Roman Ignatov (2006)
-
-    Sources:
-        https://www.tradingview.com/script/IYfA9R2k-QQE-MT4/
-        https://www.tradingpedia.com/forex-trading-indicators/quantitative-qualitative-estimation
-        https://www.prorealcode.com/prorealtime-indicators/qqe-quantitative-qualitative-estimation/
-
-    Args:
-        close (pd.Series): Series of 'close's
-        length (int): RSI period. Default: 14
-        smooth (int): RSI smoothing period. Default: 5
-        factor (float): QQE Factor. Default: 4.236
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
-
-    Returns:
-        pd.DataFrame: QQE, RSI_MA (basis), QQEl (long), QQEs (short) columns.
+    Calculates long/short/trend/qqe/qqe_long/qqe_short arrays.
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    smooth = v_pos_default(smooth, 5)
-    wilders_length = 2 * length - 1
-    _length = wilders_length + smooth
-    close = v_series(close, _length)
+    n = len(rsi_ma)
+    long = np.zeros(n, dtype=np.float64)
+    short = np.zeros(n, dtype=np.float64)
+    trend = np.ones(n, dtype=np.float64)
+    qqe = np.empty(n, dtype=np.float64)
+    qqe_long = np.empty(n, dtype=np.float64)
+    qqe_short = np.empty(n, dtype=np.float64)
 
-    if close is None:
-        return
+    qqe[:] = np.nan
+    qqe_long[:] = np.nan
+    qqe_short[:] = np.nan
 
-    factor = v_scalar(factor, 4.236)
-    mamode = v_mamode(mamode, "ema")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    # Initialize first valid value
+    for i in range(n):
+        if not np.isnan(rsi_ma[i]):
+            qqe[i] = rsi_ma[i]
+            break
 
-    # Calculate
-    rsi_ = rsi(close, length)
-    _mode = mamode.lower()[0] if mamode != "ema" else ""
-    rsi_ma = ma(mamode, rsi_, length=smooth)
+    for i in range(1, n):
+        if np.isnan(rsi_ma[i]) or np.isnan(rsi_ma[i - 1]):
+            continue
 
-    # RSI MA True Range
-    rsi_ma_tr = rsi_ma.diff(drift).abs()
-    if all(isnan(rsi_ma_tr)):
-        return
-
-    # Double Smooth the RSI MA True Range using Wilder's Length with a default
-    # width of 4.236.
-    smoothed_rsi_tr_ma = ma("ema", rsi_ma_tr, length=wilders_length)
-    if all(isnan(smoothed_rsi_tr_ma)):
-        return  # Emergency Break
-    dar = factor * ma("ema", smoothed_rsi_tr_ma, length=wilders_length)
-    if all(isnan(dar)):
-        return  # Emergency Break
-
-    # Create the Upper and Lower Bands around RSI MA.
-    upperband = rsi_ma + dar
-    lowerband = rsi_ma - dar
-
-    m = close.size
-    long = Series(0, index=close.index)
-    short = Series(0, index=close.index)
-    trend = Series(1, index=close.index)
-    qqe = Series(rsi_ma.iat[0], index=close.index)
-    qqe_long = Series(nan, index=close.index)
-    qqe_short = Series(nan, index=close.index)
-
-    for i in range(1, m):
-        c_rsi, p_rsi = rsi_ma.iat[i], rsi_ma.iat[i - 1]
-        c_long, p_long = long.iat[i - 1], long.iat[i - 2]
-        c_short, p_short = short.iat[i - 1], short.iat[i - 2]
+        c_rsi = rsi_ma[i]
+        p_rsi = rsi_ma[i - 1]
+        c_long = long[i - 1]
+        p_long = long[max(0, i - 2)]
+        c_short = short[i - 1]
+        p_short = short[max(0, i - 2)]
 
         # Long Line
         if p_rsi > c_long and c_rsi > c_long:
-            long.iat[i] = maximum(c_long, lowerband.iat[i])
+            long[i] = max(c_long, lowerband[i])
         else:
-            long.iat[i] = lowerband.iat[i]
+            long[i] = lowerband[i]
 
         # Short Line
         if p_rsi < c_short and c_rsi < c_short:
-            short.iat[i] = minimum(c_short, upperband.iat[i])
+            short[i] = min(c_short, upperband[i])
         else:
-            short.iat[i] = upperband.iat[i]
+            short[i] = upperband[i]
 
         # Trend & QQE Calculation
-        # Long: Current RSI_MA value Crosses the Prior Short Line Value
-        # Short: Current RSI_MA Crosses the Prior Long Line Value
-        if (c_rsi > c_short and p_rsi < p_short) or (
-            c_rsi <= c_short and p_rsi >= p_short
-        ):
-            trend.iat[i] = 1
-            qqe.iat[i] = qqe_long.iat[i] = long.iat[i]
-        elif (c_rsi > c_long and p_rsi < p_long) or (
-            c_rsi <= c_long and p_rsi >= p_long
-        ):
-            trend.iat[i] = -1
-            qqe.iat[i] = qqe_short.iat[i] = short.iat[i]
+        if (c_rsi > c_short and p_rsi < p_short) or (c_rsi <= c_short and p_rsi >= p_short):
+            trend[i] = 1
+            qqe[i] = qqe_long[i] = long[i]
+        elif (c_rsi > c_long and p_rsi < p_long) or (c_rsi <= c_long and p_rsi >= p_long):
+            trend[i] = -1
+            qqe[i] = qqe_short[i] = short[i]
         else:
-            trend.iat[i] = trend.iat[i - 1]
-            if trend.iat[i] == 1:
-                qqe.iat[i] = qqe_long.iat[i] = long.iat[i]
+            trend[i] = trend[i - 1]
+            if trend[i] == 1:
+                qqe[i] = qqe_long[i] = long[i]
             else:
-                qqe.iat[i] = qqe_short.iat[i] = short.iat[i]
+                qqe[i] = qqe_short[i] = short[i]
 
-    # Offset
-    if offset != 0:
-        rsi_ma = rsi_ma.shift(offset)
-        qqe = qqe.shift(offset)
-        long = long.shift(offset)
-        short = short.shift(offset)
+    return qqe, qqe_long, qqe_short
 
-    # Fill
-    if "fillna" in kwargs:
-        rsi_ma = rsi_ma.fillna(kwargs["fillna"])
-        qqe = qqe.fillna(kwargs["fillna"])
-        qqe_long = qqe_long.fillna(kwargs["fillna"])
-        qqe_short = qqe_short.fillna(kwargs["fillna"])
 
-    # Name and Category
+def qqe(
+    close: IntoExpr,
+    length: int = 14,
+    smooth: int = 5,
+    factor: float = 4.236,
+    mamode: str = "ema",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Quantitative Qualitative Estimation (QQE)
+
+    QQE is a momentum indicator that combines RSI with volatility-based
+    trailing stop lines (similar to ATR bands) to identify trend direction
+    and potential reversals.
+
+    Sources:
+        https://www.tradingview.com/script/IYfA9R2k-QQE-MOD/
+
+    Calculation:
+        1. RSI = rsi(close, length)
+        2. RSI_MA = ma(mamode, RSI, smooth)
+        3. RSI_TR = abs(RSI_MA.diff())
+        4. DAR = factor * ema(ema(RSI_TR, 2*length-1), 2*length-1)
+        5. Upper/Lower bands = RSI_MA ± DAR
+        6. Stateful loop for long/short/trend/qqe lines
+
+    Args:
+        close: Column name or pl.Expr for 'close' prices
+        length: RSI period. Default: 14
+        smooth: MA smoothing period for RSI. Default: 5
+        factor: ATR multiplier for bands. Default: 4.236
+        mamode: MA type for RSI smoothing. Default: 'ema'
+        offset: Shift result by N periods. Default: 0
+
+    Returns:
+        pl.Expr: Struct expression with QQE, QQEl, QQEs columns
+    """
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+
+    wilders_length = 2 * length - 1
+    _mode = mamode.lower()[0] if mamode != "ema" else ""
     _props = f"{_mode}_{length}_{smooth}_{factor}"
-    qqe.name = f"QQE{_props}"
-    rsi_ma.name = f"QQE{_props}_RSI{_mode.upper()}MA"
-    qqe_long.name = f"QQEl{_props}"
-    qqe_short.name = f"QQEs{_props}"
-    qqe.category = rsi_ma.category = "momentum"
-    qqe_long.category = qqe_short.category = qqe.category
+    _rsima_name = f"QQE{_props}_RSI{_mode.upper()}MA"
 
-    data = {
-        qqe.name: qqe,
-        rsi_ma.name: rsi_ma,
-        # long.name: long,
-        # short.name: short
-        qqe_long.name: qqe_long,
-        qqe_short.name: qqe_short,
-    }
-    df = DataFrame(data, index=close.index)
-    df.name = f"QQE{_props}"
-    df.category = qqe.category
+    # Capture loop variables for closure
+    _length = length
+    _smooth = smooth
+    _factor = factor
+    _mamode = mamode
+    _wilders_length = wilders_length
+    _props_str = _props
+    _talib = talib
 
-    return df
+    def compute_qqe(s: pl.Series) -> pl.DataFrame:
+        """Compute QQE using pure Polars/Numba — no pandas dependency."""
+        arr = s.to_numpy().astype(np.float64)
+        tmp = pl.DataFrame({"_close": arr})
+
+        # Step 1: RSI via pl_rsi evaluated eagerly
+        rsi_col = tmp.select(rsi("_close", length=_length, talib=_talib)).to_series().to_numpy()
+
+        # Step 2: Smooth RSI with pl_ma
+        tmp2 = pl.DataFrame({"_rsi": rsi_col})
+        rsi_ma_expr = ma(_mamode, "_rsi", length=_smooth, talib=_talib)
+        rsi_ma_col = tmp2.select(rsi_ma_expr).to_series().to_numpy()
+
+        # Step 3: RSI MA True Range
+        rsi_ma_tr = np.abs(np.diff(rsi_ma_col, prepend=np.nan))
+
+        # Step 4: Double EMA of RSI TR
+        tmp3 = pl.DataFrame({"_tr": rsi_ma_tr})
+        s1 = tmp3.select(ma("ema", "_tr", length=_wilders_length, talib=_talib)).to_series().to_numpy()
+        tmp4 = pl.DataFrame({"_s1": s1})
+        s2 = tmp4.select(ma("ema", "_s1", length=_wilders_length, talib=_talib)).to_series().to_numpy()
+        dar = _factor * s2
+
+        # Step 5: Upper/Lower bands
+        upperband = rsi_ma_col + dar
+        lowerband = rsi_ma_col - dar
+
+        # Step 6: Run Numba loop
+        qqe_vals, qqe_long_vals, qqe_short_vals = nb_qqe_loop(rsi_ma_col, upperband, lowerband)
+
+        return pl.DataFrame(
+            {
+                f"QQE{_props_str}": qqe_vals,
+                _rsima_name: rsi_ma_col,
+                f"QQEl{_props_str}": qqe_long_vals,
+                f"QQEs{_props_str}": qqe_short_vals,
+            }
+        )
+
+    result = close_expr.map_batches(
+        lambda s: compute_qqe(s).to_struct("QQE"),
+        return_dtype=pl.Struct(
+            [
+                pl.Field(f"QQE{_props}", pl.Float64),
+                pl.Field(_rsima_name, pl.Float64),
+                pl.Field(f"QQEl{_props}", pl.Float64),
+                pl.Field(f"QQEs{_props}", pl.Float64),
+            ]
+        ),
+    ).alias(f"QQE{_props}")
+
+    if offset != 0:
+        result = result.shift(offset)
+
+    return result

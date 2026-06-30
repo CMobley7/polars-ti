@@ -1,25 +1,21 @@
 # -*- coding: utf-8 -*-
-import numpy as np
-from pandas import Series
+# =============================================================================
+# Polars FWMA Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    fibonacci,
-    v_ascending,
-    v_offset,
-    v_pos_default,
-    v_series,
-    weights,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.utils._math import fibonacci
 
 
 def fwma(
-    close: Series,
-    length: int | None = None,
-    asc: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Fibonacci's Weighted Moving Average (FWMA)
+    close: IntoExpr,
+    length: int = 10,
+    asc: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Fibonacci's Weighted Moving Average (FWMA)
 
     Fibonacci's Weighted Moving Average is similar to a Weighted Moving
     Average (WMA) where the weights are based on the Fibonacci Sequence.
@@ -27,47 +23,39 @@ def fwma(
     Source: Kevin Johnson
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        asc (bool): Recent values weigh more. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        asc: Recent values weigh more. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: FWMA expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    asc = v_ascending(asc)
-    offset = v_offset(offset)
-
-    # Calculate using numpy convolve for performance (~10x faster)
+    # Get Fibonacci weights
     fibs = fibonacci(n=length, weighted=True)
-    fib_weights = fibs[::-1]  # Reverse for convolution
-    total_weight = fibs.sum()
-    fwma_values = np.convolve(close.values, fib_weights, "valid") / total_weight
-    fwma = Series(
-        np.concatenate((np.full(length - 1, np.nan), fwma_values)),
-        index=close.index,
-    )
+    if not asc:
+        fibs = fibs[::-1]
+    weights_sum = fibs.sum()
+    fib_list = fibs.tolist()
 
-    # Offset
+    _length = length
+    _weights = fib_list
+    _total = weights_sum
+
+    def fib_weighted_mean(s: pl.Series) -> float:
+        vals = s.to_numpy()
+        if len(vals) < _length:
+            return float("nan")
+        return (vals * _weights[-len(vals) :]).sum() / _total
+
+    fwma_expr = close_expr.rolling_map(function=fib_weighted_mean, window_size=length, min_samples=length)
+
+    # Apply offset
     if offset != 0:
-        fwma = fwma.shift(offset)
+        fwma_expr = fwma_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        fwma = fwma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    fwma.name = f"FWMA_{length}"
-    fwma.category = "overlap"
-
-    return fwma
+    return fwma_expr.alias(f"FWMA_{length}")

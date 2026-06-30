@@ -43,19 +43,13 @@ class Study:
     created: str = get_time(to_string=True)
 
     def __post_init__(self):
-        if (
-            isinstance(self.cores, int)
-            and self.cores >= 0
-            and self.cores <= cpu_count()
-        ):
+        if isinstance(self.cores, int) and self.cores >= 0 and self.cores <= cpu_count():
             self.cores = int(self.cores)
 
         req_args = ["[X] Study requires the following argument(s):"]
 
         if self._is_name():
-            req_args.append(
-                ' - name. Must be a string. Example: "My TI". Note: "all" is reserved.'
-            )
+            req_args.append(' - name. Must be a string. Example: "My TI". Note: "all" is reserved.')
 
         if self.ti is None:
             self.ti = None

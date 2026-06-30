@@ -1,48 +1,26 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars HL2 Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def hl2(high: Series, low: Series, offset: int | None = None, **kwargs: dict) -> Series:
-    """HL2
-
-    HL2 is the midpoint/average of high and low.
+def hl2(high: IntoExpr, low: IntoExpr) -> PlExpr:
+    """Polars: HL2 - Midpoint of High and Low
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value). Only works if
-            result is offset.
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: HL2 expression
     """
-    # Validate
-    high = v_series(high)
-    low = v_series(low)
-    offset = v_offset(offset)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    if high_expr is None or low_expr is None:
+        return None
 
-    if high is None or low is None:
-        return
-
-    # Calculate
-    avg = 0.5 * (high.to_numpy() + low.to_numpy())
-    hl2 = Series(avg, index=high.index)
-
-    # Offset
-    if offset != 0:
-        hl2 = hl2.shift(offset)
-
-        # Fill
-        if "fillna" in kwargs:
-            hl2 = hl2.fillna(kwargs["fillna"])
-
-    # Name and Category
-    hl2.name = "HL2"
-    hl2.category = "overlap"
-
-    return hl2
+    return ((high_expr + low_expr) / 2).alias("HL2")

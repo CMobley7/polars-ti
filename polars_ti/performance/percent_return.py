@@ -1,68 +1,50 @@
 # -*- coding: utf-8 -*-
-import numpy as np
-from numpy import roll
-from pandas import Series
+# =============================================================================
+# Polars PERCENT_RETURN Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def percent_return(
-    close: Series,
-    length: int | None = None,
-    cumulative: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Percent Return
+    close: IntoExpr,
+    length: int = 1,
+    cumulative: bool = False,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Percent Return
 
     Calculates the percent return of a Series.
-    See also: help(df.ti.percent_return) for additional **kwargs a valid 'df'.
 
     Sources:
         https://stackoverflow.com/questions/31287552/logarithmic-returns-in-pandas-dataframe
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): Its period. Default: 1
-        cumulative (bool): If True, returns the cumulative returns.
-            Default: False
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Period for return calculation. Default: 1
+        cumulative: If True, returns cumulative percent returns. Default: False
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Percent return expression
     """
-    # Validate
-    length = v_pos_default(length, 1)
-    close = v_series(close, length + 1)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    cumulative = v_bool(cumulative, False)
-    offset = v_offset(offset)
-
-    # Calculate
-    np_close = close.to_numpy()
     if cumulative:
-        pr = (np_close / np_close[0]) - 1
+        # Cumulative percent return: (close / close[0]) - 1
+        result = (close_expr / close_expr.first()) - 1
+        name = f"CUMPCTRET_{length}"
     else:
-        pr = (np_close / roll(np_close, length)) - 1
-        pr[:length] = np.nan
-    pct_return = Series(pr, index=close.index)
+        # Percent return: (close / close.shift(length)) - 1
+        result = (close_expr / close_expr.shift(length)) - 1
+        name = f"PCTRET_{length}"
 
-    # Offset
+    # Apply offset if needed
     if offset != 0:
-        pct_return = pct_return.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        pct_return = pct_return.fillna(kwargs["fillna"])
-
-    # Name and Category
-    pct_return.name = f"{'CUM' if cumulative else ''}PCTRET_{length}"
-    pct_return.category = "performance"
-
-    return pct_return
+    return result.alias(name)

@@ -1,103 +1,100 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars Aroon Implementation
+# =============================================================================
+import numpy as np
+from numba import njit
+import polars as pl
 
-from polars_ti.maps import Imports
-from polars_ti.utils import (
-    recent_maximum_index,
-    recent_minimum_index,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-    v_talib,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _nb_aroon(high: np.ndarray, low: np.ndarray, length: int, scalar: float):
+    """Numba kernel for Aroon Up, Down, and Oscillator."""
+    n = len(high)
+    aroon_up = np.full(n, np.nan)
+    aroon_down = np.full(n, np.nan)
+    aroon_osc = np.full(n, np.nan)
+    window = length + 1
+
+    for i in range(window - 1, n):
+        # Find periods since highest high and lowest low
+        max_idx = 0
+        min_idx = 0
+        max_val = high[i - window + 1]
+        min_val = low[i - window + 1]
+        for j in range(1, window):
+            idx = i - window + 1 + j
+            if high[idx] >= max_val:
+                max_val = high[idx]
+                max_idx = j
+            if low[idx] <= min_val:
+                min_val = low[idx]
+                min_idx = j
+
+        periods_from_hh = (window - 1) - max_idx
+        periods_from_ll = (window - 1) - min_idx
+
+        aroon_up[i] = scalar * (1.0 - periods_from_hh / length)
+        aroon_down[i] = scalar * (1.0 - periods_from_ll / length)
+        aroon_osc[i] = aroon_up[i] - aroon_down[i]
+
+    return aroon_up, aroon_down, aroon_osc
 
 
 def aroon(
-    high: Series,
-    low: Series,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Aroon & Aroon Oscillator (AROON)
+    high: IntoExpr,
+    low: IntoExpr,
+    length: int = 14,
+    scalar: float = 100.0,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Aroon & Aroon Oscillator
 
-    Aroon attempts to identify if a security is trending and how strong.
-
-    Sources:
-        https://www.tradingview.com/wiki/Aroon
-        https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/aroon-ar/
+    Identifies if a security is trending and how strong.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        length (int): It's period. Default: 14
-        scalar (float): How much to magnify. Default: 100
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        length: Period. Default: 14
+        scalar: Magnification. Default: 100
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: aroon_up, aroon_down, aroon_osc columns.
+        pl.Expr: Struct with AROONU, AROOND, AROONOSC columns
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    high = v_series(high, length + 1)
-    low = v_series(low, length + 1)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
 
-    if high is None or low is None:
-        return
+    def _compute(s: pl.Series) -> pl.Series:
+        data = s.struct.unnest()
+        h = data["_high"].to_numpy().astype(np.float64)
+        l_ = data["_low"].to_numpy().astype(np.float64)
+        up, down, osc = _nb_aroon(h, l_, length, scalar)
 
-    scalar = v_scalar(scalar, 100)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+        if offset != 0:
+            up = np.roll(up, offset)
+            down = np.roll(down, offset)
+            osc = np.roll(osc, offset)
+            if offset > 0:
+                up[:offset] = np.nan
+                down[:offset] = np.nan
+                osc[:offset] = np.nan
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import AROON, AROONOSC
+        return pl.Series(values=[{"AROONU": u, "AROOND": d, "AROONOSC": o} for u, d, o in zip(up, down, osc)])
 
-        aroon_down, aroon_up = AROON(high, low, length)
-        aroon_osc = AROONOSC(high, low, length)
-    else:
-        periods_from_hh = high.rolling(length + 1).apply(recent_maximum_index, raw=True)
-        periods_from_ll = low.rolling(length + 1).apply(recent_minimum_index, raw=True)
-
-        aroon_up = aroon_down = scalar
-        aroon_up *= 1 - (periods_from_hh / length)
-        aroon_down *= 1 - (periods_from_ll / length)
-        aroon_osc = aroon_up - aroon_down
-
-    # Offset
-    if offset != 0:
-        aroon_up = aroon_up.shift(offset)
-        aroon_down = aroon_down.shift(offset)
-        aroon_osc = aroon_osc.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        aroon_up = aroon_up.fillna(kwargs["fillna"])
-        aroon_down = aroon_down.fillna(kwargs["fillna"])
-        aroon_osc = aroon_osc.fillna(kwargs["fillna"])
-
-    # Name and Category
-    aroon_up.name = f"AROONU_{length}"
-    aroon_down.name = f"AROOND_{length}"
-    aroon_osc.name = f"AROONOSC_{length}"
-
-    aroon_down.category = aroon_up.category = aroon_osc.category = "trend"
-
-    data = {
-        aroon_down.name: aroon_down,
-        aroon_up.name: aroon_up,
-        aroon_osc.name: aroon_osc,
-    }
-    df = DataFrame(data, index=high.index)
-    df.name = f"AROON_{length}"
-    df.category = aroon_down.category
-
-    return df
+    fields = [
+        pl.Field("AROONU", pl.Float64),
+        pl.Field("AROOND", pl.Float64),
+        pl.Field("AROONOSC", pl.Float64),
+    ]
+    return (
+        pl.struct(
+            high_expr.alias("_high"),
+            low_expr.alias("_low"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"AROON_{length}")
+    )

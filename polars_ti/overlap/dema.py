@@ -1,74 +1,66 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan
-from pandas import Series
+# =============================================================================
+# Polars DEMA Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
-
-from .ema import ema
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.overlap.ema import _ema_numba
 
 
 def dema(
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Double Exponential Moving Average (DEMA)
+    close: IntoExpr,
+    length: int = 10,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Double Exponential Moving Average (DEMA)
 
-    The Double Exponential Moving Average attempts to a smoother average
-    with less lag than the normal Exponential Moving Average (EMA).
+    DEMA = 2 * EMA(close) - EMA(EMA(close))
 
     Sources:
         https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/double-exponential-moving-average-dema/
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Smoothing period. Default: 10
+        talib: If True and TA-Lib available, uses TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: DEMA expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    _length = length
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import DEMA
+    def compute_dema(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
 
-        dema = DEMA(close, length)
-    else:
-        ema1 = ema(close=close, length=length, talib=mode_tal)
-        ema2 = ema(close=ema1, length=length, talib=mode_tal)
-        dema = 2 * ema1 - ema2
+        if _use_talib:
+            from talib import DEMA as TALIB_DEMA
 
-    if all(isnan(dema.to_numpy())):
-        return  # Emergency Break
+            result = TALIB_DEMA(arr, timeperiod=_length)
+        else:
+            # Direct Numba calls - no DataFrame creation!
+            ema1 = _ema_numba(arr, _length, presma=True, adjust=False)
+            ema2 = _ema_numba(ema1, _length, presma=True, adjust=False)
+            result = 2 * ema1 - ema2
 
-    # Offset
+        return pl.Series(result)
+
+    dema_expr = close_expr.map_batches(compute_dema, return_dtype=pl.Float64)
+
+    # Apply offset
     if offset != 0:
-        dema = dema.shift(offset)
+        dema_expr = dema_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        dema = dema.fillna(kwargs["fillna"])
-
-    # Name and Category
-    dema.name = f"DEMA_{length}"
-    dema.category = "overlap"
-
-    return dema
+    return dema_expr.alias(f"DEMA_{length}")

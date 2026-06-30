@@ -1,77 +1,51 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars TTM Trend Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import hl2
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def ttm_trend(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """TTM Trend (TTM_TRND)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 6,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: TTM Trend
 
-    This indicator is from John Carters book “Mastering the Trade” and
-    plots the bars green or red. It checks if the price is above or under
-    the average price of the previous 5 bars. The indicator should hep you
-    stay in a trade until the colors chance. Two bars of the opposite color
-    is the signal to get in or out.
+    Checks if close is above/below the rolling average of HL2 over length bars.
+    Returns 1 for uptrend, -1 for downtrend.
 
-    Sources:
-        https://www.prorealcode.com/prorealtime-indicators/ttm-trend-price/
+    Formula:
+        trend_avg = rolling_mean(HL2, length)
+        TTM_TRND = 1 if close > trend_avg else -1
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 6
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 6
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: ttm_trend.
+        pl.Expr: TTM Trend struct expression with TTM_TRND column
     """
-    # Validate
-    length = v_pos_default(length, 6)
-    high = v_series(high, length)
-    low = v_series(low, length)
-    close = v_series(close, length)
+    from polars_ti.overlap.hl2 import hl2
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    offset = v_offset(offset)
+    hl2_expr = hl2(high_expr, low_expr)
+    trend_avg = hl2_expr.rolling_mean(window_size=length)
 
-    # Calculate
-    trend_avg = hl2(high, low)
-    for i in range(1, length):
-        trend_avg = trend_avg + hl2(high.shift(i), low.shift(i))
+    ttm = pl.when(close_expr > trend_avg).then(1).otherwise(-1)
 
-    trend_avg = trend_avg / length
-
-    tm_trend = (close > trend_avg).astype(int)
-    tm_trend = tm_trend.replace(0, -1)
-
-    # Offset
     if offset != 0:
-        tm_trend = tm_trend.shift(offset)
+        ttm = ttm.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        tm_trend = tm_trend.fillna(kwargs["fillna"])
-
-    # Name and Category
-    tm_trend.name = f"TTM_TRND_{length}"
-    tm_trend.category = "momentum"
-
-    df = DataFrame({tm_trend.name: tm_trend}, index=close.index)
-    df.name = f"TTMTREND_{length}"
-    df.category = tm_trend.category
-
-    return df
+    return ttm.alias(f"TTM_TRND_{length}")

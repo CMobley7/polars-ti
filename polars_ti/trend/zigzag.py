@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import floor, isnan, nan, roll, zeros, zeros_like
-from pandas import DataFrame, Series
-
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
+from numba import njit
 
 
 @njit(cache=True)
@@ -209,114 +206,90 @@ def nb_map_zigzag(idx, swing, value, deviation, n):
     return swing_map, value_map, dev_map
 
 
+# =============================================================================
+# Polars ZigZag Implementation (reuses existing Numba kernels)
+# =============================================================================
+import numpy as np
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def zigzag(
-    high: Series,
-    low: Series,
-    close: Series | None = None,
-    legs: int | None = None,
-    deviation: int | float | None = None,
-    retrace: bool | None = None,
-    last_extreme: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-):
-    """Zigzag (ZIGZAG)
+    high: IntoExpr,
+    low: IntoExpr,
+    legs: int = 10,
+    deviation: float = 5.0,
+    lookahead: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: ZigZag
 
-    Zigzag attempts to filter out smaller price movments while highlighting
-    trend direction. It does not predict future trends, but it does identify
-    swing highs and lows. When 'deviation' is set to 10, it will ignore
-    all price movements less than 10%; only price movements greater than 10%
-    would be shown.
-
-    Note: Zigzag lines are not permanent and a price reversal will create a
-        new line.
-
-    Sources:
-        https://www.tradingview.com/support/solutions/43000591664-zig-zag/#:~:text=Definition,trader%20visual%20the%20price%20action.
-        https://school.stockcharts.com/doku.php?id=technical_indicators:zigzag
+    Filters out small price movements while highlighting trend direction.
+    Identifies swing highs and lows.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's. Default: None
-        legs (int): Number of legs > 2. Default: 10
-        deviation (float): Price Deviation Percentage for a reversal.
-            Default: 5
-        retrace (bool): Default: False
-        last_extreme (bool): Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
-        fill_method (value, optional): Type of fill method
-        lookahead (bool, optional): If True (default), uses future data for
-            precise swing point placement. If False, eliminates look-ahead
-            bias by processing pivots forward in time - safer for backtesting.
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        legs: Number of legs. Default: 10
+        deviation: Price deviation % for reversal. Default: 5.0
+        lookahead: Use future data for precise placement. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: ZIGZAGs (swing type), ZIGZAGv (price), ZIGZAGd (deviation).
+        pl.Expr: Struct with ZIGZAGs, ZIGZAGv, ZIGZAGd columns
     """
-    # Validate
-    legs = v_pos_default(legs, 10)
-    _length = legs + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
 
-    if high is None or low is None:
-        return
+    def _compute(s: pl.Series) -> pl.Series:
+        data = s.struct.unnest()
+        h = data["_h"].to_numpy().astype(np.float64)
+        l_ = data["_l"].to_numpy().astype(np.float64)
 
-    if close is not None:
-        close = v_series(close, _length)
-        np_close = close.values
-        if close is None:
-            return
+        hli, hls, hlv = nb_rolling_hl(h, l_, legs)
 
-    deviation = v_pos_default(deviation, 5.0)
-    retrace = v_bool(retrace, False)
-    last_extreme = v_bool(last_extreme, True)
-    offset = v_offset(offset)
+        if lookahead:
+            zzi, zzs, zzv, zzd = nb_find_zigzags_backward(hli, hls, hlv, deviation)
+        else:
+            zzi, zzs, zzv, zzd = nb_find_zigzags_forward(hli, hls, hlv, deviation)
 
-    # Calculation
-    np_high, np_low = high.to_numpy(), low.to_numpy()
-    hli, hls, hlv = nb_rolling_hl(np_high, np_low, legs)
+        zz_swing, zz_value, zz_dev = nb_map_zigzag(zzi, zzs, zzv, zzd, len(h))
 
-    # lookahead=True (default): uses future data for precise placement
-    # lookahead=False: no look-ahead bias, safer for backtesting
-    if kwargs.get("lookahead", True):
-        zzi, zzs, zzv, zzd = nb_find_zigzags_backward(hli, hls, hlv, deviation)
-    else:
-        zzi, zzs, zzv, zzd = nb_find_zigzags_forward(hli, hls, hlv, deviation)
+        if offset != 0:
+            zz_swing = np.roll(zz_swing, offset)
+            zz_value = np.roll(zz_value, offset)
+            zz_dev = np.roll(zz_dev, offset)
+            if offset > 0:
+                zz_swing[:offset] = np.nan
+                zz_value[:offset] = np.nan
+                zz_dev[:offset] = np.nan
 
-    zz_swing, zz_value, zz_dev = nb_map_zigzag(zzi, zzs, zzv, zzd, np_high.size)
-
-    # Offset (use numpy roll for arrays, shift for Series)
-    if offset != 0:
-        zz_swing = roll(zz_swing, offset)
-        zz_value = roll(zz_value, offset)
-        zz_dev = roll(zz_dev, offset)
-        # Replace rolled-in values with NaN
-        zz_swing[:offset] = nan
-        zz_value[:offset] = nan
-        zz_dev[:offset] = nan
-
-    # Fill
-    if "fillna" in kwargs:
-        zz_swing = zz_swing.fillna(kwargs["fillna"])
-        zz_value = zz_value.fillna(kwargs["fillna"])
-        zz_dev = zz_dev.fillna(kwargs["fillna"])
-    if "fill_method" in kwargs:
-        zz_swing = zz_swing.fillna(method=kwargs["fill_method"])
-        zz_value = zz_value.fillna(method=kwargs["fill_method"])
-        zz_dev = zz_dev.fillna(method=kwargs["fill_method"])
+        _props = f"_{deviation}%_{legs}"
+        n = len(h)
+        return pl.Series(
+            values=[
+                {
+                    f"ZIGZAGs{_props}": zz_swing[i],
+                    f"ZIGZAGv{_props}": zz_value[i],
+                    f"ZIGZAGd{_props}": zz_dev[i],
+                }
+                for i in range(n)
+            ]
+        )
 
     _props = f"_{deviation}%_{legs}"
-    data = {
-        f"ZIGZAGs{_props}": zz_swing,
-        f"ZIGZAGv{_props}": zz_value,
-        f"ZIGZAGd{_props}": zz_dev,
-    }
-    df = DataFrame(data, index=high.index)
-    df.name = f"ZIGZAG{_props}"
-    df.category = "trend"
-
-    return df
+    fields = [
+        pl.Field(f"ZIGZAGs{_props}", pl.Float64),
+        pl.Field(f"ZIGZAGv{_props}", pl.Float64),
+        pl.Field(f"ZIGZAGd{_props}", pl.Float64),
+    ]
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"ZIGZAG{_props}")
+    )

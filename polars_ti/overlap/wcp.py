@@ -1,71 +1,66 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars WCP Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_series, v_talib
 
 
 def wcp(
-    high: Series,
-    low: Series,
-    close: Series,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Weighted Closing Price (WCP)
-
-    Weighted Closing Price is the weighted price given: high, low
-    and double the close.
-
-    Sources:
-        https://www.fmlabs.com/reference/default.htm?url=WeightedCloses.htm
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Weighted Closing Price (WCP)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: WCP expression
     """
-    # Validate
-    _length = 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if high is None or low is None or close is None:
-        return
+    if Imports["talib"] and talib:
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+        def compute_wcp(struct: pl.Series) -> pl.Series:
+            from talib import WCLPRICE
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import WCLPRICE
+            h = struct.struct.field("h").to_numpy()
+            l = struct.struct.field("l").to_numpy()
+            c = struct.struct.field("c").to_numpy()
+            result = WCLPRICE(h, l, c)
+            if offset != 0:
+                result = np.roll(result, offset)
+                if offset > 0:
+                    result[:offset] = np.nan
+            return pl.Series(result)
 
-        wcp = WCLPRICE(high, low, close)
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("h"),
+                    low_expr.alias("l"),
+                    close_expr.alias("c"),
+                ]
+            )
+            .map_batches(compute_wcp)
+            .alias("WCP")
+        )
     else:
-        weight = high.to_numpy() + low.to_numpy() + 2 * close.to_numpy()
-        wcp = Series(weight, index=close.index)
-
-    # Offset
-    if offset != 0:
-        wcp = wcp.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        wcp = wcp.fillna(kwargs["fillna"])
-
-    # Name and Category
-    wcp.name = "WCP"
-    wcp.category = "overlap"
-
-    return wcp
+        result = (high_expr + low_expr + 2 * close_expr) / 4
+        if offset != 0:
+            result = result.shift(offset)
+        return result.alias("WCP")

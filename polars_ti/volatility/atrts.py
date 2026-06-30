@@ -1,19 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import isnan, nan, uintc, zeros_like
-from pandas import Series
-
-from polars_ti.ma import ma as _ma
-from polars_ti.maps import Imports
-from polars_ti.utils import (
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
-from polars_ti.volatility import atr
+from numba import njit
 
 
 @njit(cache=True)
@@ -47,114 +34,92 @@ def nb_atrts(x, ma, atr_, length, ma_length):
     return result, long, short
 
 
-def atrts(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    ma_length: int | None = None,
-    multiplier: int | float | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """ATR Trailing Stop (ATRTS)
+# =============================================================================
+# Polars ATRTS Implementation (Composition: pl_atr + pl_ma + nb_atrts kernel)
+# =============================================================================
+import polars as pl
+import numpy as np
 
-    Attempts to identify exits for long and short positions using both ATR
-    and a moving average (MA) to determine the trend.
-    The Average True Range (ATR) is multiplied by a user defined factor.
-    If the MA is increasing (uptrend), the ATR product is subtracted from
-    the price or, if the MA is decreasing (down trend), it is added to the
-    price, and along with a few details the ATRTS is formed. The user may
-    change the position (long), input (close), method (EMA), period lengths,
-    percent factor and show entry option(see trading signals below).
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+def atrts(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    ma_length: int = 20,
+    multiplier: float = 3.0,
+    mamode: str = "ema",
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: ATR Trailing Stop (ATRTS)
+
+    Uses composition: pl_atr + pl_ma for ATR and MA calculation,
+    then applies the nb_atrts kernel for the trailing stop logic.
 
     Sources:
         https://www.motivewave.com/studies/atr_trailing_stops.htm
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): ATR length. Default: 14
-        ma_length (int): MA Length. Default: 20
-        multiplier (int): ATR multiplier. Default: 3
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        talib (bool): If TA Lib is installed and talib is True, Returns the
-            TA Lib version. Default: True
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        percent (bool, optional): Return as percentage. Default: False
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        length: ATR length. Default: 14
+        ma_length: MA length. Default: 20
+        multiplier: ATR multiplier. Default: 3.0
+        mamode: MA type ('ema', 'sma', 'rma'). Default: 'ema'
+        talib: If True and TA-Lib installed, use TA-Lib for ATR. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: ATRTS expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    ma_length = v_pos_default(ma_length, 20)
-    _length = length + ma_length
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    from polars_ti.volatility.atr import atr
+    from polars_ti.ma import ma
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    multiplier = v_pos_default(multiplier, 3.0)
-    mamode = v_mamode(mamode, "ema")
-    mode_tal = v_talib(talib)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    _length = length
+    _ma_length = ma_length
+    _multiplier = multiplier
+    _mamode = mamode.lower()
+    _offset = offset
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import ATR
+    def compute_atrts(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        close_arr = df["_close"].to_numpy().astype(np.float64)
+        atr_arr = df["_atr"].to_numpy().astype(np.float64) * _multiplier
+        ma_arr = df["_ma"].to_numpy().astype(np.float64)
 
-        atr_ = ATR(high, low, close, length)
-    else:
-        atr_ = atr(
-            high=high,
-            low=low,
-            close=close,
-            length=length,
-            mamode=mamode,
-            drift=drift,
-            talib=mode_tal,
-            offset=offset,
-            **kwargs,
+        # Call the nb_atrts kernel (from Pandas section - line 19)
+        result, _, _ = nb_atrts(close_arr, ma_arr, atr_arr, _length, _ma_length)
+
+        if _offset != 0:
+            result = np.roll(result, _offset)
+            if _offset > 0:
+                result[:_offset] = np.nan
+
+        return pl.Series(result)
+
+    # Use composition: pl_atr for ATR, pl_ma for MA (just like Pandas!)
+    # OLD: ATR uses TA-Lib when talib=True, else native (mamode); MA tracks the
+    # native/TA-Lib choice the same way.
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=_mamode, talib=talib)
+    ma_expr = ma(name=_mamode, source=close_expr, length=ma_length, talib=talib)
+
+    return (
+        pl.struct(
+            [
+                close_expr.alias("_close"),
+                atr_expr.alias("_atr"),
+                ma_expr.alias("_ma"),
+            ]
         )
-
-    if all(isnan(atr_)):
-        return  # Emergency Break
-
-    atr_ *= multiplier
-    ma_ = _ma(mamode, close, length=ma_length, talib=mode_tal)
-
-    np_close, np_ma, np_atr = close.to_numpy(), ma_.to_numpy(), atr_.to_numpy()
-    np_atrts_, _, _ = nb_atrts(np_close, np_ma, np_atr, length, ma_length)
-
-    percent = kwargs.pop("percent", False)
-    if percent:
-        np_atrts_ *= 100 / np_close
-
-    atrts = Series(np_atrts_, index=close.index)
-
-    # Offset
-    if offset != 0:
-        atrts = atrts.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        atrts = atrts.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _props = f"ATRTS{mamode[0]}{'p' if percent else ''}"
-    atrts.name = f"{_props}_{length}_{ma_length}_{multiplier}"
-    atrts.category = "volatility"
-
-    return atrts
+        .map_batches(compute_atrts, return_dtype=pl.Float64)
+        .alias(f"ATRTS{mamode[0]}_{length}_{ma_length}_{multiplier}")
+    )

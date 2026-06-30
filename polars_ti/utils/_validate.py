@@ -1,17 +1,12 @@
 # -*- coding: utf-8 -*-
 from functools import partial
 
-from pandas import DataFrame, Series
-from pandas.api.types import is_datetime64_any_dtype
-
 from polars_ti._typing import (
     Float,
     Int,
     IntFloat,
     List,
-    MaybeSeriesFrame,
     Optional,
-    SeriesFrame,
     np_floating,
     np_integer,
 )
@@ -30,9 +25,9 @@ def v_bool(var: bool, default: bool = True) -> bool:
     return default
 
 
-def v_dataframe(obj: MaybeSeriesFrame) -> None:
-    if not isinstance(obj, (DataFrame, Series)):
-        print("[X] Requires a Pandas Series or DataFrame.")
+def v_dataframe(obj) -> None:
+    """Legacy validator — no-op retained for API compatibility."""
+    pass
 
 
 def v_float(var: IntFloat, default: IntFloat, ne: Optional[IntFloat] = 0.0) -> Float:
@@ -65,13 +60,8 @@ def v_ascending(var: bool) -> bool:
     return partial(v_bool, default=True)(var=var)
 
 
-def v_datetime_ordered(df: SeriesFrame) -> bool:
-    if df.shape[0] < 2:
-        return False
-    if is_datetime64_any_dtype(df.index):
-        np_dt_index = df.index.to_numpy()
-        if np_dt_index[0] < np_dt_index[-1]:
-            return True
+def v_datetime_ordered(df) -> bool:
+    """Legacy validator — always returns False (pandas index ordering not applicable)."""
     return False
 
 
@@ -127,12 +117,8 @@ def v_offset(var: Int) -> Int:
     return partial(v_int, default=0, ne=0)(var=var)
 
 
-def v_pos_default(
-    var: IntFloat, default: IntFloat = 0, strict: bool = True, complement: bool = False
-) -> IntFloat:
-    return partial(v_lowerbound, bound=0)(
-        var=var, default=default, strict=strict, complement=complement
-    )
+def v_pos_default(var: IntFloat, default: IntFloat = 0, strict: bool = True, complement: bool = False) -> IntFloat:
+    return partial(v_lowerbound, bound=0)(var=var, default=default, strict=strict, complement=complement)
 
 
 def v_scalar(var: IntFloat, default: Optional[IntFloat] = 1) -> Float:
@@ -142,12 +128,19 @@ def v_scalar(var: IntFloat, default: Optional[IntFloat] = 1) -> Float:
     return float(default)
 
 
-def v_series(series: Series, length: Optional[IntFloat] = 0) -> Optional[Series]:
-    """Returns None if the Pandas Series does not meet the minimum length
-    required for the indicator."""
-    if series is not None and isinstance(series, Series):
-        if series.size >= v_pos_default(length, 0):
-            return series
+def v_series(series, length: Optional[IntFloat] = 0):
+    """Legacy validator — returns the series unchanged if it has sufficient length.
+
+    Accepts any sequence-like object; size checked via len() for duck-typed compat.
+    """
+    if series is None:
+        return None
+    try:
+        size = len(series)
+    except TypeError:
+        return None
+    if size >= v_pos_default(length, 0):
+        return series
     return None
 
 
@@ -161,9 +154,56 @@ def v_tradingview(var: bool) -> bool:
     return partial(v_bool, default=True)(var=var)
 
 
-def v_upperbound(
-    var: IntFloat, bound: IntFloat = 0, default: IntFloat = 0, strict: bool = True
-) -> IntFloat:
-    return partial(v_lowerbound, complement=True)(
-        var=var, bound=bound, default=default, strict=strict
-    )
+def v_upperbound(var: IntFloat, bound: IntFloat = 0, default: IntFloat = 0, strict: bool = True) -> IntFloat:
+    return partial(v_lowerbound, complement=True)(var=var, bound=bound, default=default, strict=strict)
+
+
+# =============================================================================
+# Polars Validators (for Polars-TI conversion)
+# =============================================================================
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr, PlExprOpt, PolarsFrame
+
+
+def v_expr(expr: IntoExpr, length: int = 0) -> PlExprOpt:
+    """Validate and convert column name or expression to pl.Expr.
+
+    Args:
+        expr: Column name (str) or Polars expression (pl.Expr)
+        length: Minimum required length (unused for expressions, kept for API parity)
+
+    Returns:
+        pl.Expr if valid, None otherwise
+    """
+    if isinstance(expr, str):
+        return pl.col(expr)
+    if isinstance(expr, pl.Expr):
+        return expr
+    return None
+
+
+def v_polars_frame(obj) -> None:
+    """Validate that obj is a Polars DataFrame or LazyFrame.
+
+    Raises:
+        TypeError: If obj is not a Polars DataFrame or LazyFrame
+    """
+    if not isinstance(obj, (pl.DataFrame, pl.LazyFrame)):
+        raise TypeError(f"Requires a Polars DataFrame or LazyFrame, got {type(obj).__name__}")
+
+
+def v_polars_series(series: pl.Series | None, length: int = 0) -> pl.Series | None:
+    """Validate Polars Series meets minimum length requirement.
+
+    Args:
+        series: Polars Series to validate
+        length: Minimum required length
+
+    Returns:
+        The series if valid, None otherwise
+    """
+    if series is not None and isinstance(series, pl.Series):
+        if len(series) >= v_pos_default(length, 0):
+            return series
+    return None

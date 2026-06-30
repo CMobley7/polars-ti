@@ -1,61 +1,40 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars RSX Implementation (Numba @njit kernel)
+# =============================================================================
+import polars as pl
 import numpy as np
-from pandas import DataFrame, Series, concat
+from numba import njit
 
-from polars_ti.utils import v_drift, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def rsx(
-    close: Series,
-    length: int | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Relative Strength Xtra (rsx)
+@njit(cache=True)
+def _rsx_numba(close: np.ndarray, length: int) -> np.ndarray:
+    """Numba-optimized RSX (Relative Strength Xtra).
 
-    The Relative Strength Xtra is based on the popular RSI indicator and
-    inspired by the work Jurik Research. The code implemented is based on
-    published code found at 'prorealcode.com'. This enhanced version of the
-    rsi reduces noise and provides a clearer, only slightly delayed insight
-    on momentum and velocity of price movements.
-
-    Sources:
-        http://www.jurikres.com/catalog1/ms_rsx.htm
-        https://www.prorealcode.com/prorealtime-indicators/jurik-rsx/
-
-    Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
-
-    Returns:
-        pd.Series: New feature generated.
+    Based on Jurik's algorithm as published at prorealcode.com.
+    This mirrors the Pandas implementation exactly.
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    close = v_series(close, length)
+    m = len(close)
+    result = np.empty(m, dtype=np.float64)
+    result[:] = np.nan
 
-    if close is None:
-        return
+    if m < length:
+        return result
 
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    # Initialize state variables
+    vC, v1C = 0.0, 0.0
+    v4, v8, v10, v14, v18, v20 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
-    # Calculate
-    m = close.size
-    vC, v1C = 0, 0
-    v4, v8, v10, v14, v18, v20 = 0, 0, 0, 0, 0, 0
+    f0, f8, f10, f18, f20, f28, f30, f38 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    f40, f48, f50, f58, f60, f68, f70, f78 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    f80, f88, f90 = 0.0, 0.0, 0.0
 
-    f0, f8, f10, f18, f20, f28, f30, f38 = 0, 0, 0, 0, 0, 0, 0, 0
-    f40, f48, f50, f58, f60, f68, f70, f78 = 0, 0, 0, 0, 0, 0, 0, 0
-    f80, f88, f90 = 0, 0, 0
+    # Initial value at length-1
+    result[length - 1] = 50.0
 
-    result = [np.nan for _ in range(0, length - 1)] + [50]
     for i in range(length, m):
         if f90 == 0:
             f90 = 1.0
@@ -64,7 +43,7 @@ def rsx(
                 f88 = length - 1.0
             else:
                 f88 = 5.0
-            f8 = 100.0 * close.iat[i]
+            f8 = 100.0 * close[i]
             f18 = 3.0 / (length + 2.0)
             f20 = 1.0 - f18
         else:
@@ -73,7 +52,7 @@ def rsx(
             else:
                 f90 = f90 + 1
             f10 = f8
-            f8 = 100 * close.iat[i]
+            f8 = 100.0 * close[i]
             v8 = f8 - f10
             f28 = f20 * f28 + f18 * v8
             f30 = f18 * f28 + f20 * f30
@@ -107,41 +86,51 @@ def rsx(
                 v4 = 0.0
         else:
             v4 = 50.0
-        result.append(v4)
-    rsx = Series(result, index=close.index)
+        result[i] = v4
 
-    # Offset
+    return result
+
+
+def rsx(
+    close: IntoExpr,
+    length: int = 14,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Relative Strength Xtra (RSX)
+
+    Uses Numba @njit kernel via map_batches for the recursive calculation.
+
+    The Relative Strength Xtra is based on the popular RSI indicator and
+    inspired by the work of Jurik Research. This enhanced version of the
+    RSI reduces noise and provides a clearer, only slightly delayed insight
+    on momentum and velocity of price movements.
+
+    Sources:
+        http://www.jurikres.com/catalog1/ms_rsx.htm
+        https://www.prorealcode.com/prorealtime-indicators/jurik-rsx/
+
+    Args:
+        close: Column name or pl.Expr for 'close' prices
+        length: Period length. Default: 14
+        offset: Shift result by N periods. Default: 0
+
+    Returns:
+        pl.Expr: RSX expression for lazy evaluation
+    """
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
+
+    _length = length
+
+    def compute_rsx(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        result = _rsx_numba(arr, _length)
+        return pl.Series(result)
+
+    rsx_expr = close_expr.map_batches(compute_rsx, return_dtype=pl.Float64)
+
     if offset != 0:
-        rsx = rsx.shift(offset)
+        rsx_expr = rsx_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        rsx = rsx.fillna(kwargs["fillna"])
-
-    # Name and Category
-    rsx.name = f"RSX_{length}"
-    rsx.category = "momentum"
-
-    signal_indicators = kwargs.pop("signal_indicators", False)
-    if signal_indicators:
-        signalsdf = concat(
-            [
-                DataFrame({rsx.name: rsx}),
-                signals(
-                    indicator=rsx,
-                    xa=kwargs.pop("xa", 80),
-                    xb=kwargs.pop("xb", 20),
-                    xserie=kwargs.pop("xserie", None),
-                    xserie_a=kwargs.pop("xserie_a", None),
-                    xserie_b=kwargs.pop("xserie_b", None),
-                    cross_values=kwargs.pop("cross_values", False),
-                    cross_series=kwargs.pop("cross_series", True),
-                    offset=offset,
-                ),
-            ],
-            axis=1,
-        )
-
-        return signalsdf
-    else:
-        return rsx
+    return rsx_expr.alias(f"RSX_{length}")

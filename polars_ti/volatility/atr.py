@@ -1,113 +1,101 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan, nan
-from pandas import Series
+# =============================================================================
+# Polars ATR Implementation (Simple Composition: pl_true_range + pl_ma)
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.ma import ma
+from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.maps import Imports
-from polars_ti.utils import (
-    v_bool,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
-from polars_ti.volatility.true_range import true_range
+from polars_ti.utils._validate import v_expr
+from polars_ti.utils import v_talib
 
 
 def atr(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    prenan: bool | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Average True Range (ATR)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    mamode: str = "rma",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Average True Range (ATR)
 
-    Average True Range is used to measure volatility, especially volatility
-    caused by gaps or limit moves.
+    ATR = MA(TrueRange)
+
+    Uses TA-Lib when available and talib=True, otherwise composes
+    pl_true_range + pl_ma - exactly like the Pandas version.
 
     Sources:
         https://www.tradingview.com/wiki/Average_True_Range_(ATR)
+        https://www.investopedia.com/terms/a/atr.asp
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        mamode (str): See ``help(ti.ma)``. Default: 'rma'
-        talib (bool): If TA Lib is installed and talib is True, Returns the
-            TA Lib version. Default: True
-        prenan (bool): If True, behave like TA Lib with some initial nan
-            based on drift (typically 1). Default: False
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        percent (bool, optional): Return as percentage. Default: False
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        length: ATR period. Default: 14
+        mamode: MA type ('rma', 'sma', 'ema', etc.). Default: "rma"
+        talib: If True and TA-Lib is installed, uses TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: ATR expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    _length = length + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    from polars_ti.volatility.true_range import true_range
+    from polars_ti.ma import ma
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    mamode = v_mamode(mamode, "rma")
-    mode_tal = v_talib(talib)
-    prenan = v_bool(prenan, False)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    if high_expr is None or low_expr is None or close_expr is None:
+        return None
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import ATR
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _mamode = mamode.lower() if isinstance(mamode, str) else "rma"
 
-        atr = ATR(high, low, close, length)
-    else:
-        tr = true_range(
-            high=high, low=low, close=close, talib=mode_tal, prenan=prenan, drift=drift
+    if _use_talib:
+        # TA-Lib path
+        _length = length
+        _offset = offset
+
+        def compute_atr_talib(struct: pl.Series) -> pl.Series:
+            from talib import ATR as TALIB_ATR
+
+            df = struct.struct.unnest()
+            result = TALIB_ATR(
+                df["_high"].to_numpy().astype(np.float64),
+                df["_low"].to_numpy().astype(np.float64),
+                df["_close"].to_numpy().astype(np.float64),
+                timeperiod=_length,
+            )
+            if _offset != 0:
+                result = np.roll(result, _offset)
+                if _offset > 0:
+                    result[:_offset] = np.nan
+            return pl.Series(result)
+
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("_high"),
+                    low_expr.alias("_low"),
+                    close_expr.alias("_close"),
+                ]
+            )
+            .map_batches(compute_atr_talib, return_dtype=pl.Float64)
+            .alias(f"ATR{_mamode[0]}_{length}")
         )
-        if all(isnan(tr)):
-            return  # Emergency Break
+    else:
+        # Simple composition: TR → MA (just like Pandas!)
+        # Native path must use the native (NaN-skipping) true_range, NOT TA-Lib's
+        # TRANGE (which nulls index 0) — otherwise the leading null poisons the MA.
+        tr_expr = true_range(high_expr, low_expr, close_expr, talib=False)
+        atr_expr = ma(name=_mamode, source=tr_expr, length=length, talib=False, presma=True)
 
-        presma = kwargs.pop("presma", True)
-        if presma:
-            sma_nth = tr[0:length].mean()
-            tr[: length - 1] = nan
-            tr.iloc[length - 1] = sma_nth
-        atr = ma(mamode, tr, length=length, talib=mode_tal, **kwargs)
+        if offset != 0:
+            atr_expr = atr_expr.shift(offset)
 
-    if all(isnan(atr)):
-        return  # Emergency Break
-
-    percent = kwargs.pop("percent", False)
-    if percent:
-        atr *= 100 / close
-
-    # Offset
-    if offset != 0:
-        atr = atr.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        atr = atr.fillna(kwargs["fillna"])
-
-    # Name and Category
-    atr.name = f"ATR{mamode[0]}{'p' if percent else ''}_{length}"
-    atr.category = "volatility"
-
-    return atr
+        return atr_expr.alias(f"ATR{_mamode[0]}_{length}")

@@ -1,88 +1,54 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars AMAT Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
-
-from .long_run import long_run
-from .short_run import short_run
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def amat(
-    close: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    lookback: int | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Archer Moving Averages Trends (AMAT)
+    close: IntoExpr,
+    fast: int = 8,
+    slow: int = 21,
+    lookback: int = 2,
+    mamode: str = "ema",
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Archer Moving Averages Trends (AMAT)
 
-    Archer Moving Averages Trends (AMAT) developed by Kevin Johnson provides
-    creates both long run ``help(ti.long_run)`` and short run
-    ``help(ti.short_run)`` trend signals given two moving average speeds,
-    fast and slow. The long runs and short runs are binary Series where '1'
-    is a trend and '0' is not a trend.
-
-    Sources:
-        https://www.tradingview.com/script/Z2mq63fE-Trade-Archer-Moving-Averages-v1-4F/
+    Creates long run and short run trend signals from fast/slow MA crossovers.
 
     Args:
-        close (pd.Series): Series of 'close's
-        fast (int): The period of the fast moving average. Default: 8
-        slow (int): The period of the slow moving average. Default: 21
-        lookback (int): Lookback period for long_run and short_run. Default: 2
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        run_length (int): Trend length for OBV long and short runs. Default: 2
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        fast: Fast MA period. Default: 8
+        slow: Slow MA period. Default: 21
+        lookback: Lookback for long_run/short_run. Default: 2
+        mamode: MA type. Default: 'ema'
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: AMAT_LR, AMAT_SR columns.
+        pl.Expr: Struct with AMAT_LR and AMAT_SR columns
     """
-    # Validate
-    fast = v_pos_default(fast, 8)
-    slow = v_pos_default(slow, 21)
-    lookback = v_pos_default(lookback, 2)
-    close = v_series(close, max(fast, slow, lookback))
+    from polars_ti.ma import ma
+    from polars_ti.trend.long_run import long_run
+    from polars_ti.trend.short_run import short_run
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
 
-    mamode = v_mamode(mamode, "ema")
-    offset = v_offset(offset)
-    if "length" in kwargs:
-        kwargs.pop("length")
+    fast_ma = ma(mamode, close_expr, length=fast, talib=False)
+    slow_ma = ma(mamode, close_expr, length=slow, talib=False)
 
-    # Calculate
-    fast_ma = ma(mamode, close, length=fast, **kwargs)
-    slow_ma = ma(mamode, close, length=slow, **kwargs)
+    lr = long_run(fast_ma, slow_ma, length=lookback)
+    sr = short_run(fast_ma, slow_ma, length=lookback)
 
-    mas_long = long_run(fast_ma, slow_ma, length=lookback)
-    mas_short = short_run(fast_ma, slow_ma, length=lookback)
-
-    # Offset
     if offset != 0:
-        mas_long = mas_long.shift(offset)
-        mas_short = mas_short.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        mas_long = mas_long.fillna(kwargs["fillna"])
-        mas_short = mas_short.fillna(kwargs["fillna"])
+        lr = lr.shift(offset)
+        sr = sr.shift(offset)
 
     _props = f"_{fast}_{slow}_{lookback}"
-    data = {
-        f"AMAT{mamode[0]}_LR{_props}": mas_long,
-        f"AMAT{mamode[0]}_SR{_props}": mas_short,
-    }
-    df = DataFrame(data, index=close.index)
-
-    # Name and Category
-    df.name = f"AMAT{mamode[0]}{_props}"
-    df.category = "trend"
-
-    return df
+    return pl.struct(
+        lr.alias(f"AMAT{mamode[0]}_LR{_props}"),
+        sr.alias(f"AMAT{mamode[0]}_SR{_props}"),
+    ).alias(f"AMAT{mamode[0]}{_props}")

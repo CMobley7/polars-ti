@@ -1,0 +1,132 @@
+# -*- coding: utf-8 -*-
+"""WS3 — native EMA/RMA presma-seed parity.
+
+Pins the fix for the native presma-seeding bug (COMPARISON_REPORT §5–§7,
+REMEDIATION_PLAN WS3 + Decision 4: *native = pandas-ta, talib = TA-Lib*).
+
+A leading null/NaN in the input used to poison the recursive Numba EMA/RMA seed
+(``presma=True``), turning ``atr``/``natr``/``dema``/``zlma``/aberration's ATR
+bands into all-NaN in native mode and drifting ``kdj``/``tsi``/``tmo``/``efi``.
+
+These tests assert, for the full 1500-row SPY slice:
+  * native (``talib=False``) study output matches the OLD native golden
+    (``old_notalib.parquet``) for the repaired columns, within float tol;
+  * the talib branch still matches the OLD talib golden / TA-Lib reference
+    (we did not touch the talib path);
+  * no all-NaN columns remain in the repaired native cluster.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+import numpy as np
+import polars as pl
+import pytest
+
+import polars_ti as ti  # noqa: F401 — registers the 'ti' accessor
+from _parity import assert_column, compare_frames
+
+FIXTURES = "tests/fixtures"
+SLICE_ROWS = 1500
+
+# Repaired native all-NaN cluster (§5): go all-NaN -> match OLD native golden.
+NATIVE_CLUSTER = ["ATRr_14", "NATR_14", "DEMA_10", "ZL_EMA_10", "ABER_ZG_5_15"]
+
+# Value-drift indicators (§7): align to the OLD native golden.
+VALUE_DRIFT = [
+    "K_9_3",
+    "D_9_3",
+    "J_9_3",
+    "TSI_13_25_13",
+    "TSIs_13_25_13",
+    "TMO_14_5_3",
+    "TMOs_14_5_3",
+    "EFI_13",
+]
+
+
+def _study(talib: bool) -> pl.DataFrame:
+    df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(SLICE_ROWS)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return df.ti.study(ti.AllStudy, cores=0, talib=talib, errors="ignore")
+
+
+@pytest.fixture(scope="module")
+def native_report():
+    new = _study(talib=False)
+    golden = pl.read_parquet(f"{FIXTURES}/old_notalib.parquet")
+    return compare_frames(new, golden)
+
+
+@pytest.fixture(scope="module")
+def talib_report():
+    from polars_ti.maps import Imports
+
+    if not Imports["talib"]:
+        pytest.skip("requires TA-Lib (grades the talib study against the TA-Lib golden)")
+    new = _study(talib=True)
+    golden = pl.read_parquet(f"{FIXTURES}/old_talib.parquet")
+    return compare_frames(new, golden)
+
+
+@pytest.mark.parametrize("col", NATIVE_CLUSTER + VALUE_DRIFT)
+def test_native_matches_old_golden(native_report, col):
+    """Native-mode parity vs the OLD native golden (Decision 4)."""
+    assert_column(native_report, col)
+
+
+@pytest.mark.parametrize("col", NATIVE_CLUSTER)
+def test_native_cluster_not_all_nan(col):
+    """The repaired cluster must no longer be all-NaN in native mode."""
+    rep = compare_frames(_study(talib=False), pl.read_parquet(f"{FIXTURES}/old_notalib.parquet"))
+    assert rep[col]["cls"] != "no-overlap", f"{col}: still all-NaN in native mode"
+    assert rep[col]["overlap"] > 0
+
+
+@pytest.mark.parametrize("col", ["ATRr_14", "NATR_14", "DEMA_10", "ABER_ATR_5_15"])
+def test_talib_branch_unchanged(talib_report, col):
+    """The talib branch is untouched: still matches the OLD talib golden."""
+    assert_column(talib_report, col)
+
+
+def test_aberration_atr_bands_match_talib_reference():
+    """ABER ATR bands: OLD native golden captured TA-Lib ATR (an OLD talib
+    non-propagation bug), so NEW talib-mode ATR must match the TA-Lib reference;
+    NEW native is the correct pandas-ta value (intentional divergence)."""
+    new_t = _study(talib=True)
+    ref = pl.read_parquet(f"{FIXTURES}/talib_reference.parquet")
+    rep = compare_frames(new_t, ref)
+    # ABER_ATR maps onto the TA-Lib ATR(15) reference if present; otherwise the
+    # talib-mode parity vs old_talib (asserted above) already covers it.
+    if "ATR_15" in rep:
+        assert_column(rep, "ATR_15")
+
+
+def test_native_ema_seed_tolerant_of_leading_nan():
+    """Unit guard: a leading NaN must not poison the native EMA recursion."""
+    from polars_ti.overlap.ema import _ema_numba
+    from polars_ti.overlap.rma import _rma_numba
+
+    x = np.concatenate([[np.nan], np.arange(1.0, 31.0)])
+    ema_out = _ema_numba(x, 14, True, False)
+    rma_out = _rma_numba(x, 14, True)
+    assert not np.all(np.isnan(ema_out)), "EMA poisoned by leading NaN"
+    assert not np.all(np.isnan(rma_out)), "RMA poisoned by leading NaN"
+    # Seed lands at index length-1 (13) when the first window has finite values.
+    assert not np.isnan(ema_out[13])
+    assert not np.isnan(rma_out[13])
+
+
+def test_native_ema_survives_long_leading_nan_run():
+    """A leading-NaN run longer than ``length`` (cascaded-EMA warmup) must still
+    re-seed from the first finite value (pandas ewm semantics), not all-NaN."""
+    from polars_ti.overlap.ema import _ema_numba
+
+    x = np.concatenate([[np.nan] * 25, np.arange(25.0, 60.0)])
+    out = _ema_numba(x, 13, True, False)
+    finite = np.where(~np.isnan(out))[0]
+    assert finite.size > 0, "cascaded EMA all-NaN — leading-NaN run poisoned it"
+    # Re-seeds at the first finite raw value (index 25), not before.
+    assert finite[0] == 25

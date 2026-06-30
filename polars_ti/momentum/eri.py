@@ -1,79 +1,50 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars ERI (Elder Ray Index) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import ema
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def eri(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Elder Ray Index (ERI)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 13,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Elder Ray Index (ERI)
 
-    Elder's Bulls Ray Index contains his Bull and Bear Powers. Which are
-    useful ways to look at the price and see the strength behind the market.
-    Bull Power measures the capability of buyers in the market, to lift
-    prices above an average consensus of value.
-
-    Bears Power measures the capability of sellers, to drag prices below
-    an average consensus of value. Using them in tandem with a measure of
-    trend allows you to identify favourable entry points.
-
-    Sources:
-        https://admiralmarkets.com/education/articles/forex-indicators/bears-and-bulls-power-indicator
+    Elder's Bull and Bear Power. Bull Power = High - EMA, Bear Power = Low - EMA.
+    Measures buyers' and sellers' strength relative to average.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: EMA period. Default: 13
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: bull power and bear power columns.
+        list[pl.Expr]: [BULLP_13, BEARP_13] expressions
     """
-    # Validate
-    length = v_pos_default(length, 13)
-    high = v_series(high, length)
-    low = v_series(low, length)
-    close = v_series(close, length)
+    from polars_ti.overlap.ema import ema
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    offset = v_offset(offset)
+    # EMA of close
+    ema_expr = ema(close_expr, length=length, offset=0)
 
-    # Calculate
-    ema_ = ema(close, length)
-    bull = high - ema_
-    bear = low - ema_
+    # Bull Power = High - EMA, Bear Power = Low - EMA
+    bull_expr = high_expr - ema_expr
+    bear_expr = low_expr - ema_expr
 
-    # Offset
     if offset != 0:
-        bull = bull.shift(offset)
-        bear = bear.shift(offset)
+        bull_expr = bull_expr.shift(offset)
+        bear_expr = bear_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        bull = bull.fillna(kwargs["fillna"])
-        bear = bear.fillna(kwargs["fillna"])
-
-    # Name and Category
-    bull.name = f"BULLP_{length}"
-    bear.name = f"BEARP_{length}"
-    bull.category = bear.category = "momentum"
-
-    data = {bull.name: bull, bear.name: bear}
-    df = DataFrame(data, index=close.index)
-    df.name = f"ERI_{length}"
-    df.category = bull.category
-
-    return df
+    return [bull_expr.alias(f"BULLP_{length}"), bear_expr.alias(f"BEARP_{length}")]

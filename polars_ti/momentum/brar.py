@@ -1,101 +1,70 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars BRAR Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    non_zero_range,
-    v_drift,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._math import non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
 def brar(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """BRAR (BRAR)
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 26,
+    scalar: float = 100.0,
+    drift: int = 1,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: BRAR (BR and AR)
 
-    BR and AR
-
-    Sources:
-        No internet resources on definitive definition.
-        Request by Github user homily, issue #46
+    Returns list with AR and BR expressions.
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): The period. Default: 26
-        scalar (float): How much to magnify. Default: 100
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open'
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        length: Period. Default: 26
+        scalar: Magnification factor. Default: 100
+        drift: Difference period. Default: 1
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: ar, br columns.
+        list[pl.Expr]: [AR, BR] expressions
     """
-    # Validate
-    length = v_pos_default(length, 26)
-    open_ = v_series(open_, length)
-    high = v_series(high, length)
-    low = v_series(low, length)
-    close = v_series(close, length)
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if open_ is None or high is None or low is None or close is None:
-        return
+    # AR = scalar * rolling_sum(high - open) / rolling_sum(open - low)
+    # Use pl_non_zero_range to match Pandas implementation
+    high_open = non_zero_range(high_expr, open_expr)
+    open_low = non_zero_range(open_expr, low_expr)
 
-    scalar = v_scalar(scalar, 100)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    ar_num = high_open.rolling_sum(window_size=length, min_samples=length)
+    ar_den = open_low.rolling_sum(window_size=length, min_samples=length)
+    ar_expr = scalar * ar_num / ar_den
 
-    # Calculate
-    high_open_range = non_zero_range(high, open_)
-    open_low_range = non_zero_range(open_, low)
-    hcy = non_zero_range(high, close.shift(drift))
-    cyl = non_zero_range(close.shift(drift), low)
+    # BR = scalar * rolling_sum(max(0, high - close.shift)) / rolling_sum(max(0, close.shift - low))
+    close_shifted = close_expr.shift(drift)
+    # Use pl_non_zero_range for base ranges, then clip to 0
+    hcy = non_zero_range(high_expr, close_shifted).clip(lower_bound=0.0)
+    cyl = non_zero_range(close_shifted, low_expr).clip(lower_bound=0.0)
 
-    hcy[hcy < 0] = 0  # Zero negative values
-    cyl[cyl < 0] = 0  # ""
+    br_num = hcy.rolling_sum(window_size=length, min_samples=length)
+    br_den = cyl.rolling_sum(window_size=length, min_samples=length)
+    br_expr = scalar * br_num / br_den
 
-    ar = (
-        scalar
-        * high_open_range.rolling(length).sum()
-        / open_low_range.rolling(length).sum()
-    )
-
-    br = scalar * hcy.rolling(length).sum() / cyl.rolling(length).sum()
-
-    # Offset
     if offset != 0:
-        ar = ar.shift(offset)
-        br = ar.shift(offset)
+        ar_expr = ar_expr.shift(offset)
+        br_expr = br_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        ar = ar.fillna(kwargs["fillna"])
-        br = br.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _props = f"_{length}"
-    ar.name = f"AR{_props}"
-    br.name = f"BR{_props}"
-    ar.category = br.category = "momentum"
-
-    data = {ar.name: ar, br.name: br}
-    df = DataFrame(data, index=close.index)
-    df.name = f"BRAR{_props}"
-    df.category = "momentum"
-
-    return df
+    return [
+        ar_expr.alias(f"AR_{length}"),
+        br_expr.alias(f"BR_{length}"),
+    ]

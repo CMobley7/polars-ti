@@ -1,67 +1,43 @@
 # -*- coding: utf-8 -*-
-from sys import modules as sys_modules
+# =============================================================================
+# Polars ZLMA Implementation (uses pl_ma for all mamode types)
+# =============================================================================
+import polars as pl
 
-from numpy import isnan
-from pandas import Series
-
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
-
-# Available MAs for zlma
-from .dema import dema
-from .ema import ema
-from .fwma import fwma
-from .hma import hma
-from .linreg import linreg
-from .midpoint import midpoint
-from .pwma import pwma
-from .rma import rma
-from .sinwma import sinwma
-from .sma import sma
-from .ssf import ssf
-from .swma import swma
-from .t3 import t3
-from .tema import tema
-from .trima import trima
-from .vidya import vidya
-from .wma import wma
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.ma import ma
 
 
 def zlma(
-    close: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Zero Lag Moving Average (ZLMA)
+    close: IntoExpr,
+    length: int = 10,
+    mamode: str = "ema",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Zero Lag Moving Average (ZLMA)
 
-    The Zero Lag Moving Average attempts to eliminate the lag associated
-    with moving averages. This is an adaption created by John Ehler
-    and Ric Way.
+    Eliminates lag by using (2 * close - close.shift(lag)) as input to any MA.
 
-    Sources:
-        https://en.wikipedia.org/wiki/Zero_lag_exponential_moving_average
+    Supported mamodes: dema, ema, fwma, hma, linreg, midpoint, pwma, rma,
+                       sinwma, sma, ssf, swma, t3, tema, trima, vidya, wma
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        mamode (str): Options: 'ema', 'hma', 'sma', 'wma'. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 10
+        mamode: MA type (ema, sma, wma, hma, dema, tema, etc.). Default: "ema"
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: ZLMA expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    mamode = v_mamode(mamode, "ema")
+    # Supported MAs (same as Pandas zlma)
     supported_mas = [
         "dema",
         "ema",
@@ -82,34 +58,18 @@ def zlma(
         "wma",
     ]
 
-    if mamode not in supported_mas:
-        return
+    _mamode = mamode.lower() if isinstance(mamode, str) else "ema"
+    if _mamode not in supported_mas:
+        _mamode = "ema"  # Default fallback
 
-    offset = v_offset(offset)
-
-    # Calculate
+    # Calculate lag and zero-lag adjusted series
     lag = int(0.5 * (length - 1))
-    close_ = 2 * close - close.shift(lag)
+    close_zl = 2 * close_expr - close_expr.shift(lag)
 
-    kwargs.update({"close": close_})
-    kwargs.update({"length": length})
+    # Apply MA using pl_ma - handles ALL mamodes!
+    result = ma(name=_mamode, source=close_zl, length=length, talib=talib)
 
-    fn = getattr(sys_modules[__name__], mamode)
-    zlma = fn(**kwargs)
-
-    if zlma is None or all(isnan(zlma)):
-        return  # Emergency Break
-
-    # Offset
     if offset != 0:
-        zlma = zlma.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        zlma = zlma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    zlma.name = f"ZL_{zlma.name}"
-    zlma.category = "overlap"
-
-    return zlma
+    return result.alias(f"ZL_{_mamode.upper()}_{length}")

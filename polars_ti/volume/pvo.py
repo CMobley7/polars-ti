@@ -1,84 +1,67 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars PVO (Percentage Volume Oscillator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import ema
-from polars_ti.utils import v_offset, v_pos_default, v_scalar, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def pvo(
-    volume: Series,
-    fast: int | None = None,
-    slow: int | None = None,
-    signal: int | None = None,
-    scalar: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Percentage Volume Oscillator (PVO)
+    volume: IntoExpr,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+    scalar: float = 100.0,
+    talib: bool = True,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Percentage Volume Oscillator (PVO)
 
     Percentage Volume Oscillator is a Momentum Oscillator for Volume.
 
-    Sources:
-        https://www.fmlabs.com/reference/default.htm?url=PVO.htm
-
     Args:
-        volume (pd.Series): Series of 'volume's
-        fast (int): The short period. Default: 12
-        slow (int): The long period. Default: 26
-        signal (int): The signal period. Default: 9
-        scalar (float): How much to magnify. Default: 100
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        volume: Column name or pl.Expr for 'volume'
+        fast: Fast EMA period. Default: 12
+        slow: Slow EMA period. Default: 26
+        signal: Signal EMA period. Default: 9
+        scalar: Scalar to multiply result. Default: 100
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: pvo, histogram, signal columns.
+        list[pl.Expr]: List of expressions [PVO, histogram, signal]
     """
-    # Validate
-    fast = v_pos_default(fast, 12)
-    slow = v_pos_default(slow, 26)
-    signal = v_pos_default(signal, 9)
+    from polars_ti.overlap.ema import ema
+
+    volume_expr = v_expr(volume)
+
+    if volume_expr is None:
+        return None
+
     if slow < fast:
         fast, slow = slow, fast
-    volume = v_series(volume, max(fast, slow, signal))
 
-    if volume is None:
-        return
-
-    scalar = v_scalar(scalar, 100)
-    offset = v_offset(offset)
-
-    # Calculate
-    fastma = ema(volume, length=fast)
-    slowma = ema(volume, length=slow)
-    pvo = scalar * (fastma - slowma) / slowma
-
-    signalma = ema(pvo, length=signal)
-    histogram = pvo - signalma
-
-    # Offset
-    if offset != 0:
-        pvo = pvo.shift(offset)
-        histogram = histogram.shift(offset)
-        signalma = signalma.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        pvo = pvo.fillna(kwargs["fillna"])
-        histogram = histogram.fillna(kwargs["fillna"])
-        signalma = signalma.fillna(kwargs["fillna"])
-
-    # Name and Category
     _props = f"_{fast}_{slow}_{signal}"
-    pvo.name = f"PVO{_props}"
-    histogram.name = f"PVOh{_props}"
-    signalma.name = f"PVOs{_props}"
-    pvo.category = histogram.category = signalma.category = "momentum"
 
-    data = {pvo.name: pvo, histogram.name: histogram, signalma.name: signalma}
-    df = DataFrame(data, index=volume.index)
-    df.name = pvo.name
-    df.category = pvo.category
+    # PVO = scalar * (fastEMA - slowEMA) / slowEMA
+    fast_ema = ema(volume_expr, length=fast, talib=talib)
+    slow_ema = ema(volume_expr, length=slow, talib=talib)
+    pvo_expr = scalar * (fast_ema - slow_ema) / slow_ema
 
-    return df
+    # Signal = EMA(PVO, signal)
+    signal_ema = ema(pvo_expr, length=signal, talib=talib)
+
+    # Histogram = PVO - Signal
+    histogram_expr = pvo_expr - signal_ema
+
+    if offset != 0:
+        pvo_expr = pvo_expr.shift(offset)
+        histogram_expr = histogram_expr.shift(offset)
+        signal_ema = signal_ema.shift(offset)
+
+    return [
+        pvo_expr.alias(f"PVO{_props}"),
+        histogram_expr.alias(f"PVOh{_props}"),
+        signal_ema.alias(f"PVOs{_props}"),
+    ]

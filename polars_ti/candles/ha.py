@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import empty_like, maximum, minimum
-from pandas import DataFrame, Series
-
-from polars_ti.utils import v_offset, v_series
+from numba import njit
 
 
 @njit(cache=True)
@@ -22,75 +19,129 @@ def np_ha(np_open, np_high, np_low, np_close):
     return ha_open, ha_high, ha_low, ha_close
 
 
-def ha(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Heikin Ashi Candles (HA)
+# =============================================================================
+# Polars HA (Heikin-Ashi) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-    The Heikin-Ashi technique averages price data to create a Japanese
-    candlestick chart that filters out market noise. Heikin-Ashi charts,
-    developed by Munehisa Homma in the 1700s, share some characteristics
-    with standard candlestick charts but differ based on the values used
-    to create each candle. Instead of using the open, high, low, and close
-    like standard candlestick charts, the Heikin-Ashi technique uses a
-    modified formula based on two-period averages. This gives the chart a
-    smoother appearance, making it easier to spots trends and reversals,
-    but also obscures gaps and some price data.
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._validate import v_expr
+
+
+def ha(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Heikin-Ashi Candles
+
+    The Heikin-Ashi technique averages price data to create smoothed
+    candlestick charts that filter out market noise.
+
+    Formula:
+        HA_close = (open + high + low + close) / 4
+        HA_open[0] = (open[0] + close[0]) / 2
+        HA_open[i] = (HA_open[i-1] + HA_close[i-1]) / 2
+        HA_high = max(high, HA_open, HA_close)
+        HA_low = min(low, HA_open, HA_close)
 
     Sources:
         https://www.investopedia.com/terms/h/heikinashi.asp
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: ha_open, ha_high,ha_low, ha_close columns.
+        pl.Expr: Struct expression with HA_open, HA_high, HA_low, HA_close
     """
-    # Validate
-    open_ = v_series(open_, 1)
-    high = v_series(high, 1)
-    low = v_series(low, 1)
-    close = v_series(close, 1)
-    offset = v_offset(offset)
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if open_ is None or high is None or low is None or close is None:
-        return
+    _offset = offset
 
-    # Calculate
-    np_open, np_high = open_.to_numpy(), high.to_numpy()
-    np_low, np_close = low.to_numpy(), close.to_numpy()
-    ha_open, ha_high, ha_low, ha_close = np_ha(np_open, np_high, np_low, np_close)
-    df = DataFrame(
-        {
-            "HA_open": ha_open,
-            "HA_high": ha_high,
-            "HA_low": ha_low,
-            "HA_close": ha_close,
-        },
-        index=close.index,
+    def compute_ha(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        np_open = df["_open"].to_numpy().astype(np.float64)
+        np_high = df["_high"].to_numpy().astype(np.float64)
+        np_low = df["_low"].to_numpy().astype(np.float64)
+        np_close = df["_close"].to_numpy().astype(np.float64)
+
+        ha_open, ha_high, ha_low, ha_close = np_ha(np_open, np_high, np_low, np_close)
+
+        if _offset != 0:
+            ha_open = np.roll(ha_open, _offset)
+            ha_high = np.roll(ha_high, _offset)
+            ha_low = np.roll(ha_low, _offset)
+            ha_close = np.roll(ha_close, _offset)
+            if _offset > 0:
+                ha_open[:_offset] = np.nan
+                ha_high[:_offset] = np.nan
+                ha_low[:_offset] = np.nan
+                ha_close[:_offset] = np.nan
+            else:
+                ha_open[_offset:] = np.nan
+                ha_high[_offset:] = np.nan
+                ha_low[_offset:] = np.nan
+                ha_close[_offset:] = np.nan
+
+        n = len(np_close)
+        return pl.Series(
+            [
+                {
+                    "HA_open": ha_open[i],
+                    "HA_high": ha_high[i],
+                    "HA_low": ha_low[i],
+                    "HA_close": ha_close[i],
+                }
+                for i in range(n)
+            ]
+        )
+
+    fields = [
+        pl.Field("HA_open", pl.Float64),
+        pl.Field("HA_high", pl.Float64),
+        pl.Field("HA_low", pl.Float64),
+        pl.Field("HA_close", pl.Float64),
+    ]
+
+    return (
+        pl.struct(
+            [
+                open_expr.alias("_open"),
+                high_expr.alias("_high"),
+                low_expr.alias("_low"),
+                close_expr.alias("_close"),
+            ]
+        )
+        .map_batches(compute_ha, return_dtype=pl.Struct(fields))
+        .alias("HA")
     )
 
-    # Offset
-    if offset != 0:
-        df = df.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
+def ha_apply(df: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    """Apply Heikin-Ashi transformation to a DataFrame.
 
-    # Name and Category
-    df.name = "Heikin-Ashi"
-    df.category = "candles"
+    Args:
+        df: Polars DataFrame with OHLC columns
+        **kwargs: Column names (open_, high, low, close)
 
-    return df
+    Returns:
+        pl.DataFrame: Original DataFrame with HA columns added
+    """
+    open_ = kwargs.get("open_", "open")
+    high = kwargs.get("high", "high")
+    low = kwargs.get("low", "low")
+    close = kwargs.get("close", "close")
+
+    ha_struct = df.select(ha(open_, high, low, close))
+    ha_df = ha_struct.unnest("HA")
+    return df.hstack(ha_df)

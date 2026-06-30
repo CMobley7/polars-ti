@@ -8,9 +8,7 @@ from pandas import DataFrame, DatetimeIndex, read_csv
 import polars_ti
 from polars_ti._typing import DictLike, IntFloat
 
-sample_adx_data = read_csv(
-    f"data/ADX_D.csv", index_col=0, parse_dates=True, date_format="%f"
-)
+sample_adx_data = read_csv(f"data/ADX_D.csv", index_col=0, parse_dates=True, date_format="%f")
 
 ALERT: str = f"[!]"
 INFO: str = f"[i]"
@@ -30,9 +28,7 @@ welles_wilder_df = DataFrame(
 )
 
 
-def error_analysis(
-    df: DataFrame, kind: str, msg: str, icon: str = INFO, newline: bool = True
-):
+def error_analysis(df: DataFrame, kind: str, msg: str, icon: str = INFO, newline: bool = True):
     if VERBOSE:
         s = f"{icon} {df.name}['{kind}']: {msg}"
         if newline:

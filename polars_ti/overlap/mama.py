@@ -1,14 +1,8 @@
 # -*- coding: utf-8 -*-
+from numpy import arctan, nan, zeros_like
 from numba import njit
-from numpy import arctan, isnan, nan, zeros_like
-from pandas import DataFrame, Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
 
-# Ehler's Mother of Adaptive Moving Averages
-# http://traders.com/documentation/feedbk_docs/2014/01/traderstips.html
 @njit(cache=True)
 def nb_mama(x, fastlimit, slowlimit, prenan):
     a, b, m = 0.0962, 0.5769, x.size
@@ -33,23 +27,15 @@ def nb_mama(x, fastlimit, slowlimit, prenan):
 
         # WMA(x,4) & Detrended WMA(x,4)
         wma4[i] = 0.4 * x[i] + 0.3 * x[i - 1] + 0.2 * x[i - 2] + 0.1 * x[i - 3]
-        dt[i] = adj_prev_period * (
-            a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6]
-        )
+        dt[i] = adj_prev_period * (a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6])
 
         # Quadrature(Detrender) and In Phase Component
-        q1[i] = adj_prev_period * (
-            a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6]
-        )
+        q1[i] = adj_prev_period * (a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6])
         i1[i] = dt[i - 3]
 
         # Phase Q1 and I1 by 90 degrees
-        ji[i] = adj_prev_period * (
-            a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6]
-        )
-        jq[i] = adj_prev_period * (
-            a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6]
-        )
+        ji[i] = adj_prev_period * (a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6])
+        jq[i] = adj_prev_period * (a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6])
 
         # Phasor Addition for 3 Bar Averaging
         i2[i] = i1[i] - jq[i]
@@ -104,85 +90,72 @@ def nb_mama(x, fastlimit, slowlimit, prenan):
     return mama, fama
 
 
+# =============================================================================
+# Polars MAMA Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr
+from polars_ti.maps import Imports
+from polars_ti.utils._validate import v_expr
+
+
 def mama(
-    close: Series,
-    fastlimit: int | float | None = None,
-    slowlimit: int | float | None = None,
-    prenan: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Ehler's MESA Adaptive Moving Average (MAMA)
-
-    Ehler's MESA Adaptive Moving Average (MAMA) aka the Mother of All Moving
-    Averages attempts to adapt to the source's dynamic nature. The adapation
-    is based on the rate change of phase as measured by the Hilbert
-    Transform Discriminator. The advantage of this method of adaptation is
-    that it features a fast attack average and a slow decay average so that
-    the composite average rapidly adjusts to price changes and holds
-    the average value until the next change occurs. This indicator also
-    includes FAMA.
-
-    Sources:
-        Ehler's Mother of Adaptive Moving Averages:
-            http://traders.com/documentation/feedbk_docs/2014/01/traderstips.html
-        https://www.tradingview.com/script/foQxLbU3-Ehlers-MESA-Adaptive-Moving-Average-LazyBear/
+    close: IntoExpr,
+    fastlimit: float = 0.5,
+    slowlimit: float = 0.05,
+    prenan: int = 3,
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Ehler's MESA Adaptive Moving Average (MAMA)
 
     Args:
-        close (pd.Series): Series of 'close's
-        fastlimit (float): Fast limit. Default: 0.5
-        slowlimit (float): Slow limit. Default: 0.05
-        prenan (int): Prenans to apply. TV-LB 3, Ehler's 6, TALib 32
-            Default: 3
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        fastlimit: Fast limit. Default: 0.5
+        slowlimit: Slow limit. Default: 0.05
+        prenan: Prenans to apply. TV-LB 3, Ehler's 6, TALib 32. Default: 3
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: MAMA and FAMA columns.
+        pl.Expr: Struct expression with MAMA and FAMA columns
     """
-    # Validate
-    close = v_series(close, 1)
-
-    if close is None:
-        return
-
-    fastlimit = v_pos_default(fastlimit, 0.5)
-    slowlimit = v_pos_default(slowlimit, 0.05)
-    prenan = v_pos_default(prenan, 3)
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    np_close = close.to_numpy()
-    if Imports["talib"] and mode_tal:
-        from talib import MAMA
-
-        mama, fama = MAMA(np_close, fastlimit, slowlimit)
-    else:
-        mama, fama = nb_mama(np_close, fastlimit, slowlimit, prenan)
-
-    if all(isnan(mama)) or all(isnan(fama)):
-        return  # Emergency Break
-
-    # Name and Category
+    close_expr = v_expr(close)
     _props = f"_{fastlimit}_{slowlimit}"
-    data = {f"MAMA{_props}": mama, f"FAMA{_props}": fama}
-    df = DataFrame(data, index=close.index)
+    _fastlimit, _slowlimit, _prenan, _talib, _offset = (
+        fastlimit,
+        slowlimit,
+        prenan,
+        talib,
+        offset,
+    )
+    mama_name, fama_name = f"MAMA{_props}", f"FAMA{_props}"
 
-    df.name = f"MAMA{_props}"
-    df.category = "overlap"
+    def compute_mama(s: pl.Series) -> pl.Series:
+        np_close = s.to_numpy().astype(np.float64)
 
-    # Offset
-    if offset != 0:
-        df = df.shift(offset)
+        if Imports["talib"] and _talib:
+            from talib import MAMA as talib_mama
 
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
+            mama_arr, fama_arr = talib_mama(np_close, _fastlimit, _slowlimit)
+        else:
+            mama_arr, fama_arr = nb_mama(np_close, _fastlimit, _slowlimit, _prenan)
 
-    return df
+        if _offset != 0:
+            mama_arr = np.roll(mama_arr, _offset)
+            fama_arr = np.roll(fama_arr, _offset)
+            if _offset > 0:
+                mama_arr[:_offset] = np.nan
+                fama_arr[:_offset] = np.nan
+            else:
+                mama_arr[_offset:] = np.nan
+                fama_arr[_offset:] = np.nan
+
+        n = len(np_close)
+        return pl.Series([{mama_name: mama_arr[i], fama_name: fama_arr[i]} for i in range(n)])
+
+    fields = [pl.Field(mama_name, pl.Float64), pl.Field(fama_name, pl.Float64)]
+
+    return close_expr.map_batches(compute_mama, return_dtype=pl.Struct(fields)).alias("MAMA")

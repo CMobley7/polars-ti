@@ -1,76 +1,65 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars HWMA Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.utils import v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _hwma_numba(close: np.ndarray, na: float, nb: float, nc: float) -> np.ndarray:
+    """Numba-optimized HWMA calculation."""
+    m = len(close)
+    result = np.empty(m, dtype=np.float64)
+
+    last_a = 0.0
+    last_v = 0.0
+    last_f = close[0]
+
+    for i in range(m):
+        F = (1.0 - na) * (last_f + last_v + 0.5 * last_a) + na * close[i]
+        V = (1.0 - nb) * (last_v + last_a) + nb * (F - last_f)
+        A = (1.0 - nc) * last_a + nc * (V - last_v)
+        result[i] = F + V + 0.5 * A
+        last_a, last_f, last_v = A, F, V
+
+    return result
 
 
 def hwma(
-    close: Series,
-    na: int | float | None = None,
-    nb: int | float | None = None,
-    nc: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """HWMA (Holt-Winter Moving Average)
-
-    Indicator HWMA (Holt-Winter Moving Average) is a three-parameter
-    moving average by the Holt-Winter method; the three parameters should
-    be selected to obtain a forecast.
-
-    Coded by rengel8 based on a publication for MetaTrader 5.
-
-    Sources:
-        https://www.mql5.com/en/code/20856
+    close: IntoExpr,
+    na: float = 0.2,
+    nb: float = 0.1,
+    nc: float = 0.1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: HWMA (Holt-Winter Moving Average)
 
     Args:
-        close (pd.Series): Series of 'close's
-        na (float): Smoothed series parameter (from 0 to 1). Default: 0.2
-        nb (float): Trend parameter (from 0 to 1). Default: 0.1
-        nc (float): Seasonality parameter (from 0 to 1). Default: 0.1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        na: Smoothed series parameter (0 to 1). Default: 0.2
+        nb: Trend parameter (0 to 1). Default: 0.1
+        nc: Seasonality parameter (0 to 1). Default: 0.1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: hwma
+        pl.Expr: HWMA expression
     """
-    # Validate
-    close = v_series(close, 1)
-    na = float(na) if isinstance(na, float) and 0 < na < 1 else 0.2
-    nb = float(nb) if isinstance(nb, float) and 0 < nb < 1 else 0.1
-    nc = float(nc) if isinstance(nc, float) and 0 < nc < 1 else 0.1
-    offset = v_offset(offset)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    def compute_hwma(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        result = _hwma_numba(arr, na, nb, nc)
+        if offset != 0:
+            result = np.roll(result, offset)
+            if offset > 0:
+                result[:offset] = np.nan
+            else:
+                result[offset:] = np.nan
+        return pl.Series(result)
 
-    # Calculate
-    last_a = last_v = 0
-    last_f = close.iloc[0]
-
-    result = []
-    m = close.size
-    for i in range(m):
-        F = (1.0 - na) * (last_f + last_v + 0.5 * last_a) + na * close.iloc[i]
-        V = (1.0 - nb) * (last_v + last_a) + nb * (F - last_f)
-        A = (1.0 - nc) * last_a + nc * (V - last_v)
-        result.append((F + V + 0.5 * A))
-        last_a, last_f, last_v = A, F, V  # update values
-
-    hwma = Series(result, index=close.index)
-
-    # Offset
-    if offset != 0:
-        hwma = hwma.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        hwma = hwma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    hwma.name = f"HWMA_{na}_{nb}_{nc}"
-    hwma.category = "overlap"
-
-    return hwma
+    return close_expr.map_batches(compute_hwma).alias(f"HWMA_{na}_{nb}_{nc}")

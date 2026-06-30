@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars PMAX Implementation
+# =============================================================================
 import numpy as np
+import polars as pl
 from numba import njit
-from pandas import DataFrame, Series
 
-from polars_ti.ma import ma
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series
-from polars_ti.volatility.atr import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
@@ -42,111 +44,92 @@ def nb_pmax(close, ub, lb):
 
 
 def pmax(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    multiplier: int | float | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """PMAX (Price Max)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr | None = None,
+    length: int = 10,
+    multiplier: float = 3.0,
+    mamode: str = "ema",
+    talib: bool = False,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: PMAX (Price Max)
 
-    PMAX is a trend-following indicator that combines ATR-based volatility
-    bands with a moving average. It creates adaptive trailing stop levels
-    that adjust based on price action and volatility. Similar to SuperTrend
-    but uses the moving average as the center instead of HL2.
-
-    Sources:
-        https://www.tradingview.com/script/sU9molfV-MOST-Moving-Stop-Loss-PMAX/
-        https://kodify.net/tradingview/indicators/pmax-indicator/
-
-    Calculation:
-        Default Inputs:
-            length=10, multiplier=3.0, mamode='ema'
-
-        MA = Moving Average(close, length, mamode)
-        ATR = Average True Range(high, low, close, length)
-
-        Upper Band = MA - (multiplier × ATR)
-        Lower Band = MA + (multiplier × ATR)
-
-        In uptrend: PMAX = Upper Band (trailing stop below price)
-        In downtrend: PMAX = Lower Band (trailing stop above price)
+    Combines ATR-based volatility bands with a moving average for
+    adaptive trailing stops.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): ATR and MA period. Default: 10
-        multiplier (float): ATR multiplier for bands. Default: 3.0
-        mamode (str): Moving average type. See help(ti.ma). Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Unused (accepted for accessor compatibility). Default: None
+        length: ATR/MA period. Default: 10
+        multiplier: ATR multiplier. Default: 3.0
+        mamode: MA type ('ema' or 'sma'). Default: 'ema'
+        talib: If True and TA-Lib installed, use TA-Lib for ATR. Default: False
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: PMAX (trend line), PMAXd (direction 1/-1),
-            PMAXl (long stop), PMAXs (short stop) columns.
+        pl.Expr: Struct with PMAX, PMAXd, PMAXl, PMAXs columns
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    multiplier = v_pos_default(multiplier, 3.0)
-    mamode = v_mamode(mamode, "ema")
-    high = v_series(high, length + 1)
-    low = v_series(low, length + 1)
-    close = v_series(close, length + 1)
+    from polars_ti.ma import ma
+    from polars_ti.volatility.atr import atr
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    offset = v_offset(offset)
+    # Composition: shared ATR + MA (native seeding matches pandas-ta in WS3)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=talib)
+    ma_expr = ma(mamode, close_expr, length=length, talib=talib)
 
-    # Calculate ATR and MA
-    atr_value = atr(high, low, close, length=length)
-    ma_value = ma(mamode, close, length=length)
+    matr = multiplier * atr_expr
+    ub_expr = ma_expr - matr  # Upper band (support in uptrend)
+    lb_expr = ma_expr + matr  # Lower band (resistance in downtrend)
 
-    if atr_value is None or ma_value is None:
-        return
+    def _compute(s: pl.Series) -> pl.Series:
+        data = s.struct.unnest()
+        c = data["_c"].to_numpy().astype(np.float64)
+        ub = data["_ub"].to_numpy().astype(np.float64)
+        lb = data["_lb"].to_numpy().astype(np.float64)
 
-    # Calculate initial bands
-    matr = multiplier * atr_value
-    ub = ma_value - matr  # Upper band (support in uptrend)
-    lb = ma_value + matr  # Lower band (resistance in downtrend)
+        trend, dir_, long_arr, short_arr = nb_pmax(c, ub, lb)
+        dir_[:length] = np.nan
 
-    # Use Numba for state-dependent logic
-    # Ensure inputs are float64 arrays to prevent truncation/dtyp issues
-    np_close = close.to_numpy(dtype=np.float64)
-    np_ub = ub.to_numpy(dtype=np.float64)
-    np_lb = lb.to_numpy(dtype=np.float64)
+        if offset != 0:
+            for a in [trend, dir_, long_arr, short_arr]:
+                a[:] = np.roll(a, offset)
+                if offset > 0:
+                    a[:offset] = np.nan
 
-    trend, dir_, long, short = nb_pmax(np_close, np_ub, np_lb)
+        _props = f"_{length}_{multiplier}"
+        n = len(c)
+        return pl.Series(
+            values=[
+                {
+                    f"PMAX{_props}": trend[i],
+                    f"PMAXd{_props}": dir_[i],
+                    f"PMAXl{_props}": long_arr[i],
+                    f"PMAXs{_props}": short_arr[i],
+                }
+                for i in range(n)
+            ]
+        )
 
-    # Set initial values to NaN
-    # Already handled by np.full(nan) but ensuring first 'length' are nan
-    dir_[:length] = np.nan
-
-    # Build result DataFrame
-    _props = f"_{length}_{multiplier}"
-    data = {
-        f"PMAX{_props}": trend,
-        f"PMAXd{_props}": dir_,
-        f"PMAXl{_props}": long,
-        f"PMAXs{_props}": short,
-    }
-    df = DataFrame(data, index=close.index)
-
-    df.name = f"PMAX{_props}"
-    df.category = "trend"
-
-    # Offset
-    if offset != 0:
-        df = df.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        df = df.fillna(kwargs["fillna"])
-
-    return df
+    _pprops = f"_{length}_{multiplier}"
+    fields = [
+        pl.Field(f"PMAX{_pprops}", pl.Float64),
+        pl.Field(f"PMAXd{_pprops}", pl.Float64),
+        pl.Field(f"PMAXl{_pprops}", pl.Float64),
+        pl.Field(f"PMAXs{_pprops}", pl.Float64),
+    ]
+    return (
+        pl.struct(
+            close_expr.alias("_c"),
+            ub_expr.alias("_ub"),
+            lb_expr.alias("_lb"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"PMAX_{length}_{multiplier}")
+    )

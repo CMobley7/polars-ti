@@ -1,59 +1,77 @@
 # -*- coding: utf-8 -*-
-from numpy import fabs
-from pandas import Series
+# =============================================================================
+# Polars MAD Implementation (Numba @njit kernel)
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def mad_(series: Series):
-    """Mean Absolute Deviation"""
-    return fabs(series - series.mean()).mean()
+@njit(cache=True)
+def nb_mad(close: np.ndarray, length: int) -> np.ndarray:
+    """Numba-optimized Mean Absolute Deviation calculation.
+
+    MAD = mean(|x - mean(x)|) for each rolling window
+    """
+    n = len(close)
+    result = np.full(n, np.nan)
+
+    for i in range(length - 1, n):
+        window = close[i - length + 1 : i + 1]
+
+        # Compute mean
+        mean = 0.0
+        for j in range(length):
+            mean += window[j]
+        mean /= length
+
+        # Compute mean absolute deviation
+        mad = 0.0
+        for j in range(length):
+            mad += np.abs(window[j] - mean)
+        mad /= length
+
+        result[i] = mad
+
+    return result
 
 
 def mad(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Rolling Mean Absolute Deviation
+    close: IntoExpr,
+    length: int = 30,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Rolling Mean Absolute Deviation
 
     Calculates the Mean Absolute Deviation over a rolling period.
+    Uses Numba @njit kernel for high performance.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 30
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 30
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MAD expression
     """
-    # Validate
-    length = v_pos_default(length, 30)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
-    else:
-        min_periods = length
-    close = v_series(close, max(length, min_periods))
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    _length = length
 
-    offset = v_offset(offset)
+    def compute_mad(s: pl.Series) -> pl.Series:
+        """Compute MAD using Numba kernel."""
+        arr = s.to_numpy().astype(np.float64)
+        result = nb_mad(arr, _length)
+        return pl.Series(result)
 
-    # Calculate
-    mad = close.rolling(length, min_periods=min_periods).apply(mad_, raw=True)
+    result = close_expr.map_batches(compute_mad, return_dtype=pl.Float64)
 
-    # Offset
     if offset != 0:
-        mad = mad.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        mad = mad.fillna(kwargs["fillna"])
-
-    # Name and Category
-    mad.name = f"MAD_{length}"
-    mad.category = "statistics"
-
-    return mad
+    return result.alias(f"MAD_{length}")

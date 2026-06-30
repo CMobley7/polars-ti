@@ -25,16 +25,14 @@ from numpy import (
     triu,
     zeros,
 )
-from pandas import DataFrame, Series
+
 
 from polars_ti._typing import Array, DictLike, Float, Int, IntFloat, List, Optional
 from polars_ti.maps import Imports
 from polars_ti.utils._validate import v_series
 
 
-def combination(
-    n: Int = 1, r: Int = 0, repetition: bool = False, multichoose: bool = False
-) -> Int:
+def combination(n: Int = 1, r: Int = 0, repetition: bool = False, multichoose: bool = False) -> Int:
     """https://stackoverflow.com/questions/4941753/is-there-a-math-ncr-function-in-python"""
     n, r = int(fabs(n)), int(fabs(r))
 
@@ -88,7 +86,7 @@ def fibonacci(n, weighted):
     return result
 
 
-def geometric_mean(series: Series) -> Float:
+def geometric_mean(series) -> Float:
     """Returns the Geometric Mean for a Series of positive values."""
     n = series.size
     if n < 1:
@@ -114,7 +112,7 @@ def hpoly(x: Array, v: IntFloat) -> Float:
     Example:
     coeffs_0 = [4, -3, 0, 1] # 4x^3 - 3x^2 + 0x + 1
     coeffs_1 = np.array(coeffs_0) # Faster
-    coeffs_2 = pd.Series(coeffs_0).values
+    coeffs_2 = np.array(coeffs_0)  # equivalent to np.array(coeffs_0)
     x = -6.5
 
     hpoly(coeffs_0, x) => -1224.25
@@ -130,7 +128,7 @@ def hpoly(x: Array, v: IntFloat) -> Float:
     return y
 
 
-def linear_regression(x: Series, y: Series) -> DictLike:
+def linear_regression(x, y) -> DictLike:
     """Classic Linear Regression in Numpy or Scikit-Learn"""
     x, y = v_series(x), v_series(y)
     m, n = x.size, y.size
@@ -145,7 +143,7 @@ def linear_regression(x: Series, y: Series) -> DictLike:
         return _linear_regression_np(x, y)
 
 
-def log_geometric_mean(series: Series) -> Float:
+def log_geometric_mean(series) -> Float:
     """Returns the Logarithmic Geometric Mean"""
     n = series.size
     if n > 1:
@@ -155,9 +153,7 @@ def log_geometric_mean(series: Series) -> Float:
     return 0
 
 
-def pascals_triangle(
-    n: Int = None, inverse: bool = False, weighted: bool = False
-) -> Array:
+def pascals_triangle(n: Int = None, inverse: bool = False, weighted: bool = False) -> Array:
     """Pascal's Triangle
 
     Returns a numpy array of the nth row of Pascal's Triangle.
@@ -246,12 +242,12 @@ def zero(x: IntFloat) -> IntFloat:
 
 
 def df_error_analysis(
-    A: DataFrame,
-    B: DataFrame,
+    A,
+    B,
     plot: bool = False,
     triangular: bool = False,
     method: str = "pearson",
-) -> DataFrame:
+):
     """DataFrame Correlation Analysis helper"""
     _r_method = ["pearson", "kendall", "spearman"]
     corr_method = method if method in _r_method else _r_method[0]
@@ -273,7 +269,7 @@ def df_error_analysis(
 
 
 # PRIVATE
-def _linear_regression_np(x: Series, y: Series) -> DictLike:
+def _linear_regression_np(x, y) -> DictLike:
     """Simple Linear Regression in Numpy
     for two 1d arrays for environments without the sklearn package."""
     result = {"a": nan, "b": nan, "r": nan, "t": nan, "line": nan}
@@ -304,12 +300,14 @@ def _linear_regression_np(x: Series, y: Series) -> DictLike:
     return result
 
 
-def _linear_regression_sklearn(x: Series, y: Series) -> DictLike:
+def _linear_regression_sklearn(x, y) -> DictLike:
     """Simple Linear Regression in Scikit Learn for two 1d arrays for
     environments with the sklearn package."""
     from sklearn.linear_model import LinearRegression
+    import numpy as _np
 
-    X = DataFrame(x)
+    X = _np.asarray(x).reshape(-1, 1)
+    y = _np.asarray(y)
     lr = LinearRegression().fit(X, y=y)
     r = lr.score(X, y=y)
     a, b = lr.intercept_, lr.coef_[0]
@@ -319,6 +317,70 @@ def _linear_regression_sklearn(x: Series, y: Series) -> DictLike:
         "b": b,
         "r": r,
         "t": r / sqrt((1 - r * r) / (x.size - 2)),
-        "line": a + b * x,
+        "line": a + b * _np.asarray(x),
     }
     return result
+
+
+# =============================================================================
+# Polars Math Utilities (for Polars-TI conversion)
+# =============================================================================
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr
+
+
+def non_zero_range(high: IntoExpr, low: IntoExpr) -> PlExpr:
+    """Polars: Returns the difference of high-low, adding epsilon to zeros.
+
+    This prevents division by zero in crypto data where high == low.
+    """
+    from polars_ti.utils._validate import v_expr
+
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    diff = high_expr - low_expr
+    return pl.when(diff == 0).then(diff + sflt.epsilon).otherwise(diff)
+
+
+def signed_diff(col: IntoExpr, lag: int = 1) -> PlExpr:
+    """Polars: Returns sign of differences (-1, 0, or 1).
+
+    Useful for directional calculations in indicators.
+    """
+    from polars_ti.utils._validate import v_expr
+
+    expr = v_expr(col)
+    diff = expr.diff(lag)
+    return pl.when(diff > 0).then(1).when(diff < 0).then(-1).otherwise(0)
+
+
+def unsigned_differences(col: IntoExpr, lag: int = 1) -> tuple[PlExpr, PlExpr]:
+    """Polars: Returns (positive, negative) series from differences.
+
+    positive: 1 where diff > 0, else 0
+    negative: 1 where diff < 0, else 0
+    """
+    from polars_ti.utils._validate import v_expr
+
+    expr = v_expr(col)
+    diff = expr.diff(lag).fill_null(0)
+    positive = pl.when(diff > 0).then(1).otherwise(0)
+    negative = pl.when(diff < 0).then(1).otherwise(0)
+    return positive, negative
+
+
+def fibonacci_weights(n: int) -> list[float]:
+    """Returns fibonacci weights as a list for use in Polars rolling expressions."""
+    return fibonacci(n, weighted=True).tolist()
+
+
+def symmetric_triangle_weights(n: int) -> list[float]:
+    """Returns symmetric triangle weights as a list for Polars rolling expressions."""
+    weights = symmetric_triangle(n, weighted=True)
+    return list(weights) if weights is not None else [1.0]
+
+
+def pascals_triangle_weights(n: int, inverse: bool = False) -> list[float]:
+    """Returns Pascal's triangle weights for Polars rolling expressions."""
+    return pascals_triangle(n, inverse=inverse, weighted=True).tolist()

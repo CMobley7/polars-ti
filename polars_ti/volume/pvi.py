@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import empty, float64, zeros_like
-from pandas import DataFrame, Series
-
-from polars_ti.ma import ma
-from polars_ti.utils import v_bool, v_mamode, v_offset, v_pos_default, v_series
+from numba import njit
 
 
 @njit(cache=True)
@@ -15,98 +11,82 @@ def nb_pvi(np_close, np_volume, initial):
     m = np_close.size
     for i in range(1, m):
         if np_volume[i] > np_volume[i - 1]:
-            result[i] = result[i - i] * (np_close[i] / np_close[i - 1])
+            # Bug fix: was result[i - i] (always 0), now result[i - 1] (previous)
+            result[i] = result[i - 1] * (np_close[i] / np_close[i - 1])
         else:
-            result[i] = result[i - i]
+            result[i] = result[i - 1]
 
     return result
 
 
+# =============================================================================
+# Polars PVI (Positive Volume Index) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+# Reuse existing Numba kernel nb_pvi from above
+
+
 def pvi(
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    initial: int | None = None,
-    mamode: str | None = None,
-    overlay: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Positive Volume Index (PVI)
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 255,
+    initial: float = 100.0,
+    mamode: str = "ema",
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: Positive Volume Index (PVI)
 
     The Positive Volume Index is a cumulative indicator that uses volume
-    change in an attempt to identify where smart money is active. Used in
-    conjunction with NVI.
-
-    Sources:
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=101
-        https://www.investopedia.com/terms/p/pvi.asp
+    change in an attempt to identify where smart money is active.
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): The short period. Default: 255
-        initial (int): The short period. Default: 100
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        overlay (bool): Sets the initial value to initial close so PVI
-            can be overlaid the price chart. Default: False
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: MA period for signal. Default: 255
+        initial: Initial PVI value. Default: 100
+        mamode: MA type. Default: 'ema'
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: DataFrame with PVI and PVI Signal columns
+        list[pl.Expr]: List of expressions [PVI, PVI_signal]
     """
-    # Validate
-    length = v_pos_default(length, 255)
-    close = v_series(close, length + 1)
-    volume = v_series(volume, length + 1)
+    from polars_ti.ma import ma
 
-    if close is None or volume is None:
-        return
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    mamode = v_mamode(mamode, "ema")
-    overlay = v_bool(overlay, False)
-    if overlay:
-        initial = close.iloc[0]
-    initial = v_pos_default(initial, 100)
-    offset = v_offset(offset)
+    if close_expr is None or volume_expr is None:
+        return None
 
-    # Calculate
-    np_close, np_volume = close.to_numpy(), volume.to_numpy()
-    _pvi = nb_pvi(np_close, np_volume, initial)
-
-    pvi = Series(_pvi, index=close.index)
-    pvi_ma = ma(mamode, pvi, length=length, **kwargs)
-
-    # Offset
-    if offset != 0:
-        pvi = pvi.shift(offset)
-        pvi_ma = pvi_ma.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        pvi = pvi.fillna(kwargs["fillna"])
-        pvi_ma = pvi_ma.fillna(kwargs["fillna"])
-    if "fill_method" in kwargs:
-        pvi = pvi.fillna(method=kwargs["fill_method"])
-        pvi_ma = pvi_ma.fillna(method=kwargs["fill_method"])
-
-    # Name and Category
+    _length = length
+    _initial = initial
     _mode = mamode.lower()[0] if len(mamode) else ""
     _props = f"{_mode}_{length}"
-    pvi.name = f"PVI"
-    pvi_ma.name = f"PVI{_props}"
-    pvi.category = pvi_ma.category = "volume"
 
-    data = {pvi.name: pvi}
-    if np_close.size > length + 1:
-        data[pvi_ma.name] = pvi_ma
-    df = DataFrame(data, index=close.index)
+    def compute_pvi(df: pl.DataFrame) -> pl.Series:
+        c = df["close"].to_numpy().astype(np.float64)
+        v = df["volume"].to_numpy().astype(np.float64)
+        result = nb_pvi(c, v, _initial)
+        return pl.Series("PVI", result)
 
-    # Name and Category
-    df.name = pvi.name
-    df.category = pvi.category
+    pvi_expr = pl.struct([close_expr.alias("close"), volume_expr.alias("volume")]).map_batches(
+        lambda s: compute_pvi(s.struct.unnest()), return_dtype=pl.Float64
+    )
 
-    return df
+    # Signal = MA(PVI, length)
+    pvi_signal_expr = ma(name=mamode, source=pvi_expr, length=length)
+
+    if offset != 0:
+        pvi_expr = pvi_expr.shift(offset)
+        pvi_signal_expr = pvi_signal_expr.shift(offset)
+
+    return [
+        pvi_expr.alias("PVI"),
+        pvi_signal_expr.alias(f"PVI{_props}"),
+    ]

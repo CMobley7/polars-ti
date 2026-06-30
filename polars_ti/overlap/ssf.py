@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import copy, cos, exp, zeros_like
-from pandas import Series
-
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
+from numba import njit
 
 
-# Ehler's Super Smoother Filter
-# http://traders.com/documentation/feedbk_docs/2014/01/traderstips.html
 @njit(cache=True)
 def nb_ssf(x, n, pi, sqrt2):
     m, ratio, result = x.size, sqrt2 / n, copy(x)
@@ -17,15 +12,11 @@ def nb_ssf(x, n, pi, sqrt2):
 
     # result[:2] = x[:2]
     for i in range(2, m):
-        result[i] = (
-            0.5 * c * (x[i] + x[i - 1]) + b * result[i - 1] - a * a * result[i - 2]
-        )
+        result[i] = 0.5 * c * (x[i] + x[i - 1]) + b * result[i - 1] - a * a * result[i - 2]
 
     return result
 
 
-# John F. Ehler's Super Smoother Filter by Everget (2 poles), Tradingview
-# https://www.tradingview.com/script/VdJy0yBJ-Ehlers-Super-Smoother-Filter/
 @njit(cache=True)
 def nb_ssf_everget(x, n, pi, sqrt2):
     m, arg, result = x.size, pi * sqrt2 / n, copy(x)
@@ -34,93 +25,68 @@ def nb_ssf_everget(x, n, pi, sqrt2):
 
     # result[:2] = x[:2]
     for i in range(2, m):
-        result[i] = (
-            0.5 * (a * a - b + 1) * (x[i] + x[i - 1])
-            + b * result[i - 1]
-            - a * a * result[i - 2]
-        )
+        result[i] = 0.5 * (a * a - b + 1) * (x[i] + x[i - 1]) + b * result[i - 1] - a * a * result[i - 2]
 
     return result
 
 
+# =============================================================================
+# Polars SSF Implementation (using existing Numba kernels)
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def ssf(
-    close: Series,
-    length: int | None = None,
-    everget: bool | None = None,
-    pi: int | float | None = None,
-    sqrt2: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Ehler's Super Smoother Filter (SSF) © 2013
+    close: IntoExpr,
+    length: int = 20,
+    everget: bool = False,
+    pi: float = 3.14159,
+    sqrt2: float = 1.414,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Ehler's Super Smoother Filter (SSF)
 
-    John F. Ehlers's solution to reduce lag and remove aliasing noise with
-    his research in Aerospace analog filter design. This implementation had
-    two poles. Since SSF is a (Recursive) Digital Filter, the number of
-    poles determine how many prior recursive SSF bars to include in the
-    filter design.
-
-    For Everget's calculation on TradingView, set arguments:
-        pi = np.pi, sqrt2 = np.sqrt(2)
-
-    WARNING: This function may leak future data when used for machine learning.
-        Setting lookahead=False does not currently prevent leakage.
-        See https://github.com/CMobley7/polars-ti/issues/667.
+    John F. Ehlers's solution to reduce lag and remove aliasing noise.
 
     Sources:
         http://traders.com/documentation/feedbk_docs/2014/01/traderstips.html
-        https://www.tradingview.com/script/VdJy0yBJ-Ehlers-Super-Smoother-Filter/
-        https://www.mql5.com/en/code/588
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 20
-        everget (bool): Everget's implementation of ssf that uses pi
-            instead of 180 for the b factor of ssf. Default: False
-        pi (float): The value of PI to use. The default is Ehler's
-            truncated value 3.14159. Adjust the value for more precision.
-            Default: 3.14159
-        sqrt2 (float): The value of sqrt(2) to use. The default is Ehler's
-            truncated value 1.414. Adjust the value for more precision.
-            Default: 1.414
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Filter period. Default: 20
+        everget: Use Everget's calculation. Default: False
+        pi: Value of PI. Default: 3.14159
+        sqrt2: Value of sqrt(2). Default: 1.414
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: SSF expression for lazy evaluation
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
+    _length = length
+    _everget = everget
+    _pi = pi
+    _sqrt2 = sqrt2
 
-    pi = v_pos_default(pi, 3.14159)
-    sqrt2 = v_pos_default(sqrt2, 1.414)
-    everget = v_bool(everget, False)
-    offset = v_offset(offset)
+    def compute_ssf(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        # Call Numba kernels directly - NO Pandas!
+        if _everget:
+            result = nb_ssf_everget(arr, _length, _pi, _sqrt2)
+        else:
+            result = nb_ssf(arr, _length, _pi, _sqrt2)
+        return pl.Series(result)
 
-    # Calculate
-    np_close = close.to_numpy()
-    if everget:
-        ssf = nb_ssf_everget(np_close, length, pi, sqrt2)
-    else:
-        ssf = nb_ssf(np_close, length, pi, sqrt2)
-    ssf = Series(ssf, index=close.index)
+    result = close_expr.map_batches(compute_ssf, return_dtype=pl.Float64)
 
-    # Offset
     if offset != 0:
-        ssf = ssf.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        ssf = ssf.fillna(kwargs["fillna"])
-
-    # Name and Category
-    ssf.name = f"SSF{'e' if everget else ''}_{length}"
-    ssf.category = "overlap"
-
-    return ssf
+    return result.alias(f"SSF{'e' if everget else ''}_{length}")

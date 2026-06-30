@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 from numba import njit
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import nb_idiff, v_offset, v_pos_default, v_series, v_talib
+from polars_ti.utils._numba import nb_idiff
 
 
 @njit(cache=True)
@@ -11,64 +8,61 @@ def nb_mom(x, n):
     return nb_idiff(x, n)
 
 
+# =============================================================================
+# Polars MOM (Momentum) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def mom(
-    close: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Momentum (MOM)
+    close: IntoExpr,
+    length: int = 10,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Momentum (MOM)
 
-    Momentum is an indicator used to measure a security's speed
-    (or strength) of movement or simply the change in price.
-
-    Sources:
-        http://www.onlinetradingconcepts.com/TechnicalAnalysis/Momentum.html
+    Measures speed of price movement.
+    MOM = close - close[n periods ago]
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 1
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Lookback period. Default: 10
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MOM expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length + 1)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    _length = length
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import MOM
+    if _use_talib:
 
-        mom = MOM(close, length)
+        def compute_mom(s: pl.Series) -> pl.Series:
+            from talib import MOM as TALIB_MOM
+
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_MOM(arr, timeperiod=_length)
+            return pl.Series(result)
+
+        mom_expr = close_expr.map_batches(compute_mom, return_dtype=pl.Float64)
     else:
-        np_close = close.values
-        _mom = nb_mom(np_close, length)
-        mom = Series(_mom, index=close.index)
+        # Pure Polars: MOM = close - close.shift(length)
+        mom_expr = close_expr - close_expr.shift(length)
 
-    # Offset
     if offset != 0:
-        mom = mom.shift(offset)
+        mom_expr = mom_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        mom = mom.fillna(kwargs["fillna"])
-
-    # Name and Category
-    mom.name = f"MOM_{length}"
-    mom.category = "momentum"
-
-    return mom
+    return mom_expr.alias(f"MOM_{length}")

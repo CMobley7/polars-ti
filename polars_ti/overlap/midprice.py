@@ -1,72 +1,65 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars MIDPRICE Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 from polars_ti.maps import Imports
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
 
 
 def midprice(
-    high: Series,
-    low: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Midprice
-
-    The Midprice is the average of the rolling high and low of period length.
+    high: IntoExpr,
+    low: IntoExpr,
+    length: int = 2,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Midprice (average of rolling high and low)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        length (int): It's period. Default: 2
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        length: Rolling window period. Default: 2
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MIDPRICE expression
     """
-    # Validate
-    length = v_pos_default(length, 2)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+
+    if Imports["talib"] and talib:
+
+        def compute_midprice(struct: pl.Series) -> pl.Series:
+            from talib import MIDPRICE
+
+            h = struct.struct.field("h").to_numpy()
+            l = struct.struct.field("l").to_numpy()
+            result = MIDPRICE(h, l, length)
+            if offset != 0:
+                result = np.roll(result, offset)
+                if offset > 0:
+                    result[:offset] = np.nan
+            return pl.Series(result)
+
+        return (
+            pl.struct(
+                [
+                    high_expr.alias("h"),
+                    low_expr.alias("l"),
+                ]
+            )
+            .map_batches(compute_midprice)
+            .alias(f"MIDPRICE_{length}")
+        )
     else:
-        min_periods = length
-    _length = max(length, min_periods)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-
-    if high is None or low is None:
-        return
-
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import MIDPRICE
-
-        midprice = MIDPRICE(high, low, length)
-    else:
-        lowest_low = low.rolling(length, min_periods=min_periods).min()
-        highest_high = high.rolling(length, min_periods=min_periods).max()
-        midprice = 0.5 * (lowest_low + highest_high)
-
-    # Offset
-    if offset != 0:
-        midprice = midprice.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        midprice = midprice.fillna(kwargs["fillna"])
-
-    # Name and Category
-    midprice.name = f"MIDPRICE_{length}"
-    midprice.category = "overlap"
-
-    return midprice
+        lowest_low = low_expr.rolling_min(length)
+        highest_high = high_expr.rolling_max(length)
+        result = (lowest_low + highest_high) / 2
+        if offset != 0:
+            result = result.shift(offset)
+        return result.alias(f"MIDPRICE_{length}")

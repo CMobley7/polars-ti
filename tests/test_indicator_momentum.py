@@ -160,18 +160,14 @@ def test_dm(df):
         pdt.assert_frame_equal(result, expecteddf)
     except AssertionError:
         try:
-            dmp_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 0], expecteddf.iloc[:, 0]
-            )
+            dmp_corr = ti.utils.df_error_analysis(result.iloc[:, 0], expecteddf.iloc[:, 0])
             assert dmp_corr > CORRELATION_THRESHOLD
             print(f"{dmp_corr=}")
         except Exception as ex:
             error_analysis(result, CORRELATION, ex)
 
         try:
-            dmn_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 1], expecteddf.iloc[:, 1]
-            )
+            dmn_corr = ti.utils.df_error_analysis(result.iloc[:, 1], expecteddf.iloc[:, 1])
             assert dmn_corr > CORRELATION_THRESHOLD
             print(f"{dmn_corr=}")
         except Exception as ex:
@@ -498,9 +494,7 @@ def test_stoch(df):
 
     try:
         expected = tal.STOCH(df.high, df.low, df.close, 14, 3, 0, 3, 0)
-        expecteddf = DataFrame(
-            {"STOCHk_14_3_0_3_0": expected[0], "STOCHd_14_3_0_3": expected[1]}
-        )
+        expecteddf = DataFrame({"STOCHk_14_3_0_3_0": expected[0], "STOCHd_14_3_0_3": expected[1]})
         pdt.assert_frame_equal(result, expecteddf)
     except AssertionError:
         try:
@@ -522,24 +516,18 @@ def test_stochf(df):
 
     try:
         expected = tal.STOCHF(df.high, df.low, df.close, 14, 3, 0)
-        expecteddf = DataFrame(
-            {"STOCHFk_14_3_0": expected[0], "STOCHFd_14_3_0": expected[1]}
-        )
+        expecteddf = DataFrame({"STOCHFk_14_3_0": expected[0], "STOCHFd_14_3_0": expected[1]})
         pdt.assert_frame_equal(result, expecteddf)
     except AssertionError:
         try:
-            stochk_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 0], expected.iloc[:, 0]
-            )
+            stochk_corr = ti.utils.df_error_analysis(result.iloc[:, 0], expected.iloc[:, 0])
             print(f"{stochk_corr=}")
             assert stochk_corr > CORRELATION_THRESHOLD
         except Exception as ex:
             error_analysis(result.iloc[:, 0], CORRELATION, ex)
 
         try:
-            stochd_corr = ti.utils.df_error_analysis(
-                result.iloc[:, 1], expected.iloc[:, 1]
-            )
+            stochd_corr = ti.utils.df_error_analysis(result.iloc[:, 1], expected.iloc[:, 1])
             print(f"{stochd_corr=}")
             assert stochd_corr > CORRELATION_THRESHOLD
         except Exception as ex:
@@ -558,9 +546,7 @@ def test_stochrsi(df):
 
     try:
         expected = tal.STOCHRSI(df.close, 14, 14, 3, 0)
-        expecteddf = DataFrame(
-            {"STOCHRSIk_14_14_0_3": expected[0], "STOCHRSId_14_14_3_0": expected[1]}
-        )
+        expecteddf = DataFrame({"STOCHRSIk_14_14_0_3": expected[0], "STOCHRSId_14_14_3_0": expected[1]})
         pdt.assert_frame_equal(result, expecteddf)
     except AssertionError:
         try:

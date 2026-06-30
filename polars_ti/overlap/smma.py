@@ -1,85 +1,62 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars SMMA Implementation
+# =============================================================================
+import polars as pl
 import numpy as np
-from pandas import Series
+from numba import njit
 
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 from polars_ti.ma import ma
-from polars_ti.utils import v_mamode, v_offset, v_pos_default, v_series, v_talib
+
+
+@njit(cache=True)
+def _smma_numba(close: np.ndarray, length: int, initial: float) -> np.ndarray:
+    """Numba-optimized SMMA calculation."""
+    m = len(close)
+    result = np.empty(m, dtype=np.float64)
+    result[: length - 1] = np.nan
+    result[length - 1] = initial
+
+    for i in range(length, m):
+        result[i] = ((length - 1) * result[i - 1] + close[i]) / length
+
+    return result
 
 
 def smma(
-    close: Series,
-    length: int | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """SMoothed Moving Average (SMMA)
-
-    The SMoothed Moving Average (SMMA) is bootstrapped by default with a
-    Simple Moving Average (SMA). It tries to reduce noise rather than reduce
-    lag. The SMMA takes all prices into account and uses a long lookback
-    period. Old prices are never removed from the calculation, but they have
-    only a minimal impact on the Moving Average due to a low assigned
-    weight. By reducing the noise it removes fluctuations and plots the
-    prevailing trend. The SMMA can be used to confirm trends and define
-    areas of support and resistance.
-    A core component of Bill Williams Alligator indicator.
-
-    Sources:
-        https://www.tradingview.com/scripts/smma/
-        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=173&Name=Moving_Average_-_Smoothed
+    close: IntoExpr,
+    length: int = 7,
+    mamode: str = "sma",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: SMoothed Moving Average (SMMA)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Rolling window period. Default: 7
+        mamode: MA type for initial value. Default: "sma"
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: SMMA expression
     """
-    # Validate
-    length = v_pos_default(length, 7)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
-    else:
-        min_periods = length
-    close = v_series(close, max(length, min_periods))
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    def compute_smma(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        # Get initial value from MA
+        temp_df = pl.DataFrame({"c": arr[:length]})
+        initial = temp_df.select(ma(mamode, "c", length=length, talib=talib)).item(length - 1, 0)
 
-    mamode = v_mamode(mamode, "sma")
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+        result = _smma_numba(arr, length, initial)
+        if offset != 0:
+            result = np.roll(result, offset)
+            if offset > 0:
+                result[:offset] = np.nan
+        return pl.Series(result)
 
-    # Calculate
-    m = close.size
-    smma = close.copy()
-    smma[: length - 1] = np.nan
-    smma.iloc[length - 1] = ma(
-        mamode, close[0:length], length=length, talib=mode_tal
-    ).iloc[-1]
-
-    for i in range(length, m):
-        smma.iat[i] = ((length - 1) * smma.iat[i - 1] + smma.iat[i]) / length
-
-    # Offset
-    if offset != 0:
-        smma = smma.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        smma = smma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    smma.name = f"SMMA_{length}"
-    smma.category = "overlap"
-
-    return smma
+    return close_expr.map_batches(compute_smma, return_dtype=pl.Float64).alias(f"SMMA_{length}")

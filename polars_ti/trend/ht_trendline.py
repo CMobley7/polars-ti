@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
-from numba import njit
 from numpy import arctan, copy, isnan, nan, rad2deg, zeros, zeros_like
-from pandas import Series
-
-from polars_ti.maps import Imports
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series, v_talib
+from numba import njit
 
 
 @njit(cache=True)
@@ -27,21 +23,13 @@ def nb_ht_trendline(x):
         adj_prev_period = 0.075 * period[i - 1] + 0.54
 
         wma4[i] = 0.4 * x[i] + 0.3 * x[i - 1] + 0.2 * x[i - 2] + 0.1 * x[i - 3]
-        dt[i] = adj_prev_period * (
-            a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6]
-        )
+        dt[i] = adj_prev_period * (a * wma4[i] + b * wma4[i - 2] - b * wma4[i - 4] - a * wma4[i - 6])
 
-        q1[i] = adj_prev_period * (
-            a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6]
-        )
+        q1[i] = adj_prev_period * (a * dt[i] + b * dt[i - 2] - b * dt[i - 4] - a * dt[i - 6])
         i1[i] = dt[i - 3]
 
-        ji[i] = adj_prev_period * (
-            a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6]
-        )
-        jq[i] = adj_prev_period * (
-            a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6]
-        )
+        ji[i] = adj_prev_period * (a * i1[i] + b * i1[i - 2] - b * i1[i - 4] - a * i1[i - 6])
+        jq[i] = adj_prev_period * (a * q1[i] + b * q1[i - 2] - b * q1[i - 4] - a * q1[i - 6])
 
         i2[i] = i1[i] - jq[i]
         q2[i] = q1[i] + ji[i]
@@ -79,81 +67,60 @@ def nb_ht_trendline(x):
         i_trend[i] = dcp_avg
 
         if i > 12:
-            result[i] = (
-                0.4 * i_trend[i]
-                + 0.3 * i_trend[i - 1]
-                + 0.2 * i_trend[i - 2]
-                + 0.1 * i_trend[i - 3]
-            )
+            result[i] = 0.4 * i_trend[i] + 0.3 * i_trend[i - 1] + 0.2 * i_trend[i - 2] + 0.1 * i_trend[i - 3]
 
     return result
 
 
+# =============================================================================
+# Polars HT_Trendline Implementation (reuses nb_ht_trendline kernel)
+# =============================================================================
+import numpy as np
+import polars as pl
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def ht_trendline(
-    close: Series = None,
-    talib: bool | None = None,
-    prenan: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Hilbert Transform TrendLine (HT_TL)
+    close: IntoExpr,
+    prenan: int = 63,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Hilbert Transform TrendLine (HT_TL)
 
-    The Hilbert Transform TrendLine or Instantaneous TrendLine as described
-    in Ehler's "Rocket Science for Traders" Book attempts to smooth the
-    source by using a bespoke application of the Hilbert Transform.
-
-    Sources:
-        https://c.mql5.com/forextsd/forum/59/023inst.pdf
-        https://github.com/TA-Lib/ta-lib/blob/main/src/ta_func/ta_HT_TRENDLINE.c
+    Smooths price using the Hilbert Transform as described in
+    Ehler's "Rocket Science for Traders".
 
     Args:
-        close (pd.Series): Series of 'close's.
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        prenan (int): Prenans to apply. Ehler's 6 or 12, TALib 63
-            Default: 63
-        offset (int, optional): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        prenan: Prenans to apply. Default: 63
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: Hilbert Transformation Instantaneous Trend-line.
+        pl.Expr: HT_TL expression
     """
-    # Validate
-    prenan = v_pos_default(prenan, 63)
-    close = v_series(close, prenan)
+    close_expr = v_expr(close)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    if close is None:
-        return
+    def _compute(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        if Imports["talib"] and v_talib(talib):
+            from talib import HT_TRENDLINE
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+            result = HT_TRENDLINE(arr)
+        else:
+            result = nb_ht_trendline(arr)
+        if prenan > 0 and not (Imports["talib"] and v_talib(talib)):
+            result[:prenan] = np.nan
+        return pl.Series(values=result, name=s.name)
 
-    if Imports["talib"] and mode_tal:
-        from talib import HT_TRENDLINE
+    result = close_expr.map_batches(_compute, return_dtype=pl.Float64)
 
-        tl = HT_TRENDLINE(close)
-    else:
-        np_close = close.to_numpy()
-        np_tl = nb_ht_trendline(np_close)
-
-        if prenan > 0:
-            np_tl[:prenan] = nan
-        tl = Series(np_tl, index=close.index)
-
-    if all(isnan(tl)):
-        return  # Emergency Break
-
-    # Offset
     if offset != 0:
-        trend_line = tl.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        tl = tl.fillna(kwargs["fillna"])
-
-    tl.name = f"HT_TL"
-    tl.category = "trend"
-
-    return tl
+    return result.alias("HT_TL")

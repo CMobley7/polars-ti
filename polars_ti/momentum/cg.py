@@ -1,55 +1,74 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars CG (Center of Gravity) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.utils import v_offset, v_pos_default, v_series, weights
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def nb_cg(close: np.ndarray, length: int) -> np.ndarray:
+    """Numba: Center of Gravity calculation.
+
+    CG = -sum(close[i] * weight[i]) / sum(close[i])
+    where weight[i] = 1..length (1 for oldest, length for newest in window)
+    """
+    n = len(close)
+    result = np.empty(n, dtype=np.float64)
+    result[: length - 1] = np.nan
+
+    weights = np.arange(1, length + 1, dtype=np.float64)
+
+    for i in range(length - 1, n):
+        window = close[i - length + 1 : i + 1]
+        weighted_sum = np.sum(window * weights)
+        total_sum = np.sum(window)
+
+        if abs(total_sum) > 1e-10:
+            result[i] = -weighted_sum / total_sum
+        else:
+            result[i] = np.nan
+
+    return result
 
 
 def cg(
-    close: Series, length: int | None = None, offset: int | None = None, **kwargs: dict
-) -> Series:
-    """Center of Gravity (CG)
+    close: IntoExpr,
+    length: int = 10,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Center of Gravity (CG)
 
     The Center of Gravity Indicator by John Ehlers attempts to identify
     turning points while exhibiting zero lag and smoothing.
 
-    Sources:
-        http://www.mesasoftware.com/papers/TheCGOscillator.pdf
+    Formula: CG = -sum(close * weight) / sum(close)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): The length of the period. Default: 10
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 10
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: CG expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    _length = length
+    _offset = offset
 
-    if close is None:
-        return
+    def compute_cg(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        result = nb_cg(arr, _length)
 
-    offset = v_offset(offset)
+        if _offset != 0:
+            result = np.roll(result, _offset)
+            if _offset > 0:
+                result[:_offset] = np.nan
 
-    # Calculate
-    coefficients = range(1, length + 1)
-    numerator = close.rolling(length).apply(weights(coefficients), raw=True)
-    cg = -numerator / close.rolling(length).sum()
+        return pl.Series(result)
 
-    # Offset
-    if offset != 0:
-        cg = cg.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        cg = cg.fillna(kwargs["fillna"])
-
-    # Name and Category
-    cg.name = f"CG_{length}"
-    cg.category = "momentum"
-
-    return cg
+    return close_expr.map_batches(compute_cg, return_dtype=pl.Float64).alias(f"CG_{length}")

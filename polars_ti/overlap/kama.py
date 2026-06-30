@@ -1,102 +1,98 @@
 # -*- coding: utf-8 -*-
+# =============================================================================
+# Polars KAMA Implementation
+# =============================================================================
+import polars as pl
 import numpy as np
-from pandas import Series
+from numba import njit
 
-from polars_ti.ma import ma
-from polars_ti.utils import (
-    non_zero_range,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.maps import Imports
 
 
 def kama(
-    close: Series,
-    length: int | None = None,
-    fast: int | None = None,
-    slow: int | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Kaufman's Adaptive Moving Average (KAMA)
-
-    Developed by Perry Kaufman, Kaufman's Adaptive Moving Average (KAMA) is
-    a moving average designed to account for market noise or volatility.
-    KAMA will closely follow prices when the price swings are relatively
-    small and the noise is low. KAMA will adjust when the price swings widen
-    and follow prices from a greater distance. This trend-following
-    indicator can be used to identify the overall trend, time turning points
-    and filter price movements.
-
-    Sources:
-        https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:kaufman_s_adaptive_moving_average
-        https://www.tradingview.com/script/wZGOIz9r-REPOST-Indicators-3-Different-Adaptive-Moving-Averages/
+    close: IntoExpr,
+    length: int = 10,
+    fast: int = 2,
+    slow: int = 30,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Kaufman's Adaptive Moving Average (KAMA)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 10
-        fast (int): Fast MA period. Default: 2
-        slow (int): Slow MA period. Default: 30
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: Er period. Default: 10
+        fast: Fast MA period. Default: 2
+        slow: Slow MA period. Default: 30
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: KAMA expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    fast = v_pos_default(fast, 2)
-    slow = v_pos_default(slow, 30)
-    close = v_series(close, max(fast, slow, length))
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    if Imports["talib"] and talib:
 
-    mamode = v_mamode(mamode, "sma")
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+        def compute_kama(s: pl.Series) -> pl.Series:
+            from talib import KAMA
 
-    # Calculate
-    def weight(length: int) -> float:
-        return 2 / (length + 1)
+            arr = s.to_numpy().astype(np.float64)
+            result = KAMA(arr, timeperiod=length)
+            if offset != 0:
+                result = np.roll(result, offset)
+                if offset > 0:
+                    result[:offset] = np.nan
+            return pl.Series(result)
 
-    fr = weight(fast)
-    sr = weight(slow)
+        return close_expr.map_batches(compute_kama, return_dtype=pl.Float64).alias(f"KAMA_{length}_{fast}_{slow}")
+    else:
 
-    abs_diff = non_zero_range(close, close.shift(length)).abs()
-    peer_diff = non_zero_range(close, close.shift(drift)).abs()
-    peer_diff_sum = peer_diff.rolling(length).sum()
-    er = abs_diff / peer_diff_sum
-    x = er * (fr - sr) + sr
-    sc = x * x
+        @njit(cache=True)
+        def nb_kama(close_arr: np.ndarray, length: int, fast: int, slow: int) -> np.ndarray:
+            """Numba-optimized KAMA calculation."""
+            m = len(close_arr)
+            result = np.empty(m, dtype=np.float64)
+            result[: length - 1] = np.nan
 
-    m = close.size
-    ma0 = ma(mamode, close.iloc[:length], length=length, **kwargs).iloc[-1]
-    result = [np.nan for _ in range(0, length - 1)] + [ma0]
-    for i in range(length, m):
-        result.append(sc.iat[i] * close.iat[i] + (1 - sc.iat[i]) * result[i - 1])
+            fr = 2.0 / (fast + 1)
+            sr = 2.0 / (slow + 1)
 
-    kama = Series(result, index=close.index)
+            # Initial value - SMA of first `length` values
+            result[length - 1] = np.mean(close_arr[:length])
 
-    # Offset
-    if offset != 0:
-        kama = kama.shift(offset)
+            for i in range(length, m):
+                # Change in price
+                change = abs(close_arr[i] - close_arr[i - length])
 
-    # Fill
-    if "fillna" in kwargs:
-        kama = kama.fillna(kwargs["fillna"])
+                # Volatility (sum of absolute differences)
+                volatility = 0.0
+                for j in range(i - length + 1, i + 1):
+                    volatility += abs(close_arr[j] - close_arr[j - 1])
 
-    # Name and Category
-    kama.name = f"KAMA_{length}_{fast}_{slow}"
-    kama.category = "overlap"
+                # Efficiency Ratio
+                if volatility > 1e-10:
+                    er = change / volatility
+                else:
+                    er = 0.0
 
-    return kama
+                # Smoothing Constant
+                sc = (er * (fr - sr) + sr) ** 2
+
+                # KAMA value
+                result[i] = sc * close_arr[i] + (1 - sc) * result[i - 1]
+
+            return result
+
+        def compute_kama(s: pl.Series) -> pl.Series:
+            arr = s.to_numpy().astype(np.float64)
+            result = nb_kama(arr, length, fast, slow)
+            if offset != 0:
+                result = np.roll(result, offset)
+                if offset > 0:
+                    result[:offset] = np.nan
+            return pl.Series(result)
+
+        return close_expr.map_batches(compute_kama, return_dtype=pl.Float64).alias(f"KAMA_{length}_{fast}_{slow}")

@@ -1,107 +1,122 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars TRIXH Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.momentum import trix
-from polars_ti.utils import v_drift, v_offset, v_pos_default, v_scalar, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def trixh(
-    close: Series,
-    length: int | None = None,
-    signal: int | None = None,
-    scalar: float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """TRIX Histogram (TRIXH)
+    close: IntoExpr,
+    length: int = 18,
+    signal: int = 9,
+    scalar: float = 100.0,
+    drift: int = 1,
+    talib: bool = True,
+    offset: int = 0,
+) -> list[PlExpr]:
+    """Polars: TRIX Histogram (TRIXH)
 
-    TRIX Histogram extends the TRIX indicator by adding a signal line and
-    histogram. The histogram represents the difference between TRIX and its
-    signal line, similar to MACD histogram, helping identify momentum changes
-    and divergences.
+    TRIX Histogram extends the TRIX indicator by adding a histogram that
+    represents the difference between TRIX and its signal line, similar to
+    MACD histogram, helping identify momentum changes and divergences.
 
     Sources:
         https://www.investopedia.com/terms/t/trix.asp
         https://school.stockcharts.com/doku.php?id=technical_indicators:trix
 
     Calculation:
-        Default Inputs:
-            length=18, signal=9, scalar=100
-
-        TRIX = TRIX(close, length, scalar)
-        Signal = EMA(TRIX, signal)
+        TRIX = TRIX(close, length, scalar, drift)
+        Signal = SMA(TRIX, signal)
         Histogram = TRIX - Signal
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): TRIX period. Default: 18
-        signal (int): Signal line period. Default: 9
-        scalar (float): Multiplier. Default: 100
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: TRIX period (EMA applied 3 times). Default: 18
+        signal: Signal SMA period. Default: 9
+        scalar: Multiplication factor. Default: 100
+        drift: Periods for pct_change. Default: 1
+        talib: If True and TA-Lib installed, use TA-Lib for TRIX. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: TRIX, Signal, and Histogram columns.
+        list[pl.Expr]: [TRIX, TRIX_signal, TRIX_histogram]
     """
-    # Validate
-    length = v_pos_default(length, 18)
-    signal_length = v_pos_default(signal, 9)
-    scalar = v_scalar(scalar, 100)
-    close = v_series(close, length)
+    from polars_ti.momentum.trix import trix
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    # Swap if length < signal (matching pandas behavior)
+    if length < signal:
+        length, signal = signal, length
 
-    # Calculate TRIX (returns DataFrame with TRIX and signal)
-    trix_df = trix(
-        close, length=length, signal=signal_length, scalar=scalar, drift=drift
+    _props = f"_{length}_{signal}"
+
+    # Get TRIX and Signal from pl_trix
+    # Note: pl_trix default length is 30, we use 18 for trixh
+    trix_exprs = trix(
+        close_expr,
+        length=length,
+        signal=signal,
+        scalar=scalar,
+        drift=drift,
+        talib=talib,
+        offset=0,  # Apply offset at the end
     )
 
-    if trix_df is None:
-        return
+    if trix_exprs is None:
+        return None
 
-    # Extract TRIX line and signal
-    trix_col = f"TRIX_{length}_{signal_length}"
-    signal_col = f"TRIXs_{length}_{signal_length}"
+    # Extract the TRIX and Signal expressions (before alias)
+    # We need to compute histogram = trix - signal
+    # But since pl_trix returns aliased expressions, we need to rebuild
 
-    trix_line = trix_df[trix_col]
-    trix_signal = trix_df[signal_col]
+    # Rebuild TRIX calculation to get the raw expressions for histogram computation
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+    from polars_ti.overlap.ema import ema
+    import numpy as np
 
-    # Calculate histogram
-    histogram = trix_line - trix_signal
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _length = length
 
-    # Offset
+    if _use_talib:
+
+        def compute_trix(s: pl.Series) -> pl.Series:
+            from talib import TRIX as TALIB_TRIX
+
+            arr = s.to_numpy().astype(np.float64)
+            result = TALIB_TRIX(arr, timeperiod=_length)
+            return pl.Series(f"TRIX{_props}", result)
+
+        trix_expr = close_expr.map_batches(compute_trix, return_dtype=pl.Float64)
+    else:
+        # Use pl_ema composition: triple EMA (native branch -> talib=False)
+        ema1 = ema(close_expr, length=length, talib=False)
+        ema2 = ema(ema1, length=length, talib=False)
+        ema3 = ema(ema2, length=length, talib=False)
+
+        # TRIX = scalar * pct_change(ema3, drift)
+        ema3_shifted = ema3.shift(drift)
+        trix_expr = scalar * (ema3 - ema3_shifted) / ema3_shifted
+
+    # Signal = SMA of TRIX
+    trix_signal_expr = trix_expr.rolling_mean(window_size=signal, min_samples=signal)
+
+    # Histogram = TRIX - Signal
+    histogram_expr = trix_expr - trix_signal_expr
+
     if offset != 0:
-        trix_line = trix_line.shift(offset)
-        trix_signal = trix_signal.shift(offset)
-        histogram = histogram.shift(offset)
+        trix_expr = trix_expr.shift(offset)
+        trix_signal_expr = trix_signal_expr.shift(offset)
+        histogram_expr = histogram_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        trix_line = trix_line.fillna(kwargs["fillna"])
-        trix_signal = trix_signal.fillna(kwargs["fillna"])
-        histogram = histogram.fillna(kwargs["fillna"])
-
-    # Name and Category
-    trix_line.name = f"TRIX_{length}_{signal_length}"
-    trix_signal.name = f"TRIXs_{length}_{signal_length}"
-    histogram.name = f"TRIXh_{length}_{signal_length}"
-    trix_line.category = trix_signal.category = histogram.category = "momentum"
-
-    data = {
-        trix_line.name: trix_line,
-        trix_signal.name: trix_signal,
-        histogram.name: histogram,
-    }
-    df = DataFrame(data, index=close.index)
-    df.name = f"TRIXH_{length}_{signal_length}"
-    df.category = "momentum"
-
-    return df
+    return [
+        trix_expr.alias(f"TRIX{_props}"),
+        trix_signal_expr.alias(f"TRIXs{_props}"),
+        histogram_expr.alias(f"TRIXh{_props}"),
+    ]

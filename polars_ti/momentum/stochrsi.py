@@ -1,113 +1,273 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars StochRSI Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from polars_ti.ma import ma
-from polars_ti.maps import Imports
-from polars_ti.momentum import rsi
-from polars_ti.utils import (
-    non_zero_range,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _rsi_numba(values: np.ndarray, length: int) -> np.ndarray:
+    """Numba RSI with Wilder's smoothing."""
+    n = len(values)
+    result = np.full(n, np.nan, dtype=np.float64)
+
+    if n < length + 1:
+        return result
+
+    alpha = 1.0 / length
+
+    deltas = np.zeros(n, dtype=np.float64)
+    for i in range(1, n):
+        deltas[i] = values[i] - values[i - 1]
+
+    gain_sum = 0.0
+    loss_sum = 0.0
+    for i in range(1, length + 1):
+        if deltas[i] > 0:
+            gain_sum += deltas[i]
+        else:
+            loss_sum += abs(deltas[i])
+
+    avg_gain = gain_sum / length
+    avg_loss = loss_sum / length
+
+    if avg_loss == 0:
+        result[length] = 100.0
+    else:
+        rs = avg_gain / avg_loss
+        result[length] = 100.0 - (100.0 / (1.0 + rs))
+
+    for i in range(length + 1, n):
+        delta = deltas[i]
+        if delta > 0:
+            gain = delta
+            loss = 0.0
+        else:
+            gain = 0.0
+            loss = abs(delta)
+
+        avg_gain = alpha * gain + (1 - alpha) * avg_gain
+        avg_loss = alpha * loss + (1 - alpha) * avg_loss
+
+        if avg_loss == 0:
+            result[i] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            result[i] = 100.0 - (100.0 / (1.0 + rs))
+
+    return result
+
+
+@njit(cache=True)
+def _sma_numba(values: np.ndarray, length: int) -> np.ndarray:
+    """Numba-optimized SMA handling NaNs."""
+    n = len(values)
+    result = np.full(n, np.nan, dtype=np.float64)
+
+    if n < length:
+        return result
+
+    first_valid = -1
+    for i in range(n):
+        if not np.isnan(values[i]):
+            first_valid = i
+            break
+
+    if first_valid == -1 or n - first_valid < length:
+        return result
+
+    window_sum = 0.0
+    for i in range(first_valid, first_valid + length):
+        window_sum += values[i]
+    result[first_valid + length - 1] = window_sum / length
+
+    for i in range(first_valid + length, n):
+        if not np.isnan(values[i]):
+            window_sum = window_sum - values[i - length] + values[i]
+            result[i] = window_sum / length
+
+    return result
+
+
+@njit(cache=True)
+def _stochrsi_core(
+    close: np.ndarray,
+    length: int,
+    rsi_length: int,
+    k: int,
+    d: int,
+) -> tuple:
+    """Numba kernel for StochRSI calculation."""
+    n = len(close)
+
+    # 1. Calculate RSI
+    rsi = _rsi_numba(close, rsi_length)
+
+    # 2. Calculate rolling min/max of RSI over 'length' periods
+    lowest_rsi = np.full(n, np.nan, dtype=np.float64)
+    highest_rsi = np.full(n, np.nan, dtype=np.float64)
+
+    for i in range(rsi_length + length - 1, n):
+        window_start = i - length + 1
+        # Check if all values in window are valid
+        all_valid = True
+        for j in range(window_start, i + 1):
+            if np.isnan(rsi[j]):
+                all_valid = False
+                break
+
+        if all_valid:
+            min_val = rsi[window_start]
+            max_val = rsi[window_start]
+            for j in range(window_start + 1, i + 1):
+                if rsi[j] < min_val:
+                    min_val = rsi[j]
+                if rsi[j] > max_val:
+                    max_val = rsi[j]
+            lowest_rsi[i] = min_val
+            highest_rsi[i] = max_val
+
+    # 3. Calculate raw StochRSI
+    stochrsi_raw = np.full(n, np.nan, dtype=np.float64)
+    for i in range(n):
+        if not np.isnan(lowest_rsi[i]) and not np.isnan(highest_rsi[i]):
+            range_val = highest_rsi[i] - lowest_rsi[i]
+            if range_val != 0:
+                stochrsi_raw[i] = 100.0 * (rsi[i] - lowest_rsi[i]) / range_val
+
+    # 4. %K = SMA(stochrsi, k)
+    stochrsi_k = _sma_numba(stochrsi_raw, k)
+
+    # 5. %D = SMA(%K, d)
+    stochrsi_d = _sma_numba(stochrsi_k, d)
+
+    return stochrsi_k, stochrsi_d
 
 
 def stochrsi(
-    close: Series,
-    length: int | None = None,
-    rsi_length: int | None = None,
-    k: int | None = None,
-    d: int | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Stochastic (STOCHRSI)
+    close: IntoExpr,
+    length: int = 14,
+    rsi_length: int = 14,
+    k: int = 3,
+    d: int = 3,
+    mamode: str = "sma",
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Stochastic RSI (STOCHRSI)
 
-    "Stochastic RSI and Dynamic Momentum Index" was created by Tushar Chande
-    and Stanley Kroll and published in Stock & Commodities V.11:5 (189-199)
-
-    It is a range-bound oscillator with two lines moving between 0 and 100.
-    The first line (%K) displays the current RSI in relation to the period's
-    high/low range. The second line (%D) is a Simple Moving Average of the
-    %K line. The most common choices are a 14 period %K and a 3 period
-    SMA for %D.
+    Created by Tushar Chande and Stanley Kroll. It applies the Stochastic
+    formula to RSI values instead of price data, resulting in an indicator
+    that ranges from 0 to 100.
 
     Sources:
-        https://www.tradingview.com/wiki/Stochastic_(STOCH)
+        https://www.tradingview.com/wiki/Stochastic_RSI_(STOCH_RSI)
+        Stock & Commodities V.11:5 (189-199)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): The STOCHRSI period. Default: 14
-        rsi_length (int): RSI period. Default: 14
-        k (int): The Fast %K period. Default: 3
-        d (int): The Slow %K period. Default: 3
-        mamode (str): See ``help(ti.ma)``. Default: 'sma'
-        talib (bool): If TA Lib is installed and talib is True, uses
-            TA Lib's RSI. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close' prices
+        length: StochRSI lookback period. Default: 14
+        rsi_length: RSI calculation period. Default: 14
+        k: Fast %K smoothing period. Default: 3
+        d: Slow %D smoothing period. Default: 3
+        mamode: MA type for smoothing. Default: 'sma'
+        talib: If True and TA-Lib installed, use TA-Lib RSI. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: RSI %K, RSI %D columns.
+        pl.Expr: Struct expression with columns:
+            - STOCHRSIk_{length}_{rsi_length}_{k}_{d}: %K line
+            - STOCHRSId_{length}_{rsi_length}_{k}_{d}: %D line
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    rsi_length = v_pos_default(rsi_length, 14)
-    k = v_pos_default(k, 3)
-    d = v_pos_default(d, 3)
-    _length = length + rsi_length + 2
-    close = v_series(close, _length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    mamode = v_mamode(mamode, "sma")
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
-
-    # Calculate
-    # if Imports["talib"] and mode_tal:
-    #     from talib import RSI
-    #     rsi_ = RSI(close, length)
-    # else:
-
-    rsi_ = rsi(close, length=rsi_length)
-    lowest_rsi = rsi_.rolling(length).min()
-    highest_rsi = rsi_.rolling(length).max()
-
-    stoch = 100 * (rsi_ - lowest_rsi) / non_zero_range(highest_rsi, lowest_rsi)
-
-    stochrsi_k = ma(mamode, stoch, length=k)
-    stochrsi_d = ma(mamode, stochrsi_k, length=d)
-
-    # Offset
-    if offset != 0:
-        stochrsi_k = stochrsi_k.shift(offset)
-        stochrsi_d = stochrsi_d.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        stochrsi_k = stochrsi_k.fillna(kwargs["fillna"])
-        stochrsi_d = stochrsi_d.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _name = "STOCHRSI"
+    _length = length
+    _rsi_length = rsi_length
+    _k = k
+    _d = d
     _props = f"_{length}_{rsi_length}_{k}_{d}"
-    stochrsi_k.name = f"{_name}k{_props}"
-    stochrsi_d.name = f"{_name}d{_props}"
-    stochrsi_k.category = stochrsi_d.category = "momentum"
+    _use_talib = Imports["talib"] and v_talib(talib)
 
-    data = {stochrsi_k.name: stochrsi_k, stochrsi_d.name: stochrsi_d}
-    df = DataFrame(data, index=close.index)
-    df.name = f"{_name}{_props}"
-    df.category = stochrsi_k.category
+    if _use_talib:
+        # Use TA-Lib RSI, then apply Stochastic formula
+        def compute_stochrsi_talib(s: pl.Series) -> pl.Series:
+            from talib import RSI as TALIB_RSI
 
-    return df
+            arr = s.to_numpy().astype(np.float64)
+
+            # Get RSI from TA-Lib
+            rsi = TALIB_RSI(arr, timeperiod=_rsi_length)
+
+            # Apply Stochastic to RSI
+            n = len(rsi)
+            lowest_rsi = np.full(n, np.nan, dtype=np.float64)
+            highest_rsi = np.full(n, np.nan, dtype=np.float64)
+
+            for i in range(_length - 1, n):
+                window = rsi[i - _length + 1 : i + 1]
+                if not np.any(np.isnan(window)):
+                    lowest_rsi[i] = np.min(window)
+                    highest_rsi[i] = np.max(window)
+
+            # Raw StochRSI
+            range_val = highest_rsi - lowest_rsi
+            range_val = np.where(range_val == 0, np.nan, range_val)
+            stochrsi_raw = 100.0 * (rsi - lowest_rsi) / range_val
+
+            # %K and %D smoothing
+            stochrsi_k = _sma_numba(stochrsi_raw, _k)
+            stochrsi_d = _sma_numba(stochrsi_k, _d)
+
+            return pl.DataFrame(
+                {
+                    f"STOCHRSIk{_props}": stochrsi_k,
+                    f"STOCHRSId{_props}": stochrsi_d,
+                }
+            ).to_struct("STOCHRSI")
+
+        result_expr = close_expr.map_batches(
+            compute_stochrsi_talib,
+            return_dtype=pl.Struct(
+                [
+                    pl.Field(f"STOCHRSIk{_props}", pl.Float64),
+                    pl.Field(f"STOCHRSId{_props}", pl.Float64),
+                ]
+            ),
+        )
+    else:
+        # Pure Numba path
+        def compute_stochrsi_numba(s: pl.Series) -> pl.Series:
+            arr = s.to_numpy().astype(np.float64)
+            stochrsi_k, stochrsi_d = _stochrsi_core(arr, _length, _rsi_length, _k, _d)
+
+            return pl.DataFrame(
+                {
+                    f"STOCHRSIk{_props}": stochrsi_k,
+                    f"STOCHRSId{_props}": stochrsi_d,
+                }
+            ).to_struct("STOCHRSI")
+
+        result_expr = close_expr.map_batches(
+            compute_stochrsi_numba,
+            return_dtype=pl.Struct(
+                [
+                    pl.Field(f"STOCHRSIk{_props}", pl.Float64),
+                    pl.Field(f"STOCHRSId{_props}", pl.Float64),
+                ]
+            ),
+        )
+
+    if offset != 0:
+        result_expr = result_expr.shift(offset)
+
+    return result_expr.alias("STOCHRSI")

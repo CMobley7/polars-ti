@@ -1,101 +1,125 @@
 # -*- coding: utf-8 -*-
-from sys import float_info as sflt
+# =============================================================================
+# Polars MFI (Money Flow Index) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
+from numba import njit
 
-from numpy import convolve, maximum, nan, ones, roll, where
-from pandas import Series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
-from polars_ti.maps import Imports
-from polars_ti.overlap import hlc3
-from polars_ti.utils import (
-    nb_non_zero_range,
-    v_drift,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
+
+@njit(cache=True)
+def _nb_mfi(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    volume: np.ndarray,
+    length: int,
+) -> np.ndarray:
+    """Calculate MFI using Numba."""
+    n = len(close)
+    result = np.full(n, np.nan)
+
+    tp = (high + low + close) / 3.0
+
+    for i in range(length, n):
+        pos_flow = 0.0
+        neg_flow = 0.0
+
+        for j in range(i - length + 1, i + 1):
+            if tp[j] > tp[j - 1]:
+                pos_flow += tp[j] * volume[j]
+            elif tp[j] < tp[j - 1]:
+                neg_flow += tp[j] * volume[j]
+
+        if pos_flow + neg_flow > 0:
+            result[i] = 100.0 * pos_flow / (pos_flow + neg_flow)
+
+    return result
 
 
 def mfi(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    talib: bool | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Money Flow Index (MFI)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 14,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Money Flow Index (MFI)
 
-    Money Flow Index is an oscillator indicator that is used to measure
-    buying and selling pressure by utilizing both price and volume.
-
-    Sources:
-        https://www.tradingview.com/wiki/Money_Flow_(MFI)
+    Money Flow Index is an oscillator indicator that measures buying and selling
+    pressure by utilizing both price and volume.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): The sum period. Default: 14
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: Rolling period. Default: 14
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: MFI expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    _length = length + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    if high is None or low is None or close is None or volume is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    mode_tal = v_talib(talib)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import MFI
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _length = length
 
-        mfi = MFI(high, low, close, volume, length)
+    if _use_talib:
+
+        def compute_mfi(df: pl.DataFrame) -> pl.Series:
+            from talib import MFI as TALIB_MFI
+
+            h = df["high"].to_numpy().astype(np.float64)
+            l = df["low"].to_numpy().astype(np.float64)
+            c = df["close"].to_numpy().astype(np.float64)
+            v = df["volume"].to_numpy().astype(np.float64)
+            result = TALIB_MFI(h, l, c, v, timeperiod=_length)
+            return pl.Series(f"MFI_{_length}", result)
+
+        mfi_expr = pl.struct(
+            [
+                high_expr.alias("high"),
+                low_expr.alias("low"),
+                close_expr.alias("close"),
+                volume_expr.alias("volume"),
+            ]
+        ).map_batches(lambda s: compute_mfi(s.struct.unnest()), return_dtype=pl.Float64)
     else:
-        m, _ones = close.size, ones(length)
 
-        tp = (high.to_numpy() + low.to_numpy() + close.to_numpy()) / 3.0
-        smf = tp * volume.to_numpy() * where(tp > roll(tp, shift=drift), 1, -1)
+        def compute_mfi_numba(df: pl.DataFrame) -> pl.Series:
+            h = df["high"].to_numpy().astype(np.float64)
+            l = df["low"].to_numpy().astype(np.float64)
+            c = df["close"].to_numpy().astype(np.float64)
+            v = df["volume"].to_numpy().astype(np.float64)
+            result = _nb_mfi(h, l, c, v, _length)
+            return pl.Series(f"MFI_{_length}", result)
 
-        pos, neg = maximum(smf, 0), maximum(-smf, 0)
-        avg_gain, avg_loss = convolve(pos, _ones)[:m], convolve(neg, _ones)[:m]
+        mfi_expr = pl.struct(
+            [
+                high_expr.alias("high"),
+                low_expr.alias("low"),
+                close_expr.alias("close"),
+                volume_expr.alias("volume"),
+            ]
+        ).map_batches(lambda s: compute_mfi_numba(s.struct.unnest()), return_dtype=pl.Float64)
 
-        _mfi = (100.0 * avg_gain) / (avg_gain + avg_loss + sflt.epsilon)
-        _mfi[:length] = nan
-
-        mfi = Series(_mfi, index=close.index)
-
-    # Offset
     if offset != 0:
-        mfi = mfi.shift(offset)
+        mfi_expr = mfi_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        mfi = mfi.fillna(kwargs["fillna"])
-
-    # Name and Category
-    mfi.name = f"MFI_{length}"
-    mfi.category = "volume"
-
-    return mfi
+    return mfi_expr.alias(f"MFI_{length}")

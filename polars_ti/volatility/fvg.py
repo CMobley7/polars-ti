@@ -1,22 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Fair Value Gap (FVG) - Volatility Indicator
-
-An FVG occurs when a strong momentum candle creates an imbalance between
-the high and low of surrounding candles, forming a price inefficiency that
-the market may revisit.
-
-Sources:
-    - https://www.fluxcharts.com/articles/Trading-Concepts/Price-Action/Inversion-Fair-Value-Gaps
-    - https://capital.com/fair-value-gap-in-trading
-"""
-
-from __future__ import annotations
-
-from numba import njit
 from numpy import float64, full, nan
-from pandas import DataFrame, Series
+from numba import njit
 
-from polars_ti._typing import Array, DictLike, Int, IntFloat
+from polars_ti._typing import Array
 
 
 @njit(cache=True)
@@ -27,14 +13,13 @@ def nb_fvg(
     np_close: Array,
     min_gap: float64,
 ) -> tuple[Array, Array, Array]:
-    """Numba-optimized FVG calculation.
+    """Numba-optimized Fair Value Gap calculation.
 
     Identifies Fair Value Gaps using a 3-candle pattern:
     - Bullish FVG: low[i+1] > high[i-1] during an up candle
     - Bearish FVG: high[i+1] < low[i-1] during a down candle
     """
     n = np_open.size
-
     fvg_high = full(n, nan)
     fvg_low = full(n, nan)
     fvg_type = full(n, nan)
@@ -47,7 +32,6 @@ def nb_fvg(
                 fvg_low[i] = np_high[i - 1]
                 fvg_high[i] = np_low[i + 1]
                 fvg_type[i] = 1.0  # bullish
-
         # Bearish candle (close < open) with downward gap
         elif np_close[i] < np_open[i]:
             gap = np_low[i - 1] - np_high[i + 1]
@@ -59,100 +43,93 @@ def nb_fvg(
     return fvg_high, fvg_low, fvg_type
 
 
+# =============================================================================
+# Polars FVG Implementation (Numba @njit via map_batches)
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def fvg(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    min_gap: IntFloat | None = None,
-    offset: Int | None = None,
-    **kwargs: DictLike,
-) -> DataFrame | None:
-    """Fair Value Gap (FVG)
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    min_gap: float = 0.0,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Fair Value Gap (FVG)
 
-    An FVG occurs when a strong momentum candle creates an imbalance between
-    the high and low of surrounding candles, forming a price inefficiency that
-    the market may revisit. It is a core component of Smart Money Concepts (SMC).
+    Uses Numba @njit kernel via map_batches.
 
-    Three-candle pattern:
-    - Bullish FVG: Third candle's low > First candle's high
-    - Bearish FVG: Third candle's high < First candle's low
+    An FVG occurs when a strong momentum candle creates an imbalance,
+    forming a price inefficiency that the market may revisit.
 
     Sources:
         https://www.fluxcharts.com/articles/Trading-Concepts/Price-Action/Inversion-Fair-Value-Gaps
         https://capital.com/fair-value-gap-in-trading
 
     Args:
-        open_ (pd.Series): Series of 'open' prices
-        high (pd.Series): Series of 'high' prices
-        low (pd.Series): Series of 'low' prices
-        close (pd.Series): Series of 'close' prices
-        min_gap (int | float | None): Minimum percentage gap size. Default: 0
-        offset (int | None): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open'
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        min_gap: Minimum percentage gap size. Default: 0
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: Columns FVGh (high), FVGl (low), FVGt (type: 1=bullish, -1=bearish)
+        pl.Expr: Struct with FVGh, FVGl, FVGt columns
     """
-    # Late imports to avoid circular dependency
-    from polars_ti.utils import v_offset, v_pos_default, v_series
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    # Validate
-    _length = 3
-    open_ = v_series(open_, _length)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-
-    if open_ is None or high is None or low is None or close is None:
+    if open_expr is None or high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    min_gap = v_pos_default(min_gap, 0)
     min_gap_pct = min_gap / 100.0
-    offset = v_offset(offset)
+    _min_gap = min_gap_pct
+    _offset = offset
+    _min_gap_int = int(min_gap)
 
-    # Calculate using Numba kernel
-    np_open = open_.to_numpy()
-    np_high = high.to_numpy()
-    np_low = low.to_numpy()
-    np_close = close.to_numpy()
+    def compute_fvg(struct: pl.Series) -> pl.Series:
+        df = struct.struct.unnest()
+        np_open = df["_open"].to_numpy().astype(np.float64)
+        np_high = df["_high"].to_numpy().astype(np.float64)
+        np_low = df["_low"].to_numpy().astype(np.float64)
+        np_close = df["_close"].to_numpy().astype(np.float64)
 
-    fvg_high, fvg_low, fvg_type = nb_fvg(
-        np_open=np_open,
-        np_high=np_high,
-        np_low=np_low,
-        np_close=np_close,
-        min_gap=min_gap_pct,
+        fvg_high, fvg_low, fvg_type = nb_fvg(np_open, np_high, np_low, np_close, _min_gap)
+
+        if _offset != 0:
+            fvg_high = np.roll(fvg_high, _offset)
+            fvg_low = np.roll(fvg_low, _offset)
+            fvg_type = np.roll(fvg_type, _offset)
+            if _offset > 0:
+                fvg_high[:_offset] = np.nan
+                fvg_low[:_offset] = np.nan
+                fvg_type[:_offset] = np.nan
+
+        return pl.DataFrame({"fvg_high": fvg_high, "fvg_low": fvg_low, "fvg_type": fvg_type}).to_struct("fvg")
+
+    _props = f"_{_min_gap_int}"
+
+    return (
+        pl.struct(
+            [
+                open_expr.alias("_open"),
+                high_expr.alias("_high"),
+                low_expr.alias("_low"),
+                close_expr.alias("_close"),
+            ]
+        )
+        .map_batches(
+            compute_fvg,
+            return_dtype=pl.Struct({"fvg_high": pl.Float64, "fvg_low": pl.Float64, "fvg_type": pl.Float64}),
+        )
+        .alias(f"FVG{_props}")
     )
-
-    # Convert to Series for offset support
-    fvg_high_s = Series(fvg_high, index=high.index)
-    fvg_low_s = Series(fvg_low, index=low.index)
-    fvg_type_s = Series(fvg_type, index=close.index)
-
-    # Offset
-    if offset != 0:
-        fvg_high_s = fvg_high_s.shift(offset)
-        fvg_low_s = fvg_low_s.shift(offset)
-        fvg_type_s = fvg_type_s.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        fill_val = kwargs["fillna"]
-        fvg_high_s = fvg_high_s.fillna(fill_val)
-        fvg_low_s = fvg_low_s.fillna(fill_val)
-        fvg_type_s = fvg_type_s.fillna(fill_val)
-
-    _props = f"_{min_gap}"
-    data = {
-        f"FVGh{_props}": fvg_high_s,
-        f"FVGl{_props}": fvg_low_s,
-        f"FVGt{_props}": fvg_type_s,
-    }
-    df = DataFrame(data, index=high.index)
-    df.name = f"FVG{_props}"
-    df.category = "volatility"
-
-    return df

@@ -1,74 +1,55 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars Long Run Implementation (uses pl_increasing/pl_decreasing)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
-
-from .decreasing import decreasing
-from .increasing import increasing
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+from polars_ti.trend.increasing import increasing
+from polars_ti.trend.decreasing import decreasing
 
 
 def long_run(
-    fast: Series,
-    slow: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Long Run
+    fast: IntoExpr,
+    slow: IntoExpr,
+    length: int = 2,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Long Run
 
-    Long Run was developed by Kevin Johnson that returns a binary Series
-    where '1' is a trend and '0' is not a trend given 'fast' and 'slow' signal
-    over a certain period length.
+    Long Run returns 1 when:
+    - (fast increasing AND slow decreasing) OR
+    - (fast increasing AND slow increasing)
 
-    It is recommended to use 'smooth' signals for 'fast' and 'slow' for the
-    comparison to reduce unnecessary noise. For indicators using long_run, see
-    Archer Moving Average Trend (```help(ti.amat)```) and Archer On Balance
-    Volume (```help(ti.aobv)```). Both use Moving Averages for 'fast' and 'slow'
-    signals.
-
-    Sources:
-        It is part of the Converging and Diverging Conditional logic in:
-        https://www.tradingview.com/script/Z2mq63fE-Trade-Archer-Moving-Averages-v1-4F/
+    Uses pl_increasing and pl_decreasing composition.
 
     Args:
-        fast (pd.Series): Series of 'fast' values.
-        slow (pd.Series): Series of 'slow' values.
-        length (int): The period length. Default: 2
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        fast: Column name or pl.Expr for 'fast' signal
+        slow: Column name or pl.Expr for 'slow' signal
+        length: Period length. Default: 2
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Long run expression (1 = long trend, 0 = not)
     """
-    # Validate
-    length = v_pos_default(length, 2)
-    fast = v_series(fast, length)
-    slow = v_series(slow, length)
+    fast_expr = v_expr(fast)
+    slow_expr = v_expr(slow)
 
-    if fast is None or slow is None:
-        return
+    if fast_expr is None or slow_expr is None:
+        return None
 
-    offset = v_offset(offset)
+    # pb = potential bottom: fast increasing AND slow decreasing
+    # bi = both increasing: fast increasing AND slow increasing
+    fast_inc = increasing(fast_expr, length=length, asint=False)
+    slow_dec = decreasing(slow_expr, length=length, asint=False)
+    slow_inc = increasing(slow_expr, length=length, asint=False)
 
-    # Calculate
-    # potential bottom or bottom
-    pb = increasing(fast, length) & decreasing(slow, length)
-    # fast and slow are increasing
-    bi = increasing(fast, length) & increasing(slow, length)
-    long_run = pb | bi
+    pb = fast_inc & slow_dec
+    bi = fast_inc & slow_inc
+    result = (pb | bi).cast(pl.Int64)
 
-    # Offset
     if offset != 0:
-        long_run = long_run.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        long_run = long_run.fillna(kwargs["fillna"])
-
-    # Name and Category
-    long_run.name = f"LR_{length}"
-    long_run.category = "trend"
-
-    return long_run
+    return result.alias(f"LR_{length}")

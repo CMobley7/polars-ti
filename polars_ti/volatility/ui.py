@@ -1,77 +1,66 @@
 # -*- coding: utf-8 -*-
-from numpy import sqrt
-from pandas import Series
+# =============================================================================
+# Polars UI Implementation (Pure Composition)
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._validate import v_expr
 
 
 def ui(
-    close: Series,
-    length: int | None = None,
-    scalar: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Ulcer Index (UI)
+    close: IntoExpr,
+    length: int = 14,
+    scalar: float = 100.0,
+    everget: bool = False,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Ulcer Index (UI)
 
-    The Ulcer Index by Peter Martin measures the downside volatility with
-    the use of the Quadratic Mean, which has the effect of emphasising
-    large drawdowns.
+    Pure composition using pl_sma and native rolling functions.
+
+    The Ulcer Index measures downside volatility using the Quadratic Mean.
 
     Sources:
         https://library.tradingtechnologies.com/trade/chrt-ti-ulcer-index.html
         https://en.wikipedia.org/wiki/Ulcer_index
-        http://www.tangotools.com/ui/ui.htm
 
     Args:
-        high (pd.Series): Series of 'high's
-        close (pd.Series): Series of 'close's
-        length (int): The short period.  Default: 14
-        scalar (float): A positive float to scale the bands. Default: 100
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        everget (value, optional): TradingView's Evergets SMA instead of SUM
-            calculation. Default: False
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        length: The period. Default: 14
+        scalar: Scale factor. Default: 100.0
+        everget: Use TradingView's Everget SMA instead of SUM. Default: False
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature
+        pl.Expr: UI expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    scalar = v_pos_default(scalar, 100)
-    close = v_series(close, 2 * length - 1)
+    from polars_ti.overlap.sma import sma
 
-    if close is None:
-        return
+    close_expr = v_expr(close)
 
-    offset = v_offset(offset)
+    if close_expr is None:
+        return None
 
-    # Calculate
-    highest_close = close.rolling(length).max()
-    downside = scalar * (close - highest_close) / highest_close
+    # Highest close over rolling window
+    highest_close = close_expr.rolling_max(window_size=length, min_samples=1)
+
+    # Downside = scalar * (close - highest) / highest
+    downside = pl.lit(scalar) * (close_expr - highest_close) / highest_close
     d2 = downside * downside
 
-    everget = kwargs.pop("everget", False)
+    # Everget uses SMA instead of SUM
     if everget:
-        # Everget uses SMA instead of SUM for calculation
-        _ui = sma(d2, length)
+        _ui = sma(d2, length=length)
     else:
-        _ui = d2.rolling(length).sum()
-    ui = sqrt(_ui / length)
+        _ui = d2.rolling_sum(window_size=length, min_samples=length)
 
-    # Offset
+    # UI = sqrt(_ui / length)
+    result = (_ui / pl.lit(length)).sqrt()
+
+    # Apply offset
     if offset != 0:
-        ui = ui.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        ui = ui.fillna(kwargs["fillna"])
-
-    # Name and Category
-    ui.name = f"UI{'' if not everget else 'e'}_{length}"
-    ui.category = "volatility"
-
-    return ui
+    _name = f"UI{'' if not everget else 'e'}_{length}"
+    return result.alias(_name)

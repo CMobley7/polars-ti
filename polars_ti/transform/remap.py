@@ -1,72 +1,57 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars REMAP Implementation (Pure Native Polars)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_float, v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def remap(
-    close: Series,
-    from_min: int | float | None = None,
-    from_max: int | float | None = None,
-    to_min: int | float | None = None,
-    to_max: int | float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """
-    Indicator: ReMap (REMAP)
+    close: IntoExpr,
+    from_min: float = 0.0,
+    from_max: float = 100.0,
+    to_min: float = -1.0,
+    to_max: float = 1.0,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: ReMap (Linear Normalization)
 
-    Basically a static normalizer, which maps the input min and max to a given
-    output range. Many range bound oscillators move between 0 and 100, but
-    there are also other variants. Refer to the example below or add more the
-    list.
+    Maps input from one range to another (static normalizer).
+
+    Uses pure native Polars expressions.
+
+    Formula: y = to_min + (trange/frange) * (x - from_min)
 
     Examples:
-        RSI -> IFISHER: from_min=0, from_max=100, to_min=-1, to_max=1.0
-
-    Sources:
-        rengel8 for Polars TI
+        RSI -> IFISHER: from_min=0, from_max=100, to_min=-1, to_max=1
 
     Args:
-        close (pd.Series): Series of 'close's
-        from_min (float): Input minimum. Default: 0.0
-        from_max (float): Input maximum. Default: 100.0
-        to_min (float): Output minimum. Default: 0.0
-        to_max (float): Output maximum. Default: 100.0
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        from_min: Input minimum. Default: 0.0
+        from_max: Input maximum. Default: 100.0
+        to_min: Output minimum. Default: -1.0
+        to_max: Output maximum. Default: 1.0
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Remapped values expression
     """
-    # Validate
-    close = v_series(close)
-    from_min = v_float(from_min, 0.0, 0.0)
-    from_max = v_float(from_max, 100.0, 0.0)
-    to_min = v_float(to_min, -1.0, 0.0)
-    to_max = v_float(to_max, 1.0, 0.0)
-    offset = v_offset(offset)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    # Calculate
-    frange, trange = from_max - from_min, to_max - to_min
+    frange = from_max - from_min
+    trange = to_max - to_min
+
     if frange <= 0 or trange <= 0:
-        return
-    result = to_min + (trange / frange) * (close.to_numpy() - from_min)
-    result = Series(result, index=close.index)
+        return None
 
-    # Offset
+    # Pure native Polars: linear remapping
+    result = pl.lit(to_min) + (pl.lit(trange / frange) * (close_expr - pl.lit(from_min)))
+
     if offset != 0:
         result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        result = result.fillna(kwargs["fillna"])
-
-    # Name and Category
-    result.name = f"REMAP_{from_min}_{from_max}_{to_min}_{to_max}"
-    # result.name = f"{close.name}_{from_min}_{from_max}_{to_min}_{to_max}" # OR
-    result.category = "transform"
-
-    return result
+    return result.alias(f"REMAP_{from_min}_{from_max}_{to_min}_{to_max}")

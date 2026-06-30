@@ -1,79 +1,47 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars IMI (Intraday Momentum Index) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def imi(
-    open_: Series,
-    close: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Intraday Momentum Index (IMI)
+    open_: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Intraday Momentum Index (IMI)
 
-    The Intraday Momentum Index (IMI), developed by Tushar Chande, combines
-    aspects of candlestick analysis with the Relative Strength Index (RSI)
-    to generate overbought or oversold signals.
-
-    IMI measures the relationship between opening and closing prices to gauge
-    momentum within intraday sessions.
-
-    Sources:
-        https://www.investopedia.com/terms/i/intraday-momentum-index-imi.asp
-
-    Calculation:
-        Default Inputs:
-            length=14
-        Gains = Close - Open (when Close > Open, else 0)
-        Losses = Open - Close (when Close < Open, else 0)
-        Sum_Gains = sum(Gains, length)
-        Sum_Losses = sum(Losses, length)
-        IMI = 100 * Sum_Gains / (Sum_Gains + Sum_Losses)
+    Combines candlestick analysis with RSI to generate overbought/oversold signals.
+    IMI = 100 * sum(gains) / (sum(gains) + sum(losses))
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        close (pd.Series): Series of 'close's
-        length (int): The period for calculating sums. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        open_: Column name or pl.Expr for 'open' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period for sums. Default: 14
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: IMI values ranging from 0 to 100.
+        pl.Expr: IMI expression (0-100)
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    open_ = v_series(open_, length)
-    close = v_series(close, length)
-    offset = v_offset(offset)
+    open_expr = v_expr(open_)
+    close_expr = v_expr(close)
 
-    if open_ is None or close is None:
-        return
-
-    # Calculate
     # Gains when close > open, else 0
-    gains = (close > open_) * (close - open_)
+    gains = pl.when(close_expr > open_expr).then(close_expr - open_expr).otherwise(0.0)
     # Losses when close < open, else 0
-    losses = (close < open_) * (open_ - close)
+    losses = pl.when(close_expr < open_expr).then(open_expr - close_expr).otherwise(0.0)
 
-    sum_gains = gains.rolling(length, min_periods=length).sum()
-    sum_losses = losses.rolling(length, min_periods=length).sum()
+    sum_gains = gains.rolling_sum(window_size=length)
+    sum_losses = losses.rolling_sum(window_size=length)
 
-    imi = 100 * sum_gains / (sum_gains + sum_losses)
+    imi_expr = 100.0 * sum_gains / (sum_gains + sum_losses)
 
-    # Offset
     if offset != 0:
-        imi = imi.shift(offset)
+        imi_expr = imi_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        imi = imi.fillna(kwargs["fillna"])
-
-    # Name and Category
-    imi.name = f"IMI_{length}"
-    imi.category = "momentum"
-
-    return imi
+    return imi_expr.alias(f"IMI_{length}")

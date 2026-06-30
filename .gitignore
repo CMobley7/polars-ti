@@ -152,3 +152,12 @@ csv/
 *.txt
 df_file
 /.vs/slnx.sqlite
+verification_logs/*
+polars_ti/current_prompt.md
+CONVERSION_TASKS.md
+.agent/*
+.tmp/*
+tmp/*
+
+# Internal process/working docs (kept locally, not in repo)
+docs/internal/

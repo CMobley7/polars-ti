@@ -1,145 +1,97 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan, nan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars Chandelier Exit Implementation (Pure Composition)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    v_bool,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-    v_talib,
-)
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._validate import v_expr
 
 
 def chandelier_exit(
-    high: Series,
-    low: Series,
-    close: Series,
-    high_length: int | None = None,
-    low_length: int | None = None,
-    atr_length: int | None = None,
-    multiplier: int | float | None = None,
-    mamode: str | None = None,
-    talib: bool | None = None,
-    use_close: bool | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-):
-    """Chandelier Exit (CHDLREXT)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    high_length: int = 22,
+    low_length: int = 22,
+    atr_length: int = 14,
+    multiplier: float = 2.0,
+    use_close: bool = False,
+    mamode: str = "rma",
+    talib: bool = True,
+    drift: int = 1,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Chandelier Exit (CHDLREXT)
 
-    Chandelier Exit is an overlap indicator. It is used to set a trailing stop-loss
-    based on the Average True Range. It can also inform about the trend and prevent
-    exits.
+    Pure composition: pl_atr for ATR, native Polars for rolling max/min
+    and direction with forward_fill.
 
     Sources:
         https://school.stockcharts.com/doku.php?id=technical_indicators:chandelier_exit
-        https://in.tradingview.com/scripts/chandelier/
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        high_length (int): Highest high length. Default: 22
-        low_length (int): Lowest low length. Default: 22
-        atr_length (int) : ATR length. Default: 14
-        multiplier (float): Coefficient for upper and lower band distance to
-            midrange. Default: 2.0
-        mamode (str): See ``help(ti.ma)``. Default: 'rma'
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        use_close (bool): If true, uses the maximum of the high_length and
-            low_length for the 'close'. Default: False
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        high_length: Highest high length. Default: 22
+        low_length: Lowest low length. Default: 22
+        atr_length: ATR length. Default: 14
+        multiplier: ATR multiplier. Default: 2.0
+        use_close: Use close for rolling max/min. Default: False
+        drift: Shift period for direction. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: CHDLREXTl (long), CHDLREXTs (short), CHDLREXTd (direction)
+        pl.Expr: Struct with long, short, direction columns
     """
-    # Validate
-    atr_length = v_pos_default(atr_length, 14)
-    high_length = v_pos_default(high_length, 22)
-    low_length = v_pos_default(low_length, 22)
-    roll_length = max(high_length, low_length)
-    _length = max(atr_length, roll_length) + 1
+    from polars_ti.volatility.atr import atr
 
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if high is None or low is None or close is None:
-        return
+    if high_expr is None or low_expr is None or close_expr is None:
+        return None
 
-    multiplier = v_pos_default(multiplier, 2.0)
-    mamode = v_mamode(mamode, "rma")
-    mode_tal = v_talib(talib)
-    use_close = v_bool(use_close, False)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    # ATR using pl_atr composition. OLD chandelier propagated talib to atr, so
+    # honour talib here (default True) to match the OLD golden in talib mode.
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, mamode=mamode, talib=talib)
+    atr_mult = atr_expr * pl.lit(multiplier)
 
-    # Calculate
-    atr_ = atr(
-        high=high,
-        low=low,
-        close=close,
-        length=atr_length,
-        mamode=mamode,
-        talib=mode_tal,
-        drift=drift,
-        offset=offset,
-    )
-    if atr_ is None or all(isnan(atr_)):
-        return
-
-    atr_mult = atr_ * multiplier
-
+    # Rolling max/min for long/short
     if use_close:
-        long = close.rolling(roll_length, min_periods=1).max() - atr_mult
-        short = close.rolling(roll_length, min_periods=1).min() + atr_mult
+        roll_length = max(high_length, low_length)
+        long_expr = close_expr.rolling_max(window_size=roll_length, min_samples=1) - atr_mult
+        short_expr = close_expr.rolling_min(window_size=roll_length, min_samples=1) + atr_mult
     else:
-        long = high.rolling(high_length, min_periods=1).max() - atr_mult
-        short = low.rolling(low_length, min_periods=1).min() + atr_mult
+        long_expr = high_expr.rolling_max(window_size=high_length, min_samples=1) - atr_mult
+        short_expr = low_expr.rolling_min(window_size=low_length, min_samples=1) + atr_mult
 
-    uptrend = (close > long.shift(drift)).astype(int)
-    downtrend = -(close < short.shift(drift)).astype(int)
+    # Direction: uptrend (1) if close > long.shift, downtrend (-1) if close <
+    # short.shift. Guard NaN comparisons (close > NaN is True in Polars) so the
+    # warmup yields 0 like pandas; then replace 0 with null, ffill, default to 1.
+    long_shift = long_expr.shift(drift)
+    short_shift = short_expr.shift(drift)
+    uptrend = ((close_expr > long_shift) & long_shift.is_not_nan() & long_shift.is_not_null()).cast(pl.Int64)
+    downtrend = ((close_expr < short_shift) & short_shift.is_not_nan() & short_shift.is_not_null()).cast(pl.Int64) * -1
+    raw_dir = uptrend + downtrend
+    direction = pl.when(raw_dir == 0).then(None).otherwise(raw_dir).forward_fill().fill_null(1).cast(pl.Float64)
 
-    direction = uptrend + downtrend
-    if direction.iloc[0] == 0:
-        direction.iloc[0] = 1
-    direction = direction.replace(0, nan).ffill()
-
-    # Offset
+    # Apply offset
     if offset != 0:
-        long = long.shift(offset)
-        short = short.shift(offset)
+        long_expr = long_expr.shift(offset)
+        short_expr = short_expr.shift(offset)
         direction = direction.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        long = long.fillna(kwargs["fillna"])
-        short = short.fillna(kwargs["fillna"])
-        direction = direction.fillna(kwargs["fillna"])
-
-    # Name and Category
-    _name = "CHDLREXT"
 
     _props = f"_{high_length}_{low_length}_{atr_length}_{multiplier}"
     if use_close:
-        _props = f"_CLOSE_{_props}"
+        _props = f"_CLOSE{_props}"
 
-    data = {
-        f"{_name}l{_props}": long,
-        f"{_name}s{_props}": short,
-        f"{_name}d{_props}": direction,
-    }
-    df = DataFrame(data, index=close.index)
-    df.name = f"{_name}{_props}"
-    df.category = "volatility"
-
-    return df
+    return pl.struct(
+        [
+            long_expr.alias("long"),
+            short_expr.alias("short"),
+            direction.alias("direction"),
+        ]
+    ).alias(f"CHDLREXT{_props}")

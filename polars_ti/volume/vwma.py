@@ -1,60 +1,52 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars VWMA Implementation (Composition: pl_sma)
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def vwma(
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Volume Weighted Moving Average (VWMA)
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 10,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Volume Weighted Moving Average (VWMA)
 
-    Volume Weighted Moving Average.
+    Uses composition: pl_sma for calculating moving averages.
+
+    Formula: VWMA = SMA(Close * Volume, n) / SMA(Volume, n)
+
+    Note: Since SMA = SUM/n, the n's cancel out giving VWMA = SUM(pv)/SUM(v)
 
     Sources:
         https://www.motivewave.com/studies/volume_weighted_moving_average.htm
 
     Args:
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): It's period. Default: 10
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for 'close'
+        volume: Column name or pl.Expr for 'volume'
+        length: Rolling window period. Default: 10
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: VWMA expression
     """
-    # Validate
-    length = v_pos_default(length, 10)
-    close = v_series(close, length)
-    volume = v_series(volume, length)
+    from polars_ti.overlap.sma import sma
 
-    if close is None or volume is None:
-        return
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    offset = v_offset(offset)
+    if close_expr is None or volume_expr is None:
+        return None
 
-    # Calculate
-    pv = close * volume
-    vwma = sma(close=pv, length=length) / sma(close=volume, length=length)
+    # VWMA = SMA(close * volume) / SMA(volume) - matches Pandas exactly
+    pv = close_expr * volume_expr
+    result = sma(pv, length=length) / sma(volume_expr, length=length)
 
-    # Offset
     if offset != 0:
-        vwma = vwma.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        vwma = vwma.fillna(kwargs["fillna"])
-
-    # Name and Category
-    vwma.name = f"VWMA_{length}"
-    vwma.category = "overlap"
-
-    return vwma
+    return result.alias(f"VWMA_{length}")

@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-import numpy as np
+from numpy import zeros
 from numba import njit
-from pandas import Series
-
-from polars_ti.utils import v_offset, v_pos_default, v_series
 
 
 @njit(cache=True)
@@ -26,94 +23,59 @@ def nb_lrsi_filter(close, gamma):
     return l0, l1, l2, l3
 
 
+# =============================================================================
+# Polars LRSI Implementation (reuses nb_lrsi_filter kernel)
+# =============================================================================
+import polars as pl
+import numpy as np
+
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
 def lrsi(
-    close: Series,
-    length: int | None = None,
-    gamma: float | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Laguerre RSI (LRSI)
+    close: IntoExpr,
+    length: int = 14,
+    gamma: float = 0.5,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Laguerre RSI (LRSI)
 
-    The Laguerre RSI is a modified RSI indicator that uses Laguerre polynomials
-    to reduce lag and provide earlier signals. It adapts to price changes more
-    quickly than the standard RSI while maintaining smooth oscillations.
-
-    Sources:
-        https://www.tradingview.com/script/3p0QrN5C-Laguerre-RSI/
-        https://www.mesasoftware.com/papers/LaguerreFilters.pdf
-
-    Calculation:
-        Default Inputs:
-            length=14, gamma=0.5
-
-        Apply Laguerre filter with gamma coefficient:
-        L0 = (1 - gamma) * Close + gamma * L0[1]
-        L1 = -gamma * L0 + L0[1] + gamma * L1[1]
-        L2 = -gamma * L1 + L1[1] + gamma * L2[1]
-        L3 = -gamma * L2 + L2[1] + gamma * L3[1]
-
-        Calculate ups and downs:
-        CU = sum of (L0-L1, L1-L2, L2-L3) when positive
-        CD = sum of (L0-L1, L1-L2, L2-L3) when negative (absolute)
-
-        LRSI = 100 * CU / (CU + CD)
+    Modified RSI using Laguerre polynomials for reduced lag.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        gamma (float): Laguerre filter coefficient (0 to 1). Default: 0.5
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        length: Period (used for naming). Default: 14
+        gamma: Laguerre filter coefficient (0 to 1). Default: 0.5
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: LRSI expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    gamma = float(gamma) if gamma and 0 < gamma < 1 else 0.5
-    close = v_series(close, length)
+    close_expr = v_expr(close)
 
-    if close is None:
-        return
+    def _compute(s: pl.Series) -> pl.Series:
+        arr = s.to_numpy().astype(np.float64)
+        l0, l1, l2, l3 = nb_lrsi_filter(arr, gamma)
 
-    offset = v_offset(offset)
+        cu = np.zeros(len(arr))
+        cd = np.zeros(len(arr))
 
-    # Calculate using numpy arrays for faster iteration
-    close_arr = close.to_numpy(dtype=np.float64)
-    n = len(close)
+        cu += np.maximum(l0 - l1, 0)
+        cd += np.maximum(l1 - l0, 0)
+        cu += np.maximum(l1 - l2, 0)
+        cd += np.maximum(l2 - l1, 0)
+        cu += np.maximum(l2 - l3, 0)
+        cd += np.maximum(l3 - l2, 0)
 
-    # Apply Laguerre filter using Numba
-    l0, l1, l2, l3 = nb_lrsi_filter(close_arr, gamma)
+        denom = cu + cd
+        denom = np.where(denom == 0, 1, denom)
+        result = 100 * cu / denom
+        return pl.Series(values=result, name=s.name)
 
-    # Calculate Laguerre RSI components (vectorized)
-    cu = np.zeros(n)
-    cd = np.zeros(n)
+    result = close_expr.map_batches(_compute, return_dtype=pl.Float64)
 
-    cu += np.maximum(l0 - l1, 0)
-    cd += np.maximum(l1 - l0, 0)
-    cu += np.maximum(l1 - l2, 0)
-    cd += np.maximum(l2 - l1, 0)
-    cu += np.maximum(l2 - l3, 0)
-    cd += np.maximum(l3 - l2, 0)
-
-    # Calculate LRSI with division by zero protection
-    denominator = cu + cd
-    denominator = np.where(denominator == 0, 1, denominator)
-    lrsi = Series(100 * cu / denominator, index=close.index)
-
-    # Offset
     if offset != 0:
-        lrsi = lrsi.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        lrsi = lrsi.fillna(kwargs["fillna"])
-
-    # Name and Category
-    lrsi.name = f"LRSI_{length}"
-    lrsi.category = "momentum"
-
-    return lrsi
+    return result.alias(f"LRSI_{length}")

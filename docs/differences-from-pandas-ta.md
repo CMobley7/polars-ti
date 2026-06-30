@@ -1,0 +1,240 @@
+# Differences from pandas-ta
+
+This document catalogs how **Polars-TI** differs from
+[twopirllc/pandas-ta](https://github.com/twopirllc/pandas-ta) — both the
+deliberate architectural/API changes and every known difference in indicator
+**output values**, with the reason for each. It also lists the indicators added
+on top of upstream and credits their sources.
+
+If you are porting existing pandas-ta code, start with the
+[migration guide](migrating-from-pandas-ta.md); this page is the *what changed
+and why* reference.
+
+---
+
+## 1. Summary
+
+- **Engine:** pure **Polars + Numba/NumPy**. There is **zero runtime pandas
+  dependency** — indicators are Polars expressions, not pandas `Series`
+  operations.
+- **Indicators:** **176** (same count as this project's pandas baseline),
+  including **17 added** from community forks (see [§6](#6-new-indicators--credits)).
+- **Columns:** the Polars all-study output is a **superset** of the pandas
+  all-study output — every pandas column is reproduced; none are dropped
+  (see [§3](#3-indicator--column-counts)).
+- **Numerical differences:** the overwhelming majority of columns match the
+  pandas output within floating-point tolerance. Every remaining difference is
+  documented and falls into one of: Polars-TI matching TA-Lib/canonical where
+  pandas-ta was buggy, a deliberate convention change, or offering a TA-Lib path
+  pandas-ta lacked. None are Polars-TI being wrong, and **every shared column is
+  parity-tested per-column** (see [§4](#4-output-differences-with-reasons)).
+
+---
+
+## 2. Architecture & API changes
+
+| Area | pandas-ta | Polars-TI |
+| :--- | :--- | :--- |
+| Data engine | pandas `Series`/`DataFrame` | Polars `Expr` / `DataFrame`; Numba for stateful loops |
+| Runtime pandas | required | **none** (enforced by a CI "pandas purge" check) |
+| Call style | `df.ta.rsi()` | `df.ti.rsi()` **and** `from polars_ti.momentum import rsi` → `df.select(rsi("close"))` |
+| Legacy `pl_*` names | n/a | removed — use the indicator name directly (`rsi`, `sma`, `atr`, …) |
+| Multi-output indicators | multiple columns in a DataFrame | a single Polars **struct** column (accessor) or a **list of expressions**; unnest for flat columns |
+| TA-Lib | `talib=` per call | `talib=` per call **and** a study-wide `talib=` flag; native paths fully implemented so TA-Lib is optional |
+| Study errors | exceptions bubble up | `df.ti.study(..., errors="warn"|"raise"|"ignore")`, default `"warn"` |
+
+See [Getting started](getting-started.md) for the return-type details and how to
+unnest struct columns.
+
+---
+
+## 3. Indicator & column counts
+
+Measured on a deterministic 1,500-row slice of `data/SPY_D.csv`, all-study,
+with TA-Lib installed:
+
+| | pandas baseline | Polars-TI |
+| :--- | :---: | :---: |
+| Indicators (Category registry) | 176 | 176 |
+| All-study indicator columns (TA-Lib mode) | 387 | **389** |
+| Columns dropped vs pandas | — | **0** |
+| Extra columns exposed | — | **+2** (`DMP_14`/`DMN_14` are also surfaced inside the `ADX` struct) |
+| All-study indicator columns (native, no TA-Lib) | — | 329 |
+
+The native (no-TA-Lib) study has fewer columns only because ~60 TA-Lib
+candlestick patterns have no native implementation — pandas-ta behaves the same
+way when TA-Lib is absent.
+
+Some indicators changed their **column names** (struct/dotted layout). Those are
+not drops; they are folded by an authoritative old↔new name map
+(see [§4d](#4d-renames--struct-outputs)).
+
+---
+
+## 4. Output differences (with reasons)
+
+Of the 387 shared columns (measured in TA-Lib mode vs the pandas golden):
+**363 match within tolerance** — 356 to floating-point noise
+(`max_abs`/`max_rel` ≤ 1e-6) and 7 that agree post-warmup with only a warm-up
+null-mask difference. The remaining 24 are accounted for below: **8** pinned to
+TA-Lib (§4a), **14** intentional convention divergences (§4b), and **2**
+documented special cases — KAMA's TA-Lib path (§4c) and the `HT_direction`
+string column. Every shared column is enforced per-column by
+`tests/test_talib_parity.py` (TA-Lib mode) and `tests/test_native_parity.py`
+(native mode), using the verdicts in `tests/parity_exceptions.py`.
+
+### 4a. Polars-TI is more correct (old value was a bug)
+
+These were wrong in pandas-ta's **native** (no-TA-Lib) path. Polars-TI matches
+TA-Lib / the canonical definition and is pinned to TA-Lib in the test-suite.
+
+| Column(s) | pandas-ta native error | Polars-TI |
+| :--- | :--- | :--- |
+| `WCP` (Weighted Close) | off by ~1337 | matches TA-Lib `WCLPRICE` |
+| `MFI_14` | off by ~8.94 | matches TA-Lib (~3e-13) |
+| `ADX_14` | off by ~6.96 | much closer to TA-Lib |
+| `RSI_14` | off by ~18 | matches TA-Lib |
+| `TRIX_30_9` | off by ~1.8e-3 | matches TA-Lib (~3e-13) |
+| `CDL_HIGHWAVE`, `CDL_RICKSHAWMAN`, `CDL_SPINNINGTOP` | off by 100 (sign/scale) | match TA-Lib exactly |
+
+### 4b. Intentional convention divergences (Polars-TI is canonical/better)
+
+Deliberate, documented changes — Polars-TI does **not** reproduce the old value
+here on purpose.
+
+| Column(s) | Change & reason |
+| :--- | :--- |
+| `*_Z_30_1`, `ZS_30` (z-scores) | use population std (`ddof=0`, TA-Lib style) instead of sample std (`ddof=1`) |
+| `PVI`, `PVIe_255` | seed at `initial=100` (StockCharts canonical) instead of the first close |
+| `MASSI_9_25` | NaN-skipping cascaded EMA (more canonical than the old nested TA-Lib EMA) |
+| `OBVe_4`, `OBVe_12` | canonical `OBV[0]=0` seed (old `signed_series` ignored its `initial` arg) |
+| `VHM_610` | proper **rolling** standard deviation. The old code called `pstdev(volume, slength)`, but `statistics.pstdev`'s 2nd argument is the assumed *mean*, not a window — so the old denominator was a single ~3.9M constant for the whole series. |
+| `ABER_ATR/SG/XG_5_15` | native ATR bands. The old "native" golden actually held TA-Lib ATR values (a talib non-propagation bug); Polars-TI's native path is true pandas-ta semantics. |
+
+### 4c. Native vs TA-Lib paths (`talib=` flag)
+
+Polars-TI honors `talib=False` consistently: with the flag off it uses the
+native Polars/Numba path for an indicator **and all of its sub-indicators**
+(ATR, EMA, RSI, CMO, …). pandas-ta frequently failed to propagate the flag, so
+its "native" output for ~45 indicators silently used TA-Lib internally. Because
+of that, Polars-TI's *native-mode* output legitimately diverges from pandas-ta's
+*native* golden for those indicators — Polars-TI is the correct one
+(see `tests/test_native_parity.py`, `NATIVE_DIVERGENCE`). TA-Lib-mode output
+matches. This is a consequence of the design rule **native = pandas-ta
+semantics, talib = TA-Lib fidelity**.
+
+The same rule runs the other way for **`KAMA`**: pandas-ta had *only* a native
+KAMA, so the golden is native KAMA in both modes. Polars-TI's `talib=False` path
+reproduces it exactly, while `talib=True` returns TA-Lib's KAMA — which uses
+different internal fast/slow constants and so differs from the golden (~0.15).
+This is the one TA-Lib-mode column that diverges from the pandas golden and is
+not a bug; it is exempted in `tests/test_talib_parity.py` (`TALIB_DIVERGENCE`).
+
+### 4d. Renames / struct outputs
+
+Multi-output indicators emit a single **struct** column instead of several flat
+columns. Unnesting yields the familiar names. A few use shorter/dotted struct
+field keys; the parity suite folds them via an authoritative map. Representative
+mappings (old flat → new):
+
+| pandas-ta column | Polars-TI |
+| :--- | :--- |
+| `AROOND_14`, `AROONU_14`, `AROONOSC_14` | fields of the `AROON_14` struct |
+| `KCLe_20_2`, `KCBe_20_2`, `KCUe_20_2` | `KC_e_20_2` struct (`kcl`/`kcb`/`kcu`) |
+| `THERMO*_20_2_0.5` | `THERMO_20_2_0.5` struct |
+| `QQE*_14_5_4.236` | `QQE_14_5_4.236` struct |
+| `TOS_STDEVALL_*` | `TOS_STDEVALL` struct |
+| `VWAP_D` | `VWAP_1D` |
+
+The full map lives in `tests/_parity.py` (`RENAME_MAP`). To get flat columns with
+the familiar names, unnest the struct column (e.g. `.unnest("AROON_14")`).
+
+---
+
+## 5. Migration-era bug fixes
+
+While migrating to Polars these bug classes were found and fixed. They can make
+Polars-TI values differ from **earlier polars-ti snapshots** (not from correct
+pandas-ta):
+
+- **Accessor argument order** — several `df.ti.<name>()` wrappers passed columns
+  into the wrong positional parameters (e.g. `close` landing in `length`, or all
+  OHLC shifted by one in `smc`). Fixed across `rvi`, `vfi`, `vhm`, `avsl`,
+  `alphatrend`, `zigzag`, `trixh`, `smc`.
+- **NaN comparisons** — in Polars `NaN > 0` and `x < NaN` are `True` (NaN sorts
+  highest), which produced spurious warm-up flags (`AMAT`, `AOBV`, `THERMO`
+  long/short, Chandelier Exit direction). Guarded with `is_not_nan()`.
+- **EMA/RMA presma seeding** — a leading null/NaN no longer poisons the native
+  EMA/RMA recursion (repairs `atr`, `natr`, `dema`, `zlma`, native ATR bands).
+- **TA-Lib propagation** — indicators now thread `talib=` into every
+  sub-indicator (see [§4c](#4c-native-vs-ta-lib-paths-talib-flag)).
+- **Restored/repaired indicators** — `ha`, `ichimoku`, `mama`, `pivots`, `hilo`,
+  `psar`, `pmax`, `macd`, `ppo`, `ebsw`, `reflex`, `cksp`, `chop`, `atrts`,
+  `halftrend`, `inertia`, `pgo`, `rwi`, `vidya`, `ifisher` (INVFISHER) were
+  broken or emitted nothing in some path and now produce correct output in both
+  modes.
+
+---
+
+## 6. New indicators & credits
+
+17 indicators were added on top of the pandas baseline, harvested from community
+forks. Credit to the original authors:
+
+### From [xgboosted/pandas-ta-classic](https://github.com/xgboosted/pandas-ta-classic) (PR #7)
+
+| Indicator | Category | Description |
+| :--- | :--- | :--- |
+| `dsp` | Cycles | Detrended Synthetic Price |
+| `lrsi` | Momentum | Laguerre RSI (4-stage filter) |
+| `po` | Momentum | Projection Oscillator |
+| `trixh` | Momentum | TRIX Histogram (TRIX + Signal + Histogram) |
+| `vwmacd` | Momentum | Volume-Weighted MACD |
+| `mmar` | Overlap | Madrid Moving Average Ribbon |
+| `rainbow` | Overlap | Rainbow Charts (10-level SMA stack) |
+| `vfi` | Volume | Volume Flow Indicator |
+| `pmax` | Trend | Price Max (ATR-based adaptive trailing stop) |
+
+### From [rvuz1013/pandas-ta](https://github.com/rvuz1013/pandas-ta) (PR #8)
+
+| Indicator | Category | Description |
+| :--- | :--- | :--- |
+| `rmi` | Momentum | Relative Momentum Index |
+| `trama` | Trend | Trend Regulated Adaptive Moving Average |
+| `avsl` | Volatility | Anti-Volume Stop Loss (VPCI methodology) |
+| `halftrend` | Volatility | ATR-based trend indicator with channels |
+
+### From a 133-fork community audit (PR #9)
+
+| Indicator | Category | Source fork | Description |
+| :--- | :--- | :--- | :--- |
+| `fvg` | Volatility | aligheshlaghi97 | Fair Value Gap (price imbalances) |
+| `imi` | Momentum | delfoxav | Intraday Momentum Index |
+| `avwap` | Volume | locupleto | Anchored VWAP |
+| `ott` | Overlap | bartua | Optimized Trend Tracker (Anıl Özekşi) |
+
+The same audit contributed fixes credited to **bdelpey** (VIDYA TA-Lib CMO
+scale), **hypersousage** (CCI operator precedence), **GSLabIt** (Supertrend
+TradingView band preservation), **Rossco8** (FWMA `np.convolve` optimization),
+**80sVectorz** (ZigZag lookahead mode), and **allyssonmacedo** (PVR `**kwargs`).
+
+---
+
+## 7. Verifying these claims
+
+Every difference above is encoded in the parity test-suite, graded against
+committed golden fixtures generated from the pandas baseline and from TA-Lib:
+
+- `tests/_parity.py` — comparison engine + the rename map.
+- `tests/parity_exceptions.py` — per-column verdicts (`match`, `match_talib`,
+  `intentional`).
+- `tests/test_talib_parity.py` — the full per-column TA-Lib-mode gate (every
+  shared column matches the pandas golden except the documented exceptions).
+- `tests/test_native_parity.py` — the native-mode gate (with `NATIVE_DIVERGENCE`
+  for pandas-ta's TA-Lib-contaminated native columns).
+- `tests/test_study_completeness.py` — the column manifest + no-all-NaN check in
+  both modes.
+- `tests/test_parity_smoke.py` — a fast oracle sanity subset (not the full
+  per-column gate; that is `test_talib_parity.py`).
+
+Run them with `./scripts/check.sh --fast` (see [Development](development.md)).

@@ -1,101 +1,84 @@
 # -*- coding: utf-8 -*-
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars Keltner Channels Implementation (Pure Composition)
+# =============================================================================
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.utils import (
-    high_low_range,
-    v_bool,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
-
-from .true_range import true_range
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._validate import v_expr
 
 
 def kc(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    scalar: int | float | None = None,
-    tr: bool | None = None,
-    mamode: str | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Keltner Channels (KC)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 20,
+    scalar: float = 2.0,
+    mamode: str = "ema",
+    tr: bool = True,
+    talib: bool = True,
+    offset: int = 0,
+) -> pl.Expr:
+    """Polars: Keltner Channels (KC)
 
-    A popular volatility indicator similar to Bollinger Bands and
-    Donchian Channels.
+    Pure composition: pl_ma for basis/band, pl_true_range for TR.
+
+    A popular volatility indicator similar to Bollinger Bands.
 
     Sources:
         https://www.tradingview.com/wiki/Keltner_Channels_(KC)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): The short period.  Default: 20
-        scalar (float): A positive float to scale the bands. Default: 2
-        mamode (str): See ``help(ti.ma)``. Default: 'ema'
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        tr (bool): When True, it uses True Range for calculation.
-            When False, use a high - low as it's range calculation.
-            Default: True
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high'
+        low: Column name or pl.Expr for 'low'
+        close: Column name or pl.Expr for 'close'
+        length: The period. Default: 20
+        scalar: Band multiplier. Default: 2.0
+        mamode: MA type for basis/band. Default: 'ema'
+        tr: Use True Range (True) or High-Low (False). Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.DataFrame: lower, basis, upper columns.
+        pl.Expr: Struct with kcl (Lower), kcb (Basis), kcu (Upper) columns
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    _length = length + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    from polars_ti.ma import ma
+    from polars_ti.volatility.true_range import true_range
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    scalar = v_pos_default(scalar, 2)
-    tr = v_bool(tr, True)
-    mamode = v_mamode(mamode, "ema")
-    offset = v_offset(offset)
+    if high_expr is None or low_expr is None or close_expr is None:
+        return None
 
-    # Calculate
-    range_ = true_range(high, low, close) if tr else high_low_range(high, low)
-    basis = ma(mamode, close, length=length, **kwargs)
-    band = ma(mamode, range_, length=length, **kwargs)
+    # Range: True Range or High-Low (matches Pandas: true_range() if tr else high_low_range())
+    if tr:
+        range_expr = true_range(high_expr, low_expr, close_expr, talib=talib)
+    else:
+        range_expr = high_expr - low_expr
 
-    lower = basis - scalar * band
-    upper = basis + scalar * band
+    # Basis = MA(close) and Band = MA(range) using pl_ma composition.
+    # OLD kc never propagated talib to its MAs, so honour talib (default True)
+    # to match the OLD golden's TA-Lib MA in talib mode.
+    basis = ma(name=mamode, source=close_expr, length=length, talib=talib)
+    band = ma(name=mamode, source=range_expr, length=length, talib=talib)
 
-    # Offset
+    # KC bands
+    lower = basis - pl.lit(scalar) * band
+    upper = basis + pl.lit(scalar) * band
+
+    # Apply offset
     if offset != 0:
         lower = lower.shift(offset)
         basis = basis.shift(offset)
         upper = upper.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        lower = lower.fillna(kwargs["fillna"])
-        basis = basis.fillna(kwargs["fillna"])
-        upper = upper.fillna(kwargs["fillna"])
+    _props = f"_{mamode.lower()[0] if mamode else 'e'}_{length}_{int(scalar)}"
 
-    # Name and Category
-    _props = f"{mamode.lower()[0] if len(mamode) else ''}_{length}_{scalar}"
-    lower.name = f"KCL{_props}"
-    basis.name = f"KCB{_props}"
-    upper.name = f"KCU{_props}"
-    basis.category = upper.category = lower.category = "volatility"
-
-    data = {lower.name: lower, basis.name: basis, upper.name: upper}
-    df = DataFrame(data, index=close.index)
-    df.name = f"KC{_props}"
-    df.category = basis.category
-
-    return df
+    return pl.struct(
+        [
+            lower.alias("kcl"),
+            basis.alias("kcb"),
+            upper.alias("kcu"),
+        ]
+    ).alias(f"KC{_props}")

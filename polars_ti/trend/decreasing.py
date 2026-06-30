@@ -1,90 +1,69 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars Decreasing Implementation (pure Polars)
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import (
-    is_percent,
-    v_bool,
-    v_drift,
-    v_offset,
-    v_pos_default,
-    v_series,
-)
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def decreasing(
-    close: Series,
-    length: int | None = None,
-    strict: bool | None = None,
-    asint: bool | None = None,
-    percent: int | float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Decreasing
+    close: IntoExpr,
+    length: int = 1,
+    strict: bool = False,
+    asint: bool = True,
+    percent: float | None = None,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Decreasing
 
-    Returns True if the series is decreasing over a period, False otherwise.
-    If the kwarg 'strict' is True, it returns True if it is continuously
-    decreasing over the period. When using the kwarg 'asint', then it
-    returns 1 for True or 0 for False.
+    Returns True/1 if the series is decreasing over a period, False/0 otherwise.
+    If strict=True, checks if the series is continuously decreasing over the period.
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 1
-        strict (bool): If True, checks if the series is continuously
-            decreasing over the period. Default: False
-        percent (float): Percent as an integer. Default: None
-        asint (bool): Returns as binary. Default: True
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        length: Period length. Default: 1
+        strict: If True, check continuous decrease. Default: False
+        asint: Returns as 1/0 instead of True/False. Default: True
+        percent: Percent threshold. Default: None
+        drift: Difference period (for strict mode). Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: Decreasing expression
     """
-    # Validate
-    length = v_pos_default(length, 1)
-    close = v_series(close, length)
+    close_expr = v_expr(close)
+    if close_expr is None:
+        return None
 
-    if close is None:
-        return
-
-    strict = v_bool(strict, False)
-    asint = v_bool(asint, True)
-    percent = float(percent) if is_percent(percent) else False
-    drift = v_drift(drift)
-    offset = v_offset(offset)
-
-    # Calculate
-    close_ = (1 - 0.01 * percent) * close if percent else close
-    if strict:
-        # Returns value as float64? Have to cast to bool
-        decreasing = close < close_.shift(drift)
-        for x in range(3, length + 1):
-            decreasing &= close.shift(x - (drift + 1)) < close_.shift(x - drift)
-
-        decreasing = decreasing.fillna(0)
-        decreasing = decreasing.astype(bool)
+    # Apply percent threshold if specified (opposite to increasing)
+    if percent is not None and percent > 0:
+        close_adj = (1 - 0.01 * percent) * close_expr
     else:
-        decreasing = close_.diff(length) < 0
+        close_adj = close_expr
+
+    if strict:
+        # Strict mode: check each step is decreasing
+        result = close_expr < close_adj.shift(drift)
+        for x in range(3, length + 1):
+            result = result & (close_expr.shift(x - (drift + 1)) < close_adj.shift(x - drift))
+        result = result.fill_null(False)
+    else:
+        # Non-strict: just check if diff over length is negative.
+        # Guard against Polars treating ``NaN < 0`` / warmup nulls as a real
+        # comparison: a NaN/null diff is "not decreasing" -> False/0, like pandas.
+        diff = close_adj.diff(length)
+        result = (diff < 0) & diff.is_not_nan() & diff.is_not_null()
 
     if asint:
-        decreasing = decreasing.astype(int)
+        result = result.cast(pl.Int64)
 
-    # Offset
     if offset != 0:
-        decreasing = decreasing.shift(offset)
+        result = result.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        decreasing = decreasing.fillna(kwargs["fillna"])
-
-    # Name and Category
+    # Build name like Pandas
     _percent = f"_{0.01 * percent}" if percent else ""
     _props = f"{'S' if strict else ''}DEC{'p' if percent else ''}"
-    decreasing.name = f"{_props}_{length}{_percent}"
-    decreasing.category = "trend"
-
-    return decreasing
+    return result.alias(f"{_props}_{length}{_percent}")

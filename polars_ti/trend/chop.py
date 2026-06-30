@@ -1,89 +1,67 @@
 # -*- coding: utf-8 -*-
-from numpy import log, log10
-from pandas import Series
+# =============================================================================
+# Polars CHOP Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_bool, v_drift, v_offset, v_pos_default, v_scalar, v_series
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def chop(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    atr_length: int | None = None,
-    ln: bool | None = None,
-    scalar: int | float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Choppiness Index (CHOP)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    atr_length: int = 1,
+    ln: bool = False,
+    scalar: float = 100.0,
+    drift: int = 1,
+    talib: bool = False,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Choppiness Index (CHOP)
 
-    The Choppiness Index was created by Australian commodity trader
-    E.W. Dreiss and is designed to determine if the market is choppy
-    (trading sideways) or not choppy (trading within a trend in either
-    direction). Values closer to 100 implies the underlying is choppier
-    whereas values closer to 0 implies the underlying is trending.
+    Determines if the market is choppy (sideways) or trending.
+    Values near 100 = choppy, near 0 = trending.
 
-    Sources:
-        https://www.tradingview.com/scripts/choppinessindex/
-        https://www.motivewave.com/studies/choppiness_index.htm
+    Formula: CHOP = scalar * (log(sum(ATR)) - log(HH-LL)) / log(length)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        atr_length (int): Length for ATR. Default: 1
-        ln (bool): When True, it uses 'ln' instead of 'log10'. Default: False
-        scalar (float): How much to magnify. Default: 100
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        atr_length: ATR period. Default: 1
+        ln: Use natural log instead of log10. Default: False
+        scalar: Magnification factor. Default: 100
+        drift: Difference period. Default: 1
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: CHOP expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    high = v_series(high, length + 1)
-    low = v_series(low, length + 1)
-    close = v_series(close, length + 1)
+    from polars_ti.volatility.atr import atr
 
-    if high is None or low is None or close is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    atr_length = v_pos_default(atr_length, 1)
-    scalar = v_scalar(scalar, 100)
-    ln = v_bool(ln, False)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    diff = high_expr.rolling_max(window_size=length) - low_expr.rolling_min(window_size=length)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=atr_length, talib=talib)
+    atr_sum = atr_expr.rolling_sum(window_size=length)
 
-    # Calculate
-    diff = high.rolling(length).max() - low.rolling(length).min()
-
-    atr_ = atr(high=high, low=low, close=close, length=atr_length)
-    atr_sum = atr_.rolling(length).sum()
-
-    chop = scalar
     if ln:
-        chop *= (log(atr_sum) - log(diff)) / log(length)
+        chop_expr = scalar * (atr_sum.log() - diff.log()) / pl.lit(length).cast(pl.Float64).log()
     else:
-        chop *= (log10(atr_sum) - log10(diff)) / log10(length)
+        chop_expr = (
+            scalar
+            * (atr_sum.log() / pl.lit(10.0).log() - diff.log() / pl.lit(10.0).log())
+            / (pl.lit(length).cast(pl.Float64).log() / pl.lit(10.0).log())
+        )
 
-    # Offset
     if offset != 0:
-        chop = chop.shift(offset)
+        chop_expr = chop_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        chop = chop.fillna(kwargs["fillna"])
-
-    # Name and Category
-    chop.name = f"CHOP{'ln' if ln else ''}_{length}_{atr_length}_{scalar}"
-    chop.category = "trend"
-
-    return chop
+    _label = f"CHOP{'ln' if ln else ''}_{length}_{atr_length}_{scalar}"
+    return chop_expr.alias(_label)

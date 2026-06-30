@@ -1,179 +1,189 @@
 # -*- coding: utf-8 -*-
-from numpy import isnan, nan
-from pandas import DataFrame, Series
+# =============================================================================
+# Polars ADX Implementation (Numba kernel)
+# =============================================================================
+import numpy as np
+from numba import njit
+import polars as pl
 
-from polars_ti.ma import ma
-from polars_ti.maps import Imports
-from polars_ti.utils import (
-    v_bool,
-    v_drift,
-    v_mamode,
-    v_offset,
-    v_pos_default,
-    v_scalar,
-    v_series,
-    v_talib,
-    zero,
-)
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
+    """Numba kernel for ADX, ADXR, DMP, DMN."""
+    n = len(high)
+    adx_out = np.full(n, np.nan)
+    adxr_out = np.full(n, np.nan)
+    dmp_out = np.full(n, np.nan)
+    dmn_out = np.full(n, np.nan)
+
+    # True Range
+    tr = np.zeros(n)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        hl = high[i] - low[i]
+        hc = abs(high[i] - close[i - 1])
+        lc = abs(low[i] - close[i - 1])
+        tr[i] = max(hl, hc, lc)
+
+    # Plus/Minus DM
+    pos = np.zeros(n)
+    neg = np.zeros(n)
+    for i in range(1, n):
+        up = high[i] - high[i - 1]
+        dn = low[i - 1] - low[i]
+        if up > dn and up > 0:
+            pos[i] = up
+        if dn > up and dn > 0:
+            neg[i] = dn
+
+    # RMA smoothing for ATR, +DM, -DM
+    atr_rma = np.zeros(n)
+    pos_rma = np.zeros(n)
+    neg_rma = np.zeros(n)
+
+    # SMA init
+    atr_sum = 0.0
+    pos_sum = 0.0
+    neg_sum = 0.0
+    for i in range(length):
+        atr_sum += tr[i]
+        pos_sum += pos[i]
+        neg_sum += neg[i]
+    atr_rma[length - 1] = atr_sum / length
+    pos_rma[length - 1] = pos_sum / length
+    neg_rma[length - 1] = neg_sum / length
+
+    alpha = 1.0 / length
+    for i in range(length, n):
+        atr_rma[i] = alpha * tr[i] + (1 - alpha) * atr_rma[i - 1]
+        pos_rma[i] = alpha * pos[i] + (1 - alpha) * pos_rma[i - 1]
+        neg_rma[i] = alpha * neg[i] + (1 - alpha) * neg_rma[i - 1]
+
+    # +DI, -DI, DX
+    dx = np.full(n, np.nan)
+    for i in range(length - 1, n):
+        if atr_rma[i] != 0:
+            dmp_out[i] = scalar * pos_rma[i] / atr_rma[i]
+            dmn_out[i] = scalar * neg_rma[i] / atr_rma[i]
+            di_sum = dmp_out[i] + dmn_out[i]
+            if di_sum != 0:
+                dx[i] = scalar * abs(dmp_out[i] - dmn_out[i]) / di_sum
+
+    # ADX = RMA of DX
+    # Find first valid dx
+    first_valid = -1
+    for i in range(n):
+        if not np.isnan(dx[i]):
+            first_valid = i
+            break
+
+    if first_valid >= 0 and first_valid + lensig - 1 < n:
+        # SMA init for ADX
+        dx_sum = 0.0
+        for i in range(first_valid, first_valid + lensig):
+            dx_sum += dx[i] if not np.isnan(dx[i]) else 0.0
+        adx_out[first_valid + lensig - 1] = dx_sum / lensig
+
+        a2 = 1.0 / lensig
+        for i in range(first_valid + lensig, n):
+            if not np.isnan(dx[i]):
+                adx_out[i] = a2 * dx[i] + (1 - a2) * adx_out[i - 1]
+
+    # ADXR
+    for i in range(adxr_length, n):
+        if not np.isnan(adx_out[i]) and not np.isnan(adx_out[i - adxr_length]):
+            adxr_out[i] = 0.5 * (adx_out[i] + adx_out[i - adxr_length])
+
+    return adx_out, adxr_out, dmp_out, dmn_out
 
 
 def adx(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    lensig: int | None = None,
-    adxr_length: int | None = None,
-    scalar: int | float | None = None,
-    talib: bool | None = None,
-    tvmode: bool | None = None,
-    mamode: str | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> DataFrame:
-    """Average Directional Movement (ADX)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    lensig: int = 14,
+    adxr_length: int = 2,
+    scalar: float = 100.0,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Average Directional Index (ADX)
 
-    Average Directional Movement is meant to quantify trend strength by
-    measuring the amount of movement in a single direction.
-
-    Sources:
-        TA Lib Correlation: >99%
-        https://www.tradingtechnologies.com/help/x-study/technical-indicator-definitions/average-directional-movement-adx/
+    Quantifies trend strength by measuring directional movement.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        lensig (int): Signal Length. Like TradingView's default ADX.
-            Default: length
-        adxr_length (int): ADXR lookback. Default: 2
-        scalar (float): How much to magnify. Default: 100
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        tvmode (bool): Trading View or book implementation mode. Default: False
-        mamode (str): See ``help(ti.ma)``. Default: 'rma'
-        drift (int): The difference period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: ATR/DM period. Default: 14
+        lensig: Signal period. Default: 14
+        adxr_length: ADXR lookback. Default: 2
+        scalar: Magnification. Default: 100
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.DataFrame: adx, adxr, dmp, dmn columns.
+        pl.Expr: Struct with ADX, ADXR, DMP, DMN columns
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    lensig = v_pos_default(lensig, length)
-    adxr_length = v_pos_default(adxr_length, 2)
-    _length = max(length, lensig, adxr_length)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    if high is None or low is None or close is None:
-        return
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    scalar = v_scalar(scalar, 100)
-    mamode = v_mamode(mamode, "rma")
-    mode_tal = v_talib(talib)
-    mode_tv = v_bool(tvmode, False)
+    def _compute(s: pl.Series) -> pl.Series:
+        data = s.struct.unnest()
+        h = data["_h"].to_numpy().astype(np.float64)
+        l_ = data["_l"].to_numpy().astype(np.float64)
+        c = data["_c"].to_numpy().astype(np.float64)
 
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+        if Imports["talib"] and v_talib(talib) and length > 1 and lensig == length:
+            from talib import ADX, MINUS_DM, PLUS_DM
 
-    # Calculate
-    atr_ = atr(
-        high=high,
-        low=low,
-        close=close,
-        length=length,
-        prenan=kwargs.pop("prenan", True),
+            adx_arr = ADX(h, l_, c, timeperiod=length)
+            dmp_arr = PLUS_DM(h, l_, timeperiod=length)
+            dmn_arr = MINUS_DM(h, l_, timeperiod=length)
+            adxr_arr = 0.5 * (adx_arr + np.roll(adx_arr, adxr_length))
+            adxr_arr[:adxr_length] = np.nan
+        else:
+            adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, lensig, adxr_length, scalar)
+
+        if offset != 0:
+            for arr in [adx_arr, adxr_arr, dmp_arr, dmn_arr]:
+                arr[:] = np.roll(arr, offset)
+                if offset > 0:
+                    arr[:offset] = np.nan
+
+        n = len(h)
+        return pl.Series(
+            values=[
+                {
+                    f"ADX_{lensig}": adx_arr[i],
+                    f"ADXR_{lensig}_{adxr_length}": adxr_arr[i],
+                    f"DMP_{length}": dmp_arr[i],
+                    f"DMN_{length}": dmn_arr[i],
+                }
+                for i in range(n)
+            ]
+        )
+
+    fields = [
+        pl.Field(f"ADX_{lensig}", pl.Float64),
+        pl.Field(f"ADXR_{lensig}_{adxr_length}", pl.Float64),
+        pl.Field(f"DMP_{length}", pl.Float64),
+        pl.Field(f"DMN_{length}", pl.Float64),
+    ]
+    return (
+        pl.struct(
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+            close_expr.alias("_c"),
+        )
+        .map_batches(_compute, return_dtype=pl.Struct(fields))
+        .alias(f"ADX_{lensig}")
     )
-    if atr_ is None or all(isnan(atr_)):
-        return
-
-    k = scalar / atr_
-
-    up = high - high.shift(drift)  # high.diff(drift)
-    dn = low.shift(drift) - low  # low.diff(-drift).shift(drift)
-
-    pos = ((up > dn) & (up > 0)) * up
-    neg = ((dn > up) & (dn > 0)) * dn
-
-    # Issue #671 Solution
-    # not_close = ~isclose(up, dn)
-    # pos = ((up > dn) & (up > 0) * up & not_close) * up
-    # neg = ((dn > up) & (dn > 0) * dn & not_close) * dn
-
-    pos = pos.apply(zero)
-    neg = neg.apply(zero)
-
-    if not mode_tv and Imports["talib"] and mode_tal and length > 1:
-        from talib import ADX, MINUS_DM, PLUS_DM
-
-        adx = ADX(high, low, close, length)
-        dmp = PLUS_DM(high, low, length)
-        dmn = MINUS_DM(high, low, length)
-    elif mode_tv:
-        # How to treat the initial value of RMA varies from one another.
-        # It follows the way TradingView does, setting it to the average of
-        # previous values. Since 'pandas' does not provide API to control
-        # the initial value, work around it by modifying input value to get
-        # desired output.
-        pos.iloc[length - 1] = pos[:length].sum()
-        pos[: length - 1] = 0
-        neg.iloc[length - 1] = neg[:length].sum()
-        neg[: length - 1] = 0
-
-        alpha = 1 / length
-        dmp = k * pos.ewm(alpha=alpha, adjust=False, min_periods=length).mean()
-        dmn = k * neg.ewm(alpha=alpha, adjust=False, min_periods=length).mean()
-
-        # The same goes with dx.
-        dx = scalar * (dmp - dmn).abs() / (dmp + dmn)
-        dx = dx.shift(-length)
-        dx.iloc[length - 1] = dx[:length].sum()
-        dx[: length - 1] = 0
-
-        adx = ma(mamode, dx, length=lensig, **kwargs)
-        # Rollback shifted rows.
-        adx[: length - 1] = nan
-        adx = adx.shift(length)
-    else:
-        dmp = k * ma(mamode, pos, length=length, **kwargs)
-        dmn = k * ma(mamode, neg, length=length, **kwargs)
-        dx = scalar * (dmp - dmn).abs() / (dmp + dmn)
-        adx = ma(mamode, dx, length=lensig, **kwargs)
-
-    adxr = 0.5 * (adx + adx.shift(adxr_length))
-
-    # Offset
-    if offset != 0:
-        adx = adx.shift(offset)
-        adxr = adxr.shift(offset)
-        dmn = dmn.shift(offset)
-        dmp = dmp.shift(offset)
-
-    # Fill
-    if "fillna" in kwargs:
-        adx = adx.fillna(kwargs["fillna"])
-        adxr = adxr.fillna(kwargs["fillna"])
-        dmp = dmp.fillna(kwargs["fillna"])
-        dmn = dmn.fillna(kwargs["fillna"])
-
-    # Name and Category
-    adx.name = f"ADX_{lensig}"
-    adxr.name = f"ADXR_{lensig}_{adxr_length}"
-    dmp.name = f"DMP_{length}"
-    dmn.name = f"DMN_{length}"
-    adx.category = dmp.category = dmn.category = "trend"
-
-    data = {adx.name: adx, adxr.name: adxr, dmp.name: dmp, dmn.name: dmn}
-    df = DataFrame(data, index=close.index)
-    df.name = f"ADX_{lensig}"
-    df.category = "trend"
-
-    return df

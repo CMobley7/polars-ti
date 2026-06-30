@@ -1,82 +1,71 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars EOM (Ease of Movement) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import hl2, sma
-from polars_ti.utils import non_zero_range, v_drift, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._math import non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
 def eom(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    length: int | None = None,
-    divisor: int | float | None = None,
-    drift: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Ease of Movement (EOM)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 14,
+    divisor: float = 100_000_000,
+    drift: int = 1,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Ease of Movement (EOM)
 
-    Ease of Movement is a volume based oscillator that is designed to
-    measure the relationship between price and volume fluctuating across
-    a zero line.
-
-    Sources:
-        https://www.tradingview.com/wiki/Ease_of_Movement_(EOM)
-        https://www.motivewave.com/studies/ease_of_movement.htm
-        https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:ease_of_movement_emv
+    Ease of Movement is a volume based oscillator that measures the relationship
+    between price and volume fluctuating across a zero line.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        length (int): The short period. Default: 14
-        divisor (float): Divisor. Default: 100000000
-        drift (int): The diff period. Default: 1
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: SMA smoothing period. Default: 14
+        divisor: Volume divisor. Default: 100000000
+        drift: The diff period. Default: 1
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: EOM expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    _length = length + 1
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
+    from polars_ti.overlap.hl2 import hl2
+    from polars_ti.overlap.sma import sma
 
-    if high is None or low is None or close is None or volume is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    divisor = v_pos_default(divisor, 100_000_000)
-    drift = v_drift(drift)
-    offset = v_offset(offset)
+    if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
 
-    # Calculate
-    high_low_range = non_zero_range(high, low)
-    distance = hl2(high=high, low=low)
-    distance -= hl2(high=high.shift(drift), low=low.shift(drift))
-    box_ratio = volume / divisor
-    box_ratio /= high_low_range
-    eom = distance / box_ratio
-    eom = sma(eom, length=length)
+    # EOM = SMA(distance / box_ratio, length)
+    # distance = hl2 - hl2.shift(drift)
+    # box_ratio = (volume / divisor) / (high - low)
 
-    # Offset
+    # Use pl_hl2 for code reuse
+    hl2_expr = hl2(high_expr, low_expr)
+    hl2_shifted = hl2(high_expr.shift(drift), low_expr.shift(drift))
+    distance = hl2_expr - hl2_shifted
+
+    hl_range_safe = non_zero_range(high_expr, low_expr)
+    box_ratio = (volume_expr / divisor) / hl_range_safe
+
+    eom_raw = distance / box_ratio
+
+    # Use pl_sma for code reuse
+    eom_expr = sma(eom_raw, length=length, talib=False, offset=0)
+
     if offset != 0:
-        eom = eom.shift(offset)
+        eom_expr = eom_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        eom = eom.fillna(kwargs["fillna"])
-
-    # Name and Category
-    eom.name = f"EOM_{length}_{divisor}"
-    eom.category = "volume"
-
-    return eom
+    return eom_expr.alias(f"EOM_{length}_{int(divisor)}")

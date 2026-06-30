@@ -5,10 +5,9 @@ from io import StringIO
 from pathlib import Path
 from sys import float_info as sflt
 
+import polars as pl
 from numba import njit
 from numpy import argmax, argmin, finfo, float64
-from pandas import DataFrame, Series
-
 from polars_ti.maps import Imports
 from polars_ti.utils._validate import v_bool, v_dataframe, v_pos_default, v_series
 
@@ -20,19 +19,16 @@ def camelCase2Title(x: str):
 
 def category_files(category: str) -> list:
     """Helper function to return all filenames in the category directory."""
-    files = [
-        x.stem
-        for x in list(Path(f"polars_ti/{category}/").glob("*.py"))
-        if x.stem != "__init__"
-    ]
+    files = [x.stem for x in list(Path(f"polars_ti/{category}/").glob("*.py")) if x.stem != "__init__"]
     return files
 
 
-def non_zero_range(high: Series, low: Series) -> Series:
+def non_zero_range(high, low):
     """Returns the difference of two series and adds epsilon to any zero values.
     This occurs commonly in crypto data when 'high' = 'low'."""
     diff = high - low
-    if diff.eq(0).any().any():
+    is_zero = diff == 0
+    if hasattr(is_zero, "any") and is_zero.any():
         diff += sflt.epsilon
     return diff
 
@@ -53,13 +49,7 @@ def recent_minimum_index(x) -> int:
     return int(argmin(x[::-1]))
 
 
-def rma_pandas(series: Series, length: int):
-    series = v_series(series)
-    alpha = (1.0 / length) if length > 0 else 0.5
-    return series.ewm(alpha=alpha, min_periods=length).mean()
-
-
-def signed_series(series: Series, initial: int, lag: int | None = None) -> Series:
+def signed_series(series, initial: int, lag: int | None = None):
     """Returns a Signed Series with or without an initial value
 
     Default Example:
@@ -72,16 +62,24 @@ def signed_series(series: Series, initial: int, lag: int | None = None) -> Serie
         initial = initial
     series = v_series(series)
     lag = v_pos_default(lag, 1)
-    sign = series.diff(lag)
-    sign[sign > 0] = 1
-    sign[sign < 0] = -1
-    sign.iloc[0] = initial
-    return sign
+    if isinstance(series, pl.Series):
+        diff = series.diff(lag)
+        values = pl.when(diff > 0).then(1).when(diff < 0).then(-1).otherwise(0).alias(series.name)
+        sign = pl.DataFrame({series.name: series}).select(values).to_series()
+        return pl.Series(series.name, [initial] + sign.slice(1).to_list())
+
+    import numpy as np
+
+    values = np.asarray(series, dtype=float)
+    sign = np.zeros_like(values, dtype=float)
+    sign[lag:] = np.sign(values[lag:] - values[:-lag])
+    sign[0] = np.nan if initial is None else initial
+    return pl.Series(getattr(series, "name", "signed"), sign)
 
 
 def simplify_columns(df, n: int = 3) -> list[str]:
-    df.columns = df.columns.str.lower()
-    return [c.split("_")[0][n - 1 : n] for c in df.columns]
+    columns = [c.lower() for c in df.columns]
+    return [c.split("_")[0][n - 1 : n] for c in columns]
 
 
 def tal_ma(name: str) -> int:
@@ -111,29 +109,30 @@ def tal_ma(name: str) -> int:
     return 0  # Default: SMA -> 0
 
 
-def unsigned_differences(
-    series: Series, lag: int | None = None, **kwargs
-) -> tuple[Series, Series]:
+def unsigned_differences(series, lag: int | None = None, **kwargs) -> tuple:
     """Unsigned Differences
-    Returns two Series, an unsigned positive and unsigned negative series based
-    on the differences of the original series. The positive series are only the
-    increases and the negative series are only the decreases.
+    Returns two arrays, an unsigned positive and unsigned negative based
+    on the differences of the original series.
 
-    Default Example:
-    series   = Series([3, 2, 2, 1, 1, 5, 6, 6, 7, 5, 3]) and returns
-    positive  = Series([0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0])
-    negative = Series([0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1])
+    Example:
+    series   = [3, 2, 2, 1, 1, 5, 6, 6, 7, 5, 3] returns
+    positive = [0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0]
+    negative = [0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1]
     """
     lag = int(lag) if lag is not None else 1
-    negative = series.diff(lag)
-    negative = negative.fillna(0)
-    positive = negative.copy()
+    if isinstance(series, pl.Series):
+        diff = series.diff(lag).fill_null(0)
+        positive = (diff > 0).cast(pl.Int64 if kwargs.get("asint", False) else pl.Float64)
+        negative = (diff < 0).cast(pl.Int64 if kwargs.get("asint", False) else pl.Float64)
+        return positive, negative
 
-    positive[positive <= 0] = 0
-    positive[positive > 0] = 1
+    import numpy as np
 
-    negative[negative >= 0] = 0
-    negative[negative < 0] = 1
+    values = np.asarray(series, dtype=float)
+    diff = np.zeros_like(values, dtype=float)
+    diff[lag:] = values[lag:] - values[:-lag]
+    positive = (diff > 0).astype(float)
+    negative = (diff < 0).astype(float)
 
     if kwargs.pop("asint", False):
         positive = positive.astype(int)
@@ -147,7 +146,7 @@ def ms2secs(ms, p: int) -> float:
 
 
 def _speed_group(
-    df: DataFrame,
+    df,
     group: list[str] = [],
     talib: bool = False,
     index_name: str = "Indicator",
@@ -165,7 +164,7 @@ def _speed_group(
 
 
 def speed_test(
-    df: DataFrame,
+    df,
     only: list[str] | None = None,
     excluded: list[str] | None = None,
     top: int | None = None,
@@ -177,14 +176,14 @@ def speed_test(
     stats: bool = False,
     verbose: bool = False,
     silent: bool = False,
-) -> DataFrame | tuple[DataFrame, DataFrame]:
+):
     """Speed Test
 
     Given a standard ohlcv DataFrame, the Speed Test calculates the
     speed of each indicator of the DataFrame Extension: df.ti.<indicator>().
 
     Args:
-        df (pd.DataFrame): DataFrame with ohlcv columns
+        df (DataFrame): with ohlcv columns
         only (list): List of indicators to run. Default: None
         excluded (list): List of indicators to exclude. Default: None
         top (Int): Return a DataFrame the 'top' values. Default: None
@@ -200,11 +199,11 @@ def speed_test(
         silent (bool): Display nothing. Default: False
 
     Returns:
-        pd.DataFrame: if stats is False
-        (pd.DataFrame, pd.DataFrame): if stats is True
+        DataFrame: if stats is False
+        (DataFrame, DataFrame): if stats is True
 
     """
-    if df.empty:
+    if getattr(df, "is_empty", lambda: False)():
         print(f"[X] No DataFrame")
         return
     talib = v_bool(talib, False)
@@ -227,20 +226,37 @@ def speed_test(
     _iname = "Indicator"
     if verbose:
         print()
-        data = _speed_group(df.copy(), _indicators, talib, _iname, places)
+        data = _speed_group(df.clone(), _indicators, talib, _iname, places)
     else:
         _this = StringIO()
         with redirect_stdout(_this):
-            data = _speed_group(df.copy(), _indicators, talib, _iname, places)
+            data = _speed_group(df.clone(), _indicators, talib, _iname, places)
         _this.close()
 
-    tdf = DataFrame.from_dict(data)
-    tdf = tdf.set_index(_iname)
-    tdf = tdf.sort_values(by=sortby, ascending=ascending)
+    tdf = pl.DataFrame(data)
+    if tdf.is_empty():
+        return None
+    tdf = tdf.sort(sortby, descending=not ascending)
 
-    total_timedf = DataFrame(tdf.describe().loc[["min", "50%", "mean", "max"]]).T
-    total_timedf["total"] = tdf.sum(axis=0).T
-    total_timedf = total_timedf.T
+    total_timedf = pl.DataFrame(
+        {
+            "metric": ["min", "50%", "mean", "max", "total"],
+            "ms": [
+                tdf["ms"].min(),
+                tdf["ms"].median(),
+                tdf["ms"].mean(),
+                tdf["ms"].max(),
+                tdf["ms"].sum(),
+            ],
+            "secs": [
+                tdf["secs"].min(),
+                tdf["secs"].median(),
+                tdf["secs"].mean(),
+                tdf["secs"].max(),
+                tdf["secs"].sum(),
+            ],
+        }
+    )
 
     _div = "=" * 60
     _observations = f"  Observations{'[talib]' if talib else ''}: {df.shape[0]}"
@@ -248,16 +264,11 @@ def speed_test(
     _title = f"  {_quick_slow} Indicators"
     _perfstats = f"Time Stats:\n{total_timedf}"
     if top:
-        _title = f"  {_quick_slow} {top} Indicators [{tdf.shape[0]}]"
+        _title = f"  {_quick_slow} {top} Indicators [{tdf.height}]"
         tdf = tdf.head(top)
 
     if not silent:
-        print(
-            f"\n{_div}\n{_title}\n{_observations}\n{_div}\n{tdf}\n\n{_div}\n{_perfstats}\n\n{_div}\n"
-        )
-
-    if isinstance(gradient, bool) and gradient:
-        return tdf.style.background_gradient("autumn_r"), total_timedf
+        print(f"\n{_div}\n{_title}\n{_observations}\n{_div}\n{tdf}\n\n{_div}\n{_perfstats}\n\n{_div}\n")
 
     if stats:
         return tdf, total_timedf

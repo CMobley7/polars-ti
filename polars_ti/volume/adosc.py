@@ -1,93 +1,94 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars ADOSC (Accumulation/Distribution Oscillator) Implementation
+# =============================================================================
+import polars as pl
+import numpy as np
 
-from polars_ti.maps import Imports
-from polars_ti.overlap import ema
-from polars_ti.utils import v_offset, v_pos_default, v_series, v_talib
-from polars_ti.volume import ad
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def adosc(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    open_: Series | None = None,
-    fast: int | None = None,
-    slow: int | None = None,
-    talib: bool | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Accumulation/Distribution Oscillator or Chaikin Oscillator
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    fast: int = 3,
+    slow: int = 10,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Accumulation/Distribution Oscillator (ADOSC) / Chaikin Oscillator
 
     Accumulation/Distribution Oscillator indicator utilizes
-    Accumulation/Distribution and treats it similarly to MACD
-    or APO.
-
-    Sources:
-        https://www.investopedia.com/articles/active-trading/031914/understanding-chaikin-oscillator.asp
+    Accumulation/Distribution and treats it similarly to MACD.
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        open_ (pd.Series): Series of 'open's
-        volume (pd.Series): Series of 'volume's
-        fast (int): The short period. Default: 12
-        slow (int): The long period. Default: 26
-        talib (bool): If TA Lib is installed and talib is True, Returns
-            the TA Lib version. Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        fast: Fast EMA period. Default: 3
+        slow: Slow EMA period. Default: 10
+        talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: ADOSC expression
     """
-    # Validate
-    fast = v_pos_default(fast, 3)
-    slow = v_pos_default(slow, 10)
-    _length = max(fast, slow)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    if high is None or low is None or close is None or volume is None:
-        return
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    mode_tal = v_talib(talib)
-    offset = v_offset(offset)
+    if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
 
-    # Calculate
-    if Imports["talib"] and mode_tal:
-        from talib import ADOSC
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _fast = fast
+    _slow = slow
 
-        adosc = ADOSC(high, low, close, volume, fast, slow)
+    if _use_talib:
+
+        def compute_adosc(df: pl.DataFrame) -> pl.Series:
+            from talib import ADOSC as TALIB_ADOSC
+
+            h = df["high"].to_numpy().astype(np.float64)
+            l = df["low"].to_numpy().astype(np.float64)
+            c = df["close"].to_numpy().astype(np.float64)
+            v = df["volume"].to_numpy().astype(np.float64)
+            result = TALIB_ADOSC(h, l, c, v, fastperiod=_fast, slowperiod=_slow)
+            return pl.Series(f"ADOSC_{_fast}_{_slow}", result)
+
+        adosc_expr = pl.struct(
+            [
+                high_expr.alias("high"),
+                low_expr.alias("low"),
+                close_expr.alias("close"),
+                volume_expr.alias("volume"),
+            ]
+        ).map_batches(lambda s: compute_adosc(s.struct.unnest()), return_dtype=pl.Float64)
     else:
-        # remove length so it doesn't override ema length
-        if "length" in kwargs:
-            kwargs.pop("length")
+        # Compose using pl_ad and pl_ma for code reuse
+        # Forward talib param for consistent behavior
+        from polars_ti.volume.ad import ad
+        from polars_ti.ma import ma
 
-        ad_ = ad(
-            high=high, low=low, close=close, volume=volume, open_=open_, talib=mode_tal
-        )
-        fast_ad = ema(close=ad_, length=fast, **kwargs, talib=mode_tal)
-        slow_ad = ema(close=ad_, length=slow, **kwargs, talib=mode_tal)
-        adosc = fast_ad - slow_ad
+        # Build AD expression (without offset) - use talib if available for AD
+        ad_expr = ad(high_expr, low_expr, close_expr, volume_expr, talib=talib, offset=0)
 
-    # Offset
+        # Apply EMA to AD for fast and slow - forward talib for TA-Lib EMA behavior
+        fast_ma = ma(name="ema", source=ad_expr, length=fast, talib=talib)
+        slow_ma = ma(name="ema", source=ad_expr, length=slow, talib=talib)
+
+        # ADOSC = FastEMA(AD) - SlowEMA(AD)
+        adosc_expr = fast_ma - slow_ma
+
     if offset != 0:
-        adosc = adosc.shift(offset)
+        adosc_expr = adosc_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        adosc = adosc.fillna(kwargs["fillna"])
-
-    # Name and Category
-    adosc.name = f"ADOSC_{fast}_{slow}"
-    adosc.category = "volume"
-
-    return adosc
+    return adosc_expr.alias(f"ADOSC_{fast}_{slow}")

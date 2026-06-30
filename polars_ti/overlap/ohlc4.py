@@ -1,58 +1,28 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars OHLC4 Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import v_offset, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
-def ohlc4(
-    open_: Series,
-    high: Series,
-    low: Series,
-    close: Series,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """OHLC4
-
-    OHLC4 is the average of open, high, low and close.
+def ohlc4(open_: IntoExpr, high: IntoExpr, low: IntoExpr, close: IntoExpr) -> PlExpr:
+    """Polars: OHLC4 - Average of Open, High, Low, Close
 
     Args:
-        open_ (pd.Series): Series of 'open's
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value). Only works if
-            result is offset.
+        open_: Column name or pl.Expr for 'open' prices
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: OHLC4 expression
     """
-    # Validate
-    open_ = v_series(open_)
-    high = v_series(high)
-    low = v_series(low)
-    close = v_series(close)
-    offset = v_offset(offset)
+    open_expr = v_expr(open_)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
 
-    # Calculate
-    avg = 0.25 * (
-        open_.to_numpy() + high.to_numpy() + low.to_numpy() + close.to_numpy()
-    )
-    ohlc4 = Series(avg, index=close.index)
-
-    # Offset
-    if offset != 0:
-        ohlc4 = ohlc4.shift(offset)
-
-        # Fill
-        if "fillna" in kwargs:
-            ohlc4 = ohlc4.fillna(kwargs["fillna"])
-
-    # Name and Category
-    ohlc4.name = "OHLC4"
-    ohlc4.category = "overlap"
-
-    return ohlc4
+    return ((open_expr + high_expr + low_expr + close_expr) / 4).alias("OHLC4")

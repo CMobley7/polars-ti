@@ -1,77 +1,56 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars DPO (Detrend Price Oscillator) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import sma
-from polars_ti.utils import v_bool, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def dpo(
-    close: Series,
-    length: int | None = None,
+    close: IntoExpr,
+    length: int = 20,
     centered: bool = True,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Detrend Price Oscillator (DPO)
+    lookahead: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Detrend Price Oscillator (DPO)
 
-    Is an indicator designed to remove trend from price and make it easier to
-    identify cycles.
+    Removes trend from price to identify cycles.
 
-    WARNING: This function may leak future data when used for machine learning
-        if centered=True (default). Set lookahead=False to avoid data leakage.
-        See https://github.com/CMobley7/polars-ti/issues/60#.
+    WARNING: centered=True (default) leaks future data. Set lookahead=False
+    to avoid data leakage in ML applications.
 
-    Sources:
-        https://www.tradingview.com/scripts/detrendedpriceoscillator/
-        https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/dpo
-        http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:detrended_price_osci
+    Formula:
+        t = int(0.5 * length) + 1
+        centered: DPO = close.shift(t) - SMA(close, length), then shift(-t)
+        non-centered: DPO = close - SMA(close, length).shift(t)
 
     Args:
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 1
-        centered (bool): Shift the dpo back by int(0.5 * length) + 1.
-            Default: True
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        lookahead (value, optional): To prevent centering
-            and avoid potential data leakage, set to False.
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        close: Column name or pl.Expr for input values
+        length: Period. Default: 20
+        centered: Shift DPO back. Default: True
+        lookahead: If False, forces centered=False. Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: DPO expression
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    close = v_series(close, length + 1)
+    from polars_ti.overlap.sma import sma
 
-    if close is None:
-        return
-
-    centered = v_bool(centered, True)
-    offset = v_offset(offset)
-    if not kwargs.get("lookahead", True):
-        centered = False
-
-    # Calculate
+    close_expr = v_expr(close)
     t = int(0.5 * length) + 1
-    ma = sma(close, length)
 
-    if centered:
-        dpo = (close.shift(t) - ma).shift(-t)
+    ma_expr = sma(close_expr, length=length, talib=False, offset=0)
+
+    _centered = centered and lookahead
+    if _centered:
+        dpo_expr = (close_expr.shift(t) - ma_expr).shift(-t)
     else:
-        dpo = close - ma.shift(t)
+        dpo_expr = close_expr - ma_expr.shift(t)
 
-    # Offset
     if offset != 0:
-        dpo = dpo.shift(offset)
+        dpo_expr = dpo_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        dpo = dpo.fillna(kwargs["fillna"])
-
-    # Name and Category
-    dpo.name = f"DPO_{length}"
-    dpo.category = "trend"
-
-    return dpo
+    return dpo_expr.alias(f"DPO_{length}")

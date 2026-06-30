@@ -1,68 +1,54 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars PGO Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.overlap import ema, sma
-from polars_ti.utils import v_offset, v_pos_default, v_series
-from polars_ti.volatility import atr
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._validate import v_expr
 
 
 def pgo(
-    high: Series,
-    low: Series,
-    close: Series,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Pretty Good Oscillator (PGO)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    length: int = 14,
+    talib: bool = True,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Pretty Good Oscillator (PGO)
 
-    The Pretty Good Oscillator indicator was created by Mark Johnson to
-    measure the distance of the current close from its N-day SMA, expressed
-    in terms of an average true range over a similar period. Johnson's
-    approach was to use it as a breakout system for longer term trades.
-    Long if greater than 3.0 and short if less than -3.0.
+    Measures the distance of close from its N-day SMA, expressed
+    in terms of an average true range.
 
-    Sources:
-        https://library.tradingtechnologies.com/trade/chrt-ti-pretty-good-oscillator.html
+    Formula: PGO = (close - SMA(close, length)) / EMA(ATR(length), length)
 
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        length (int): It's period. Default: 14
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        length: Period. Default: 14
+        talib: Use TA-Lib SMA/ATR/EMA when available (matches OLD). Default: True
+        offset: Shift result. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: PGO expression
     """
-    # Validate
-    length = v_pos_default(length, 14)
-    _length = 2 * length
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
+    from polars_ti.overlap.sma import sma
+    from polars_ti.overlap.ema import ema
+    from polars_ti.volatility.atr import atr
 
-    if high is None or low is None or close is None:
-        return
+    close_expr = v_expr(close)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
 
-    offset = v_offset(offset)
+    sma_close = sma(close_expr, length=length, talib=talib)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=talib)
+    ema_atr = ema(atr_expr, length=length, talib=talib)
 
-    # Calculate
-    pgo = (close - sma(close, length)) / ema(atr(high, low, close, length), length)
+    pgo_expr = (close_expr - sma_close) / ema_atr
 
-    # Offset
     if offset != 0:
-        pgo = pgo.shift(offset)
+        pgo_expr = pgo_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        pgo = pgo.fillna(kwargs["fillna"])
-
-    # Name and Category
-    pgo.name = f"PGO_{length}"
-    pgo.category = "momentum"
-
-    return pgo
+    return pgo_expr.alias(f"PGO_{length}")

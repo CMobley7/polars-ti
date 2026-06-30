@@ -1,83 +1,58 @@
 # -*- coding: utf-8 -*-
-from pandas import Series
+# =============================================================================
+# Polars CMF (Chaikin Money Flow) Implementation
+# =============================================================================
+import polars as pl
 
-from polars_ti.utils import non_zero_range, v_offset, v_pos_default, v_series
+from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._math import non_zero_range
+from polars_ti.utils._validate import v_expr
 
 
 def cmf(
-    high: Series,
-    low: Series,
-    close: Series,
-    volume: Series,
-    open_: Series | None = None,
-    length: int | None = None,
-    offset: int | None = None,
-    **kwargs: dict,
-) -> Series:
-    """Chaikin Money Flow (CMF)
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    length: int = 20,
+    offset: int = 0,
+) -> PlExpr:
+    """Polars: Chaikin Money Flow (CMF)
 
     Chaikin Money Flow measures the amount of money flow volume over a
     specific period in conjunction with Accumulation/Distribution.
 
-    Sources:
-        https://www.tradingview.com/wiki/Chaikin_Money_Flow_(CMF)
-        https://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:chaikin_money_flow_cmf
-
     Args:
-        high (pd.Series): Series of 'high's
-        low (pd.Series): Series of 'low's
-        close (pd.Series): Series of 'close's
-        volume (pd.Series): Series of 'volume's
-        open_ (pd.Series): Series of 'open's. Default: None
-        length (int): The short period. Default: 20
-        offset (int): How many periods to offset the result. Default: 0
-
-    Kwargs:
-        fillna (value, optional): pd.DataFrame.fillna(value)
+        high: Column name or pl.Expr for 'high' prices
+        low: Column name or pl.Expr for 'low' prices
+        close: Column name or pl.Expr for 'close' prices
+        volume: Column name or pl.Expr for 'volume'
+        length: Rolling window period. Default: 20
+        offset: Shift result by N periods. Default: 0
 
     Returns:
-        pd.Series: New feature generated.
+        pl.Expr: CMF expression
     """
-    # Validate
-    length = v_pos_default(length, 20)
-    if "min_periods" in kwargs and kwargs["min_periods"] is not None:
-        min_periods = int(kwargs["min_periods"])
-    else:
-        min_periods = length
-    _length = max(length, min_periods)
-    high = v_series(high, _length)
-    low = v_series(low, _length)
-    close = v_series(close, _length)
-    volume = v_series(volume, _length)
+    high_expr = v_expr(high)
+    low_expr = v_expr(low)
+    close_expr = v_expr(close)
+    volume_expr = v_expr(volume)
 
-    if high is None or low is None or close is None or volume is None:
-        return
+    if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
+        return None
 
-    offset = v_offset(offset)
+    # CMF = rolling_sum(CLV * volume) / rolling_sum(volume)
+    # Note: Unlike AD which uses cumsum, CMF uses rolling_sum - cannot reuse pl_ad
+    # CLV (Close Location Value) = (2*close - high - low) / (high - low)
+    hl_range_safe = non_zero_range(high_expr, low_expr)
+    clv = (2 * close_expr - high_expr - low_expr) / hl_range_safe
+    ad_component = clv * volume_expr
 
-    # Calculate
-    if open_ is not None:
-        open_ = v_series(open_)
-        ad = non_zero_range(close, open_)  # AD with Open
-    else:
-        ad = 2 * close - (high + low)  # AD with High, Low, Close
-
-    ad *= volume / non_zero_range(high, low)
-    cmf = (
-        ad.rolling(length, min_periods=min_periods).sum()
-        / volume.rolling(length, min_periods=min_periods).sum()
+    cmf_expr = ad_component.rolling_sum(window_size=length, min_samples=length) / volume_expr.rolling_sum(
+        window_size=length, min_samples=length
     )
 
-    # Offset
     if offset != 0:
-        cmf = cmf.shift(offset)
+        cmf_expr = cmf_expr.shift(offset)
 
-    # Fill
-    if "fillna" in kwargs:
-        cmf = cmf.fillna(kwargs["fillna"])
-
-    # Name and Category
-    cmf.name = f"CMF_{length}"
-    cmf.category = "volume"
-
-    return cmf
+    return cmf_expr.alias(f"CMF_{length}")
