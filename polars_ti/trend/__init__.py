@@ -8,6 +8,7 @@ from polars_ti.trend.cksp import cksp
 from polars_ti.trend.decay import decay
 from polars_ti.trend.decreasing import decreasing
 from polars_ti.trend.dpo import dpo
+from polars_ti.trend.dx import dx
 from polars_ti.trend.ht_trendline import ht_trendline
 from polars_ti.trend.increasing import increasing
 from polars_ti.trend.long_run import long_run
@@ -35,6 +36,7 @@ __all__ = [
     "decay",
     "decreasing",
     "dpo",
+    "dx",
     "ht_trendline",
     "increasing",
     "long_run",

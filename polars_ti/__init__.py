@@ -169,6 +169,7 @@ from polars_ti.trend import (
     decay,
     decreasing,
     dpo,
+    dx,
     ht_trendline,
     increasing,
     long_run,

@@ -154,6 +154,7 @@ from polars_ti.trend.cksp import cksp
 from polars_ti.trend.decay import decay
 from polars_ti.trend.decreasing import decreasing
 from polars_ti.trend.dpo import dpo
+from polars_ti.trend.dx import dx
 from polars_ti.trend.ht_trendline import ht_trendline
 from polars_ti.trend.increasing import increasing
 from polars_ti.trend.long_run import long_run
@@ -1087,6 +1088,12 @@ class TechnicalIndicators:
 
     def dpo(self, close=None, **kw):
         return self._post_process(dpo(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def dx(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(dx(h, lo, c, **kw), **kw)
 
     def ht_trendline(self, close=None, **kw):
         return self._post_process(ht_trendline(self._col(close or kw.pop("close", "close")), **kw), **kw)
