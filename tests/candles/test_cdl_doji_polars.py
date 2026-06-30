@@ -108,6 +108,24 @@ class TestPlCdlDoji:
         result = lazy_df.select(cdl_doji("open", "high", "low", "close", length=10)).collect()
         assert "CDL_DOJI_10_0.1" in result.columns
 
+    def test_matches_talib_cdldoji(self):
+        """classic 9258bf6: cdl_doji averages the PRIOR bars' HL range
+        (.shift(1)) and uses <=, so it now matches TA-Lib's CDLDOJI exactly.
+        The OLD impl compared against the current-bar average (look-ahead) and
+        used <, diverging on ~14 bars of SPY."""
+        talib = pytest.importorskip("talib")
+        df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+        o = df["open"].to_numpy().astype(float)
+        h = df["high"].to_numpy().astype(float)
+        low_ = df["low"].to_numpy().astype(float)
+        c = df["close"].to_numpy().astype(float)
+        ref = talib.CDLDOJI(o, h, low_, c)  # 0 / 100
+        got = df.select(cdl_doji("open", "high", "low", "close")).to_series().to_numpy()
+        # Compare on the overlap (NEW is NaN during the length+1 warmup).
+        mask = ~np.isnan(got)
+        assert mask.sum() > 1000
+        assert np.array_equal(got[mask], ref[mask].astype(float))
+
     def test_offset_parameter(self):
         """Offset parameter shifts results."""
         df = pl.DataFrame(

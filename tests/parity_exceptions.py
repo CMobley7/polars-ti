@@ -39,6 +39,10 @@ _MATCH_TALIB = {
     "CDL_HIGHWAVE": "OLD wrong by 100; NEW == TA-Lib exactly (§4)",
     "CDL_RICKSHAWMAN": "OLD wrong by 100; NEW == TA-Lib exactly (§4)",
     "CDL_SPINNINGTOP": "OLD wrong by 100; NEW == TA-Lib exactly (§4)",
+    # classic 9258bf6: cdl_doji averages the prior bars' HL range (.shift(1))
+    # and uses <=, so it now matches TA-Lib's CDLDOJI exactly. OLD compared
+    # against the current-bar average (look-ahead) and used <.
+    "CDL_DOJI_10_0.1": "classic 9258bf6: shifted HL-range avg + <=; NEW == talib.CDLDOJI exactly (OLD looked ahead)",
 }
 
 # --- Intentional convention divergences from OLD (COMPARISON_REPORT §7) -------

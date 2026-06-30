@@ -53,16 +53,20 @@ def cdl_doji(
     # Calculate high-low range
     hl_range = (high_expr - low_expr).abs()
 
-    # Calculate average high-low range over the period
-    hl_range_avg = hl_range.rolling_mean(window_size=length, min_samples=length)
+    # Calculate average high-low range over the *previous* bars. The average is
+    # shifted by one bar (classic fork commit 9258bf6) so the current body is
+    # measured against yesterday's average range, not today's (avoids look-ahead
+    # and matches TA-Lib's CDLDOJI).
+    hl_range_avg = hl_range.rolling_mean(window_size=length, min_samples=length).shift(1)
 
-    # Doji: body < 0.01 * factor * average HL range
+    # Doji: body <= 0.01 * factor * average HL range. The comparison is "<=" so
+    # zero-body bars count as doji (matches TA-Lib).
     threshold = 0.01 * factor * hl_range_avg
 
     if asint:
-        doji = pl.when(body < threshold).then(scalar).otherwise(0.0).cast(pl.Int64)
+        doji = pl.when(body <= threshold).then(scalar).otherwise(0.0).cast(pl.Int64)
     else:
-        doji = body < threshold
+        doji = body <= threshold
 
     # Apply offset
     if offset != 0:
