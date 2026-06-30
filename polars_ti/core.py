@@ -132,6 +132,8 @@ from polars_ti.overlap.zlma import zlma
 from polars_ti.performance.drawdown import drawdown
 from polars_ti.performance.log_return import log_return
 from polars_ti.performance.percent_return import percent_return
+from polars_ti.statistics.beta import beta
+from polars_ti.statistics.correl import correl
 from polars_ti.statistics.entropy import entropy
 from polars_ti.statistics.kurtosis import kurtosis
 from polars_ti.statistics.mad import mad
@@ -998,6 +1000,16 @@ class TechnicalIndicators:
     # ==================================================================
     #  Statistics
     # ==================================================================
+
+    def beta(self, close=None, benchmark=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        b = self._col(benchmark or kw.pop("benchmark", "benchmark"))
+        return self._post_process(beta(c, b, **kw), **kw)
+
+    def correl(self, close=None, benchmark=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        b = self._col(benchmark or kw.pop("benchmark", "benchmark"))
+        return self._post_process(correl(c, b, **kw), **kw)
 
     def entropy(self, close=None, **kw):
         return self._post_process(entropy(self._col(close or kw.pop("close", "close")), **kw), **kw)

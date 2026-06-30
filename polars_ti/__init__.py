@@ -145,6 +145,8 @@ from polars_ti.performance import __all__ as performance_all
 from polars_ti.performance import drawdown, log_return, percent_return
 from polars_ti.statistics import __all__ as statistics_all
 from polars_ti.statistics import (
+    beta,
+    correl,
     entropy,
     kurtosis,
     mad,

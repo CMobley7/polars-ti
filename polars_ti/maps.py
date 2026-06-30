@@ -141,6 +141,8 @@ Category: Dict[str, ListStr] = {
     "performance": ["drawdown", "log_return", "percent_return"],
     # Statistics
     "statistics": [
+        "beta",
+        "correl",
         "entropy",
         "kurtosis",
         "mad",

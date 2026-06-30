@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from polars_ti.statistics.beta import beta
+from polars_ti.statistics.correl import correl
 from polars_ti.statistics.entropy import entropy
 from polars_ti.statistics.kurtosis import kurtosis
 from polars_ti.statistics.mad import mad
@@ -11,6 +13,8 @@ from polars_ti.statistics.variance import variance
 from polars_ti.statistics.zscore import zscore
 
 __all__ = [
+    "beta",
+    "correl",
     "entropy",
     "kurtosis",
     "mad",

@@ -43,6 +43,7 @@ BASE = {
     "signal",
     "above",
     "below",
+    "benchmark",
 }
 
 
@@ -51,7 +52,8 @@ def df():
     # 700 rows so even the longest default lookback (VHM, length=610) warms up.
     base = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(700)
     # Derived columns needed by composition indicators (long_run/short_run need
-    # fast/slow MAs; tsignals a 'trend'; xsignals 'signal'/'above'/'below').
+    # fast/slow MAs; tsignals a 'trend'; xsignals 'signal'/'above'/'below';
+    # beta/correl a 'benchmark' series).
     return base.with_columns(
         pl.col("close").rolling_mean(10).alias("fast"),
         pl.col("close").rolling_mean(20).alias("slow"),
@@ -59,6 +61,7 @@ def df():
         pl.col("close").alias("signal"),
         pl.lit(70.0).alias("above"),
         pl.lit(30.0).alias("below"),
+        pl.col("open").alias("benchmark"),
     )
 
 
