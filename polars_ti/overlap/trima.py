@@ -2,6 +2,8 @@
 # =============================================================================
 # Polars TRIMA Implementation (pure Polars rolling_mean)
 # =============================================================================
+from math import ceil, floor
+
 import polars as pl
 import numpy as np
 
@@ -42,7 +44,13 @@ def trima(
 
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1
     _length = length
-    _half_length = round(0.5 * (length + 1))
+    # Native TRIMA uses asymmetric ceil/floor windows to match the documented
+    # TradingView / TA-Lib formula (classic fork commit 41c91db):
+    #   tma = sma(sma(src, ceil(length/2)), floor(length/2)+1)
+    # The old banker's-rounding round(0.5*(length+1)) gave symmetric windows
+    # that diverged from TA-Lib for even lengths.
+    _first_window = ceil(length / 2)
+    _second_window = floor(length / 2) + 1
 
     def compute_trima(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
@@ -53,8 +61,8 @@ def trima(
             result = TALIB_TRIMA(arr, timeperiod=_length)
         else:
             # Call nb_sma directly - NO Pandas!
-            sma1 = nb_sma(arr, _half_length)
-            result = nb_sma(sma1, _half_length)
+            sma1 = nb_sma(arr, _first_window)
+            result = nb_sma(sma1, _second_window)
 
         return pl.Series(result)
 

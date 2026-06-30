@@ -57,3 +57,17 @@ class TestPlTrima:
         lazy_df = sample_data["pl_df"].lazy()
         result = lazy_df.select(trima("close", length=10)).collect()
         assert "TRIMA_10" in result.columns
+
+    @pytest.mark.parametrize("length", [9, 10, 14, 20])
+    def test_native_matches_talib_reference(self, length):
+        """Native TRIMA (ceil/floor asymmetric windows, classic 41c91db) must
+        match talib.TRIMA. The old symmetric round(0.5*(length+1)) window
+        diverged for even lengths (off by ~0.57 on SPY for length=10)."""
+        talib = pytest.importorskip("talib")
+        df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+        close = df["close"].to_numpy().astype(float)
+        ref = talib.TRIMA(close, timeperiod=length)
+        got = df.select(trima("close", length=length, talib=False)).to_series().to_numpy()
+        mask = ~np.isnan(ref) & ~np.isnan(got)
+        assert mask.sum() > 100
+        assert np.max(np.abs(ref[mask] - got[mask])) < 1e-9

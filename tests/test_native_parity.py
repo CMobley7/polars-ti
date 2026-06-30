@@ -77,6 +77,7 @@ NATIVE_DIVERGENCE = {
     "SUPERT_7_3.0",
     "SUPERTl_7_3.0",
     "SUPERTs_7_3.0",
+    "TRIMA_10",  # classic 41c91db: native TRIMA uses ceil/floor windows now
     "TRIX_18_9",
     "TRIXh_18_9",
     "TRIXs_18_9",
