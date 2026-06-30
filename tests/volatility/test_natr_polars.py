@@ -46,3 +46,18 @@ class TestPlNatr:
         df = pl.DataFrame(sample_data)
         result = df.lazy().select(natr("high", "low", "close")).collect()
         assert result.height == 100
+
+    def test_default_mamode_is_rma(self):
+        """classic b914429: NATR default mamode is rma (Wilder), matching ATR
+        and TA-Lib. The talib-mode default must equal talib.NATR exactly."""
+        talib = pytest.importorskip("talib")
+        df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+        h = df["high"].to_numpy().astype(float)
+        low_ = df["low"].to_numpy().astype(float)
+        c = df["close"].to_numpy().astype(float)
+        ref = talib.NATR(h, low_, c, timeperiod=14)
+        # default talib=True path uses rma and must match talib.NATR exactly.
+        got = df.select(natr("high", "low", "close", length=14, talib=True)).to_series().to_numpy()
+        m = ~np.isnan(ref) & ~np.isnan(got)
+        assert m.sum() > 100
+        assert np.max(np.abs(ref[m] - got[m])) < 1e-9

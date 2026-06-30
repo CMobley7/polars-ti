@@ -53,6 +53,7 @@ NATIVE_DIVERGENCE = {
     "KCUe_20_2",
     "KVO_34_55_13",
     "KVOs_34_55_13",
+    "NATR_14",  # classic b914429: native mamode default rma (Wilder); OLD golden baked in the buggy ema default
     "OTT_5_2.4",
     "OTTd_5_2.4",
     "OTTSL_5_2.4",

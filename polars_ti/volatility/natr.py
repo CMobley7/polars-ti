@@ -14,7 +14,7 @@ def natr(
     close: IntoExpr,
     length: int = 14,
     scalar: float = 100.0,
-    mamode: str = "ema",
+    mamode: str = "rma",
     talib: bool = False,
     offset: int = 0,
 ) -> pl.Expr:
@@ -33,7 +33,7 @@ def natr(
         close: Column name or pl.Expr for 'close'
         length: ATR period. Default: 14
         scalar: Magnification factor. Default: 100.0
-        mamode: MA type for ATR. Default: 'ema'
+        mamode: MA type for ATR. Default: 'rma' (Wilder; aligns with ATR and TA-Lib)
         talib: Use TA-Lib compatible ATR. Default: False
         offset: Shift result by N periods. Default: 0
 

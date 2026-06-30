@@ -45,6 +45,10 @@ TALIB_DIVERGENCE = {
     "KAMA_10_2_30": "OLD had no TA-Lib KAMA; NEW talib path follows TA-Lib (native matches golden)",
     # String label column — graded by test_halftrend_direction_parity.
     "HT_direction_14_2_2": "string label column; graded by test_halftrend_direction_parity",
+    # classic b914429: NATR default mamode is now rma (Wilder, == ATR/TA-Lib).
+    # OLD baked in the buggy ema default in BOTH goldens; NEW talib-mode NATR
+    # matches talib.NATR exactly (pinned by tests/volatility/test_natr_polars.py).
+    "NATR_14": "classic b914429: NATR mamode default rma; NEW talib matches talib.NATR (OLD golden used ema)",
 }
 
 

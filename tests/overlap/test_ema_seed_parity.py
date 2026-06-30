@@ -31,7 +31,14 @@ FIXTURES = "tests/fixtures"
 SLICE_ROWS = 1500
 
 # Repaired native all-NaN cluster (§5): go all-NaN -> match OLD native golden.
-NATIVE_CLUSTER = ["ATRr_14", "NATR_14", "DEMA_10", "ZL_EMA_10", "ABER_ZG_5_15"]
+# NB: NATR_14 was here but classic b914429 changed its native default mamode to
+# rma (Wilder), so it now intentionally diverges from the OLD native golden
+# (which baked in the buggy ema default). It is graded against talib.NATR
+# instead in test_natr_default_mamode_matches_talib.
+NATIVE_CLUSTER = ["ATRr_14", "DEMA_10", "ZL_EMA_10", "ABER_ZG_5_15"]
+# Still validated for the leading-NaN seed (not-all-NaN), just not vs the OLD
+# golden. ATRr_14 covers the same EMA/RMA seed path; NATR_14's seed is exercised
+# by the dedicated talib comparison below.
 
 # Value-drift indicators (§7): align to the OLD native golden.
 VALUE_DRIFT = [
@@ -85,10 +92,40 @@ def test_native_cluster_not_all_nan(col):
     assert rep[col]["overlap"] > 0
 
 
-@pytest.mark.parametrize("col", ["ATRr_14", "NATR_14", "DEMA_10", "ABER_ATR_5_15"])
+@pytest.mark.parametrize("col", ["ATRr_14", "DEMA_10", "ABER_ATR_5_15"])
 def test_talib_branch_unchanged(talib_report, col):
     """The talib branch is untouched: still matches the OLD talib golden."""
     assert_column(talib_report, col)
+
+
+def test_natr_default_mamode_matches_talib():
+    """classic b914429: NATR's default native mamode is now rma (Wilder), which
+    aligns with ATR and TA-Lib. Validate:
+      * talib-mode NATR == talib.NATR exactly, and
+      * native (rma) NATR converges to talib.NATR (the residual is purely the
+        Wilder seed transient, identical to ATR's; gone after warmup).
+    The OLD goldens baked in the buggy ema default, so NATR_14 is registered in
+    TALIB_DIVERGENCE / NATIVE_DIVERGENCE instead of matching them."""
+    talib = pytest.importorskip("talib")
+    from polars_ti.volatility.natr import natr
+
+    df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(SLICE_ROWS)
+    h = df["high"].to_numpy().astype(float)
+    low_ = df["low"].to_numpy().astype(float)
+    c = df["close"].to_numpy().astype(float)
+    ref = talib.NATR(h, low_, c, timeperiod=14)
+
+    nat_talib = df.select(natr("high", "low", "close", length=14, talib=True)).to_series().to_numpy()
+    nat_native = df.select(natr("high", "low", "close", length=14, talib=False)).to_series().to_numpy()
+
+    m = ~np.isnan(ref) & ~np.isnan(nat_talib)
+    assert m.sum() > 100
+    assert np.max(np.abs(ref[m] - nat_talib[m])) < 1e-9, "talib NATR not exact vs talib.NATR"
+
+    # Native rma converges to TA-Lib after the Wilder seed transient.
+    m2 = ~np.isnan(ref) & ~np.isnan(nat_native)
+    m2[:500] = False
+    assert np.max(np.abs(ref[m2] - nat_native[m2])) < 1e-6, "native rma NATR did not converge to talib.NATR"
 
 
 def test_aberration_atr_bands_match_talib_reference():
