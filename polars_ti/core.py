@@ -68,6 +68,9 @@ from polars_ti.momentum.psl import psl
 from polars_ti.momentum.qqe import qqe
 from polars_ti.momentum.rmi import rmi
 from polars_ti.momentum.roc import roc
+from polars_ti.momentum.rocp import rocp
+from polars_ti.momentum.rocr import rocr
+from polars_ti.momentum.rocr100 import rocr100
 from polars_ti.momentum.rsi import rsi
 from polars_ti.momentum.rsx import rsx
 from polars_ti.momentum.rvgi import rvgi
@@ -725,6 +728,15 @@ class TechnicalIndicators:
 
     def roc(self, close=None, **kw):
         return self._post_process(roc(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def rocp(self, close=None, **kw):
+        return self._post_process(rocp(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def rocr(self, close=None, **kw):
+        return self._post_process(rocr(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def rocr100(self, close=None, **kw):
+        return self._post_process(rocr100(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def rsi(self, close=None, **kw):
         return self._post_process(rsi(self._col(close or kw.pop("close", "close")), **kw), **kw)

@@ -30,6 +30,9 @@ from polars_ti.momentum.psl import psl
 from polars_ti.momentum.qqe import qqe
 from polars_ti.momentum.rmi import rmi
 from polars_ti.momentum.roc import roc
+from polars_ti.momentum.rocp import rocp
+from polars_ti.momentum.rocr import rocr
+from polars_ti.momentum.rocr100 import rocr100
 from polars_ti.momentum.rsi import rsi
 from polars_ti.momentum.rsx import rsx
 from polars_ti.momentum.rvgi import rvgi
@@ -82,6 +85,9 @@ __all__ = [
     "qqe",
     "rmi",
     "roc",
+    "rocp",
+    "rocr",
+    "rocr100",
     "rsi",
     "rsx",
     "rvgi",
