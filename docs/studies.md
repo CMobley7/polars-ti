@@ -15,7 +15,7 @@ all_features = df.ti.study(ti.AllStudy, talib=True)
 
 | Study | What it runs |
 | :--- | :--- |
-| `ti.AllStudy` | every registered indicator (all 176) |
+| `ti.AllStudy` | every registered indicator (all 262) |
 | `ti.CommonStudy` | a small common set |
 | `"momentum"`, `"overlap"`, … | one category (pass the category name as a string) |
 

@@ -1,7 +1,7 @@
 # Polars-TI
 
 **Polars-TI** is a technical-analysis library for OHLCV data built on a pure
-**Polars + Numba/NumPy** architecture. It provides **176 indicators and
+**Polars + Numba/NumPy** architecture. It provides **262 indicators and
 candlestick-pattern groups** as native Polars expressions, with **zero runtime
 pandas dependency**, a `df.ti` DataFrame namespace, study helpers, and optional
 TA-Lib acceleration/parity.
@@ -53,7 +53,7 @@ uv pip install TA-Lib
 Full documentation lives in [`docs/`](docs/index.md):
 
 - [Getting started](docs/getting-started.md) — install, quickstart, return types, `append=`, lazy eval.
-- [Indicators](docs/indicators.md) — all 176 by category, with outputs and TA-Lib availability.
+- [Indicators](docs/indicators.md) — all 262 by category, with outputs and TA-Lib availability.
 - [Studies](docs/studies.md) — `AllStudy` / `CommonStudy` / custom studies, `talib=` and `errors=`.
 - [TA-Lib & native paths](docs/talib.md) — the `native = pandas-ta, talib = TA-Lib` design rule.
 - [Migrating from pandas-ta](docs/migrating-from-pandas-ta.md) — porting guide.

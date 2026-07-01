@@ -17,8 +17,13 @@ and why* reference.
 - **Engine:** pure **Polars + Numba/NumPy**. There is **zero runtime pandas
   dependency** — indicators are Polars expressions, not pandas `Series`
   operations.
-- **Indicators:** **176** (same count as this project's pandas baseline),
-  including **17 added** from community forks (see [§6](#6-new-indicators--credits)).
+- **Indicators:** **262** total — **176** from the original pandas-ta
+  (development) port (including **17 added** from community forks, see
+  [§6](#6-new-indicators--credits)), plus **86** added for feature parity with the
+  community fork `xgboosted/pandas-ta-classic` (see
+  [§8](#8-feature-parity-with-pandas-ta-classic)). The 86 additions include a
+  full native candlestick-pattern suite, so the **candles** category alone holds
+  **63** functions.
 - **Columns:** the Polars all-study output is a **superset** of the pandas
   all-study output — every pandas column is reproduced; none are dropped
   (see [§3](#3-indicator--column-counts)).
@@ -50,10 +55,17 @@ unnest struct columns.
 
 ## 3. Indicator & column counts
 
+This section compares Polars-TI against the **original pandas-ta (development)
+baseline** it was ported from. The numbers below therefore reflect the
+**176-indicator** original port; the **86** additional indicators from
+`pandas-ta-classic` are covered separately in
+[§8](#8-feature-parity-with-pandas-ta-classic) and bring the current total to
+**262** (see [§1](#1-summary)).
+
 Measured on a deterministic 1,500-row slice of `data/SPY_D.csv`, all-study,
 with TA-Lib installed:
 
-| | pandas baseline | Polars-TI |
+| | pandas baseline | Polars-TI (original port) |
 | :--- | :---: | :---: |
 | Indicators (Category registry) | 176 | 176 |
 | All-study indicator columns (TA-Lib mode) | 387 | **389** |
@@ -63,7 +75,8 @@ with TA-Lib installed:
 
 The native (no-TA-Lib) study has fewer columns only because ~60 TA-Lib
 candlestick patterns have no native implementation — pandas-ta behaves the same
-way when TA-Lib is absent.
+way when TA-Lib is absent. (Since then, the `pandas-ta-classic` port added a full
+**native** candlestick suite; see [§8](#8-feature-parity-with-pandas-ta-classic).)
 
 Some indicators changed their **column names** (struct/dotted layout). Those are
 not drops; they are folded by an authoritative old↔new name map
@@ -178,8 +191,10 @@ pandas-ta):
 
 ## 6. New indicators & credits
 
-17 indicators were added on top of the pandas baseline, harvested from community
-forks. Credit to the original authors:
+17 indicators were added on top of the pandas baseline during the original port,
+harvested from community forks. Credit to the original authors. (A further **86**
+indicators were later added for `pandas-ta-classic` feature parity; those are
+listed in [§8](#8-feature-parity-with-pandas-ta-classic).)
 
 ### From [xgboosted/pandas-ta-classic](https://github.com/xgboosted/pandas-ta-classic) (PR #7)
 
@@ -238,3 +253,84 @@ committed golden fixtures generated from the pandas baseline and from TA-Lib:
   per-column gate; that is `test_talib_parity.py`).
 
 Run them with `./scripts/check.sh --fast` (see [Development](development.md)).
+
+---
+
+## 8. Feature parity with pandas-ta-classic
+
+Beyond the original [twopirllc/pandas-ta](https://github.com/twopirllc/pandas-ta)
+(development) port, Polars-TI also tracks the community fork
+[xgboosted/pandas-ta-classic](https://github.com/xgboosted/pandas-ta-classic) —
+a fork off pandas-ta's **main** branch that carries extra indicators and a set of
+correctness fixes. Adopting them brings the library to **262 indicators** (176
+original + **86** added here). This section documents what was ported and how
+accurately.
+
+### 8a. Correctness fixes adopted from the classic fork
+
+These were validated against TA-Lib (or the classic reference) and re-pinned in
+the parity suite:
+
+| Fix | What changed |
+| :--- | :--- |
+| `psar` | Guarded reversal logic + a 2-bar guard, matching TA-Lib. |
+| `vidya` | SMA-seeded recurrence (correct warm-up seed). |
+| `cdl_doji` | Shifted HL-range average + `<=` comparison. |
+| `natr` | Default `mamode="rma"`. |
+| `trima` | Asymmetric ceil/floor sub-windows. |
+| `linreg` (TSF) | Native one-step-ahead forecast `m*(L+1)+b`, equal to `talib.TSF`; this in turn corrected `fosc` and `po`. |
+
+### 8b. New indicators (7)
+
+`rocp`, `rocr`, `rocr100`, `dx` (all exact vs TA-Lib), `beta`, `correl` (exact vs
+`talib.BETA` / `talib.CORREL`), and `smc_sweep` (validated vs the classic fork).
+
+### 8c. Hilbert Transform suite (5)
+
+`ht_dcperiod`, `ht_dcphase`, `ht_phasor`, `ht_sine`, `ht_trendmode`.
+
+### 8d. Tulip-Indicators parity (14)
+
+`msw`, `cvi`, `hvol`, `marketfi`, `vosc`, `wad`, `emv`, `fosc`, `avgprice`,
+`medprice`, `typprice`, `stderr`, `md`, `avolume`.
+
+### 8e. Full native candlestick suite (~60 patterns)
+
+All ~60 TA-Lib candlestick patterns (`cdl_*`) were ported **natively**, so the
+library now has complete candlestick coverage **without** requiring TA-Lib. This
+is a functionality feature, not a performance one — see [§8g](#8g-performance-note).
+
+### 8f. Accuracy of the ports
+
+The ports are held to the strongest oracle available for each indicator:
+
+- **Exact against TA-Lib (native path).** Every ported indicator that has a
+  TA-Lib equivalent matches `talib.*` **exactly** on the native path, with **0
+  mismatches**: all ~60 candlestick patterns (`native == talib.CDL*`),
+  `rocp` / `rocr` / `rocr100` / `dx` / `beta` / `correl`,
+  `avgprice` / `medprice` / `typprice`, and `ht_dcperiod` / `ht_phasor`.
+- **Exact against the classic reference (no TA-Lib equivalent).** The 14 Tulip
+  indicators and `smc_sweep` have no TA-Lib counterpart, so they are validated
+  exactly against the `pandas-ta-classic` reference via committed golden
+  fixtures.
+- **HT `ht_dcphase` / `ht_sine` / `ht_trendmode` native-path caveat.** With
+  `talib=True` (the default when TA-Lib is installed) these three are exact.
+  Their **pure-native** (no-TA-Lib) path cannot be reproduced bit-for-bit during
+  TA-Lib's warm-up because they carry path-dependent state accumulators
+  (`prevDCPhase` / `daysInTrend`). TA-Lib's *nominal* unstable period is **63
+  bars**, but full re-sync takes longer in practice. Measured on daily SPY, the
+  native path converges to TA-Lib to **~0.001° for `ht_dcphase` and ~2e-5 for
+  `ht_sine` by ~bar 200, with 0 `ht_trendmode` mismatches after ~bar 200**
+  (essentially exact by bar 500). The 64–200 region still shows a handful of
+  transient mismatches, at phase-wrap / trend-flip points. The same limitation
+  exists in the classic fork's own native versions. **Bottom line:** after ~200
+  bars of warm-up the native path matches TA-Lib for practical purposes; only the
+  early window differs.
+
+### 8g. Performance note
+
+The native candlestick suite is a **no-TA-Lib functionality** feature. As already
+benchmarked, TA-Lib's C implementation is roughly **19× faster** for candlestick
+logic, so `talib=True` remains the fast path — the native patterns exist so the
+library is fully functional when TA-Lib is not installed, not to beat it on
+speed.
