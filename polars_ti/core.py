@@ -34,6 +34,11 @@ from polars_ti.candles.cdl_z import cdl_z
 from polars_ti.candles.ha import ha
 from polars_ti.cycles.dsp import dsp
 from polars_ti.cycles.ebsw import ebsw
+from polars_ti.cycles.ht_dcperiod import ht_dcperiod
+from polars_ti.cycles.ht_dcphase import ht_dcphase
+from polars_ti.cycles.ht_phasor import ht_phasor
+from polars_ti.cycles.ht_sine import ht_sine
+from polars_ti.cycles.ht_trendmode import ht_trendmode
 from polars_ti.cycles.reflex import reflex
 from polars_ti.ma import ma
 from polars_ti.maps import EXCHANGE_TZ, Category, Imports, version
@@ -594,6 +599,26 @@ class TechnicalIndicators:
     def reflex(self, close=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(reflex(c, **kw), **kw)
+
+    def ht_dcperiod(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ht_dcperiod(c, **kw), **kw)
+
+    def ht_dcphase(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ht_dcphase(c, **kw), **kw)
+
+    def ht_phasor(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ht_phasor(c, **kw), **kw)
+
+    def ht_sine(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ht_sine(c, **kw), **kw)
+
+    def ht_trendmode(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(ht_trendmode(c, **kw), **kw)
 
     # ==================================================================
     #  Momentum

@@ -38,7 +38,7 @@ Category: Dict[str, ListStr] = {
     # Candles
     "candles": ["cdl_pattern", "cdl_z", "ha"],
     # Cycles
-    "cycles": ["dsp", "ebsw", "reflex"],
+    "cycles": ["dsp", "ebsw", "ht_dcperiod", "ht_dcphase", "ht_phasor", "ht_sine", "ht_trendmode", "reflex"],
     # Momentum
     "momentum": [
         "ao",

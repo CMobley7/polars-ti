@@ -35,7 +35,7 @@ from polars_ti.utils import nb_prenan, nb_prepend, nb_rolling, nb_shift
 # Custom External Directory Commands. See help(import_dir)
 from polars_ti.custom import create_dir, import_dir
 from polars_ti.cycles import __all__ as cycles_all
-from polars_ti.cycles import dsp, ebsw, reflex
+from polars_ti.cycles import dsp, ebsw, ht_dcperiod, ht_dcphase, ht_phasor, ht_sine, ht_trendmode, reflex
 
 # Common Averages useful for Indicators
 # with a mamode argument, like ti.adx()
