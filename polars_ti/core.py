@@ -27,6 +27,68 @@ from multiprocessing import cpu_count
 import polars as pl
 
 from polars_ti._typing import DictLike
+from polars_ti.candles import (
+    cdl_2crows,
+    cdl_3blackcrows,
+    cdl_3inside,
+    cdl_3linestrike,
+    cdl_3outside,
+    cdl_3starsinsouth,
+    cdl_3whitesoldiers,
+    cdl_abandonedbaby,
+    cdl_advanceblock,
+    cdl_belthold,
+    cdl_breakaway,
+    cdl_closingmarubozu,
+    cdl_concealbabyswall,
+    cdl_counterattack,
+    cdl_darkcloudcover,
+    cdl_dojistar,
+    cdl_dragonflydoji,
+    cdl_engulfing,
+    cdl_eveningdojistar,
+    cdl_eveningstar,
+    cdl_gapsidesidewhite,
+    cdl_gravestonedoji,
+    cdl_hammer,
+    cdl_hangingman,
+    cdl_harami,
+    cdl_haramicross,
+    cdl_highwave,
+    cdl_hikkake,
+    cdl_hikkakemod,
+    cdl_homingpigeon,
+    cdl_identical3crows,
+    cdl_inneck,
+    cdl_invertedhammer,
+    cdl_kicking,
+    cdl_kickingbylength,
+    cdl_ladderbottom,
+    cdl_longleggeddoji,
+    cdl_longline,
+    cdl_marubozu,
+    cdl_matchinglow,
+    cdl_mathold,
+    cdl_morningdojistar,
+    cdl_morningstar,
+    cdl_onneck,
+    cdl_piercing,
+    cdl_rickshawman,
+    cdl_risefall3methods,
+    cdl_separatinglines,
+    cdl_shootingstar,
+    cdl_shortline,
+    cdl_spinningtop,
+    cdl_stalledpattern,
+    cdl_sticksandwich,
+    cdl_takuri,
+    cdl_tasukigap,
+    cdl_thrusting,
+    cdl_tristar,
+    cdl_unique3river,
+    cdl_upsidegap2crows,
+    cdl_xsidegap3methods,
+)
 from polars_ti.candles.cdl_doji import cdl_doji
 from polars_ti.candles.cdl_inside import cdl_inside
 from polars_ti.candles.cdl_pattern import cdl, cdl_pattern
@@ -583,6 +645,426 @@ class TechnicalIndicators:
     def cdl_pattern(self, name="all", **kw):
         result = cdl_pattern(self._df, name=name, **kw)
         return self._post_process(result, **kw)
+
+    def cdl_2crows(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_2crows(o, h, lo, c, **kw), **kw)
+
+    def cdl_3blackcrows(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_3blackcrows(o, h, lo, c, **kw), **kw)
+
+    def cdl_3inside(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_3inside(o, h, lo, c, **kw), **kw)
+
+    def cdl_3linestrike(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_3linestrike(o, h, lo, c, **kw), **kw)
+
+    def cdl_3outside(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_3outside(o, h, lo, c, **kw), **kw)
+
+    def cdl_3starsinsouth(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_3starsinsouth(o, h, lo, c, **kw), **kw)
+
+    def cdl_3whitesoldiers(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_3whitesoldiers(o, h, lo, c, **kw), **kw)
+
+    def cdl_abandonedbaby(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_abandonedbaby(o, h, lo, c, **kw), **kw)
+
+    def cdl_advanceblock(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_advanceblock(o, h, lo, c, **kw), **kw)
+
+    def cdl_belthold(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_belthold(o, h, lo, c, **kw), **kw)
+
+    def cdl_breakaway(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_breakaway(o, h, lo, c, **kw), **kw)
+
+    def cdl_closingmarubozu(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_closingmarubozu(o, h, lo, c, **kw), **kw)
+
+    def cdl_concealbabyswall(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_concealbabyswall(o, h, lo, c, **kw), **kw)
+
+    def cdl_counterattack(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_counterattack(o, h, lo, c, **kw), **kw)
+
+    def cdl_darkcloudcover(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_darkcloudcover(o, h, lo, c, **kw), **kw)
+
+    def cdl_dojistar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_dojistar(o, h, lo, c, **kw), **kw)
+
+    def cdl_dragonflydoji(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_dragonflydoji(o, h, lo, c, **kw), **kw)
+
+    def cdl_engulfing(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_engulfing(o, h, lo, c, **kw), **kw)
+
+    def cdl_eveningdojistar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_eveningdojistar(o, h, lo, c, **kw), **kw)
+
+    def cdl_eveningstar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_eveningstar(o, h, lo, c, **kw), **kw)
+
+    def cdl_gapsidesidewhite(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_gapsidesidewhite(o, h, lo, c, **kw), **kw)
+
+    def cdl_gravestonedoji(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_gravestonedoji(o, h, lo, c, **kw), **kw)
+
+    def cdl_hammer(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_hammer(o, h, lo, c, **kw), **kw)
+
+    def cdl_hangingman(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_hangingman(o, h, lo, c, **kw), **kw)
+
+    def cdl_harami(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_harami(o, h, lo, c, **kw), **kw)
+
+    def cdl_haramicross(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_haramicross(o, h, lo, c, **kw), **kw)
+
+    def cdl_highwave(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_highwave(o, h, lo, c, **kw), **kw)
+
+    def cdl_hikkake(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_hikkake(o, h, lo, c, **kw), **kw)
+
+    def cdl_hikkakemod(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_hikkakemod(o, h, lo, c, **kw), **kw)
+
+    def cdl_homingpigeon(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_homingpigeon(o, h, lo, c, **kw), **kw)
+
+    def cdl_identical3crows(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_identical3crows(o, h, lo, c, **kw), **kw)
+
+    def cdl_inneck(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_inneck(o, h, lo, c, **kw), **kw)
+
+    def cdl_invertedhammer(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_invertedhammer(o, h, lo, c, **kw), **kw)
+
+    def cdl_kicking(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_kicking(o, h, lo, c, **kw), **kw)
+
+    def cdl_kickingbylength(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_kickingbylength(o, h, lo, c, **kw), **kw)
+
+    def cdl_ladderbottom(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_ladderbottom(o, h, lo, c, **kw), **kw)
+
+    def cdl_longleggeddoji(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_longleggeddoji(o, h, lo, c, **kw), **kw)
+
+    def cdl_longline(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_longline(o, h, lo, c, **kw), **kw)
+
+    def cdl_marubozu(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_marubozu(o, h, lo, c, **kw), **kw)
+
+    def cdl_matchinglow(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_matchinglow(o, h, lo, c, **kw), **kw)
+
+    def cdl_mathold(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_mathold(o, h, lo, c, **kw), **kw)
+
+    def cdl_morningdojistar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_morningdojistar(o, h, lo, c, **kw), **kw)
+
+    def cdl_morningstar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_morningstar(o, h, lo, c, **kw), **kw)
+
+    def cdl_onneck(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_onneck(o, h, lo, c, **kw), **kw)
+
+    def cdl_piercing(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_piercing(o, h, lo, c, **kw), **kw)
+
+    def cdl_rickshawman(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_rickshawman(o, h, lo, c, **kw), **kw)
+
+    def cdl_risefall3methods(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_risefall3methods(o, h, lo, c, **kw), **kw)
+
+    def cdl_separatinglines(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_separatinglines(o, h, lo, c, **kw), **kw)
+
+    def cdl_shootingstar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_shootingstar(o, h, lo, c, **kw), **kw)
+
+    def cdl_shortline(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_shortline(o, h, lo, c, **kw), **kw)
+
+    def cdl_spinningtop(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_spinningtop(o, h, lo, c, **kw), **kw)
+
+    def cdl_stalledpattern(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_stalledpattern(o, h, lo, c, **kw), **kw)
+
+    def cdl_sticksandwich(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_sticksandwich(o, h, lo, c, **kw), **kw)
+
+    def cdl_takuri(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_takuri(o, h, lo, c, **kw), **kw)
+
+    def cdl_tasukigap(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_tasukigap(o, h, lo, c, **kw), **kw)
+
+    def cdl_thrusting(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_thrusting(o, h, lo, c, **kw), **kw)
+
+    def cdl_tristar(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_tristar(o, h, lo, c, **kw), **kw)
+
+    def cdl_unique3river(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_unique3river(o, h, lo, c, **kw), **kw)
+
+    def cdl_upsidegap2crows(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_upsidegap2crows(o, h, lo, c, **kw), **kw)
+
+    def cdl_xsidegap3methods(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_xsidegap3methods(o, h, lo, c, **kw), **kw)
 
     def cdl_z(self, open_=None, high=None, low=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))

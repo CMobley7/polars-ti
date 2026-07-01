@@ -18,7 +18,9 @@ import pytest
 import polars_ti as ti  # noqa: F401
 
 sys.path.insert(0, "tmp/pandas-ta-classic")
-import pandas_ta_classic as pta  # noqa: E402
+# The classic fork is a local reference clone (gitignored tmp/); it is not
+# present in CI, so skip these cross-validations gracefully when it is absent.
+pta = pytest.importorskip("pandas_ta_classic")
 
 from polars_ti.maps import Imports  # noqa: E402
 

@@ -161,3 +161,7 @@ tmp/*
 
 # Internal process/working docs (kept locally, not in repo)
 docs/internal/
+
+# Claude worktrees/settings
+.claude/
+/tmp
