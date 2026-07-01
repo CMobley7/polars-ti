@@ -35,7 +35,7 @@ from polars_ti.utils import nb_prenan, nb_prepend, nb_rolling, nb_shift
 # Custom External Directory Commands. See help(import_dir)
 from polars_ti.custom import create_dir, import_dir
 from polars_ti.cycles import __all__ as cycles_all
-from polars_ti.cycles import dsp, ebsw, ht_dcperiod, ht_dcphase, ht_phasor, ht_sine, ht_trendmode, reflex
+from polars_ti.cycles import dsp, ebsw, ht_dcperiod, ht_dcphase, ht_phasor, ht_sine, ht_trendmode, msw, reflex
 
 # Common Averages useful for Indicators
 # with a mamode argument, like ti.adx()
@@ -62,6 +62,7 @@ from polars_ti.momentum import (
     eri,
     exhc,
     fisher,
+    fosc,
     imi,
     inertia,
     kdj,
@@ -104,6 +105,7 @@ from polars_ti.overlap import __all__ as overlap_all
 from polars_ti.overlap import (
     alligator,
     alma,
+    avgprice,
     dema,
     ema,
     fwma,
@@ -118,6 +120,7 @@ from polars_ti.overlap import (
     linreg,
     mama,
     mcgd,
+    medprice,
     midpoint,
     midprice,
     mmar,
@@ -137,6 +140,7 @@ from polars_ti.overlap import (
     t3,
     tema,
     trima,
+    typprice,
     vidya,
     wcp,
     wma,
@@ -151,10 +155,12 @@ from polars_ti.statistics import (
     entropy,
     kurtosis,
     mad,
+    md,
     median,
     quantile,
     skew,
     stdev,
+    stderr,
     tos_stdevall,
     variance,
     zscore,
@@ -197,11 +203,14 @@ from polars_ti.volatility import (
     atr,
     atrts,
     avsl,
+    avolume,
     bbands,
     chandelier_exit,
+    cvi,
     donchian,
     fvg,
     halftrend,
+    hvol,
     hwc,
     kc,
     massi,
@@ -220,8 +229,10 @@ from polars_ti.volume import (
     avwap,
     cmf,
     efi,
+    emv,
     eom,
     kvo,
+    marketfi,
     mfi,
     nvi,
     obv,
@@ -232,9 +243,11 @@ from polars_ti.volume import (
     pvt,
     vfi,
     vhm,
+    vosc,
     vp,
     vwap,
     vwma,
+    wad,
     wb_tsv,
 )
 

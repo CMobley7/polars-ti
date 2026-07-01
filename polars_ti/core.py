@@ -39,6 +39,7 @@ from polars_ti.cycles.ht_dcphase import ht_dcphase
 from polars_ti.cycles.ht_phasor import ht_phasor
 from polars_ti.cycles.ht_sine import ht_sine
 from polars_ti.cycles.ht_trendmode import ht_trendmode
+from polars_ti.cycles.msw import msw
 from polars_ti.cycles.reflex import reflex
 from polars_ti.ma import ma
 from polars_ti.maps import EXCHANGE_TZ, Category, Imports, version
@@ -59,6 +60,7 @@ from polars_ti.momentum.er import er
 from polars_ti.momentum.eri import eri
 from polars_ti.momentum.exhc import exhc
 from polars_ti.momentum.fisher import fisher
+from polars_ti.momentum.fosc import fosc
 from polars_ti.momentum.imi import imi
 from polars_ti.momentum.inertia import inertia
 from polars_ti.momentum.kdj import kdj
@@ -98,6 +100,7 @@ from polars_ti.momentum.vwmacd import vwmacd
 from polars_ti.momentum.willr import willr
 from polars_ti.overlap.alligator import alligator
 from polars_ti.overlap.alma import alma
+from polars_ti.overlap.avgprice import avgprice
 from polars_ti.overlap.dema import dema
 from polars_ti.overlap.ema import ema
 from polars_ti.overlap.fwma import fwma
@@ -112,6 +115,7 @@ from polars_ti.overlap.kama import kama
 from polars_ti.overlap.linreg import linreg
 from polars_ti.overlap.mama import mama
 from polars_ti.overlap.mcgd import mcgd
+from polars_ti.overlap.medprice import medprice
 from polars_ti.overlap.midpoint import midpoint
 from polars_ti.overlap.midprice import midprice
 from polars_ti.overlap.mmar import mmar
@@ -131,6 +135,7 @@ from polars_ti.overlap.swma import swma
 from polars_ti.overlap.t3 import t3
 from polars_ti.overlap.tema import tema
 from polars_ti.overlap.trima import trima
+from polars_ti.overlap.typprice import typprice
 from polars_ti.overlap.vidya import vidya
 from polars_ti.overlap.wcp import wcp
 from polars_ti.overlap.wma import wma
@@ -143,10 +148,12 @@ from polars_ti.statistics.correl import correl
 from polars_ti.statistics.entropy import entropy
 from polars_ti.statistics.kurtosis import kurtosis
 from polars_ti.statistics.mad import mad
+from polars_ti.statistics.md import md
 from polars_ti.statistics.median import median
 from polars_ti.statistics.quantile import quantile
 from polars_ti.statistics.skew import skew
 from polars_ti.statistics.stdev import stdev
+from polars_ti.statistics.stderr import stderr
 from polars_ti.statistics.tos_stdevall import tos_stdevall
 from polars_ti.statistics.variance import variance
 from polars_ti.statistics.zscore import zscore
@@ -184,11 +191,14 @@ from polars_ti.volatility.accbands import accbands
 from polars_ti.volatility.atr import atr
 from polars_ti.volatility.atrts import atrts
 from polars_ti.volatility.avsl import avsl
+from polars_ti.volatility.avolume import avolume
 from polars_ti.volatility.bbands import bbands
 from polars_ti.volatility.chandelier_exit import chandelier_exit
+from polars_ti.volatility.cvi import cvi
 from polars_ti.volatility.donchian import donchian
 from polars_ti.volatility.fvg import fvg
 from polars_ti.volatility.halftrend import halftrend
+from polars_ti.volatility.hvol import hvol
 from polars_ti.volatility.hwc import hwc
 from polars_ti.volatility.kc import kc
 from polars_ti.volatility.massi import massi
@@ -204,8 +214,10 @@ from polars_ti.volume.aobv import aobv
 from polars_ti.volume.avwap import avwap
 from polars_ti.volume.cmf import cmf
 from polars_ti.volume.efi import efi
+from polars_ti.volume.emv import emv
 from polars_ti.volume.eom import eom
 from polars_ti.volume.kvo import kvo
+from polars_ti.volume.marketfi import marketfi
 from polars_ti.volume.mfi import mfi
 from polars_ti.volume.nvi import nvi
 from polars_ti.volume.obv import obv
@@ -216,9 +228,11 @@ from polars_ti.volume.pvr import pvr
 from polars_ti.volume.pvt import pvt
 from polars_ti.volume.vfi import vfi
 from polars_ti.volume.vhm import vhm
+from polars_ti.volume.vosc import vosc
 from polars_ti.volume.vp import vp
 from polars_ti.volume.vwap import vwap
 from polars_ti.volume.vwma import vwma
+from polars_ti.volume.wad import wad
 from polars_ti.volume.wb_tsv import wb_tsv
 
 
@@ -620,6 +634,10 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(ht_trendmode(c, **kw), **kw)
 
+    def msw(self, close=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(msw(c, **kw), **kw)
+
     # ==================================================================
     #  Momentum
     # ==================================================================
@@ -707,6 +725,9 @@ class TechnicalIndicators:
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
         return self._post_process(fisher(h, lo, **kw), **kw)
+
+    def fosc(self, close=None, **kw):
+        return self._post_process(fosc(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def imi(self, open_=None, close=None, **kw):
         o = self._col(open_ or kw.pop("open", "open"))
@@ -876,6 +897,17 @@ class TechnicalIndicators:
     def alma(self, close=None, **kw):
         return self._post_process(alma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
+    def avgprice(self, open_=None, high=None, low=None, close=None, **kw):
+        kw.setdefault("open", "open")
+        kw.setdefault("high", "high")
+        kw.setdefault("low", "low")
+        kw.setdefault("close", "close")
+        o = self._col(open_ or kw.pop("open"))
+        h = self._col(high or kw.pop("high"))
+        lo = self._col(low or kw.pop("low"))
+        c = self._col(close or kw.pop("close"))
+        return self._post_process(avgprice(o, h, lo, c, **kw), **kw)
+
     def dema(self, close=None, **kw):
         return self._post_process(dema(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
@@ -928,6 +960,11 @@ class TechnicalIndicators:
 
     def mcgd(self, close=None, **kw):
         return self._post_process(mcgd(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def medprice(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(medprice(h, lo, **kw), **kw)
 
     def midpoint(self, close=None, **kw):
         return self._post_process(midpoint(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -1002,6 +1039,12 @@ class TechnicalIndicators:
     def trima(self, close=None, **kw):
         return self._post_process(trima(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
+    def typprice(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(typprice(h, lo, c, **kw), **kw)
+
     def vidya(self, close=None, **kw):
         return self._post_process(vidya(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
@@ -1053,6 +1096,9 @@ class TechnicalIndicators:
     def mad(self, close=None, **kw):
         return self._post_process(mad(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
+    def md(self, close=None, **kw):
+        return self._post_process(md(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
     def median(self, close=None, **kw):
         return self._post_process(median(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
@@ -1064,6 +1110,9 @@ class TechnicalIndicators:
 
     def stdev(self, close=None, **kw):
         return self._post_process(stdev(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def stderr(self, close=None, **kw):
+        return self._post_process(stderr(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def tos_stdevall(self, close=None, **kw):
         return self._post_process(tos_stdevall(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -1254,6 +1303,12 @@ class TechnicalIndicators:
         kw.pop("high", None)
         return self._post_process(avsl(c, lo, v, **kw), **kw)
 
+    def avolume(self, close=None, **kw):
+        kw.pop("high", None)
+        kw.pop("low", None)
+        kw.pop("volume", None)
+        return self._post_process(avolume(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
     def bbands(self, close=None, **kw):
         return self._post_process(bbands(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
@@ -1262,6 +1317,13 @@ class TechnicalIndicators:
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(chandelier_exit(h, lo, c, **kw), **kw)
+
+    def cvi(self, high=None, low=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        kw.pop("close", None)
+        kw.pop("volume", None)
+        return self._post_process(cvi(h, lo, **kw), **kw)
 
     def donchian(self, high=None, low=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
@@ -1284,6 +1346,12 @@ class TechnicalIndicators:
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(halftrend(h, lo, c, **kw), **kw)
+
+    def hvol(self, close=None, **kw):
+        kw.pop("high", None)
+        kw.pop("low", None)
+        kw.pop("volume", None)
+        return self._post_process(hvol(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def hwc(self, close=None, **kw):
         return self._post_process(hwc(self._col(close or kw.pop("close", "close")), **kw), **kw)
@@ -1380,6 +1448,13 @@ class TechnicalIndicators:
         v = self._col(volume or kw.pop("volume", "volume"))
         return self._post_process(efi(c, v, **kw), **kw)
 
+    def emv(self, high=None, low=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("close", None)
+        return self._post_process(emv(h, lo, v, **kw), **kw)
+
     def eom(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
@@ -1393,6 +1468,13 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
         return self._post_process(kvo(h, lo, c, v, **kw), **kw)
+
+    def marketfi(self, high=None, low=None, volume=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("close", None)
+        return self._post_process(marketfi(h, lo, v, **kw), **kw)
 
     def mfi(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
@@ -1449,6 +1531,13 @@ class TechnicalIndicators:
         kw.pop("close", None)
         return self._post_process(vhm(v, **kw), **kw)
 
+    def vosc(self, volume=None, **kw):
+        v = self._col(volume or kw.pop("volume", "volume"))
+        kw.pop("high", None)
+        kw.pop("low", None)
+        kw.pop("close", None)
+        return self._post_process(vosc(v, **kw), **kw)
+
     def vp(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
@@ -1472,6 +1561,13 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         v = self._col(volume or kw.pop("volume", "volume"))
         return self._post_process(vwma(c, v, **kw), **kw)
+
+    def wad(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        kw.pop("volume", None)
+        return self._post_process(wad(h, lo, c, **kw), **kw)
 
     def wb_tsv(self, close=None, volume=None, **kw):
         c = self._col(close or kw.pop("close", "close"))

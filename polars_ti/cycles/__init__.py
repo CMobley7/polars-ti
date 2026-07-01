@@ -6,6 +6,7 @@ from polars_ti.cycles.ht_dcphase import ht_dcphase
 from polars_ti.cycles.ht_phasor import ht_phasor
 from polars_ti.cycles.ht_sine import ht_sine
 from polars_ti.cycles.ht_trendmode import ht_trendmode
+from polars_ti.cycles.msw import msw
 from polars_ti.cycles.reflex import reflex
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "ht_phasor",
     "ht_sine",
     "ht_trendmode",
+    "msw",
     "reflex",
 ]

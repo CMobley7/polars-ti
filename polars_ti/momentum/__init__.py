@@ -16,6 +16,7 @@ from polars_ti.momentum.er import er
 from polars_ti.momentum.eri import eri
 from polars_ti.momentum.exhc import exhc
 from polars_ti.momentum.fisher import fisher
+from polars_ti.momentum.fosc import fosc
 from polars_ti.momentum.imi import imi
 from polars_ti.momentum.inertia import inertia
 from polars_ti.momentum.kdj import kdj
@@ -72,6 +73,7 @@ __all__ = [
     "eri",
     "exhc",
     "fisher",
+    "fosc",
     "imi",
     "inertia",
     "kdj",

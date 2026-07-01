@@ -135,6 +135,7 @@ omit = [
     "polars_ti/candles/ha.py",
     "polars_ti/core.py",
     "polars_ti/custom.py",
+    "polars_ti/cycles/msw.py",
     "polars_ti/cycles/reflex.py",
     "polars_ti/maps.py",
     "polars_ti/momentum/cg.py",
@@ -234,4 +235,5 @@ omit = [
     "polars_ti/volume/pvi.py",
     "polars_ti/volume/vwap.py",
     "polars_ti/volume/vwma.py",
+    "polars_ti/volume/wad.py",
 ]
