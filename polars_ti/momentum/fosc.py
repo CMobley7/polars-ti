@@ -11,6 +11,7 @@ from polars_ti.utils._validate import v_expr
 def fosc(
     close: IntoExpr,
     length: int = 14,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Forecast Oscillator (FOSC)
@@ -29,6 +30,8 @@ def fosc(
     Args:
         close: Column name or pl.Expr for 'close' prices.
         length: Lookback period. Default: 14
+        talib: If True and TA-Lib is installed, uses TA-Lib for the underlying
+            TSF/linreg. Native and TA-Lib TSF agree exactly. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -44,7 +47,7 @@ def fosc(
     _offset = offset
 
     # TSF = Time Series Forecast (linreg with tsf=True)
-    tsf_expr = linreg(close_expr, length=_length, talib=True, tsf=True)
+    tsf_expr = linreg(close_expr, length=_length, talib=talib, tsf=True)
 
     result = pl.lit(100.0) * (close_expr - tsf_expr) / close_expr
 

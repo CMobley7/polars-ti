@@ -72,3 +72,24 @@ class TestHtPhasor:
         exp_ip, exp_qd = talib.HT_PHASOR(arr)
         np.testing.assert_array_almost_equal(result["inphase"].to_numpy(), exp_ip)
         np.testing.assert_array_almost_equal(result["quadrature"].to_numpy(), exp_qd)
+
+    @pytest.mark.skipif(
+        not __import__("importlib").util.find_spec("talib"),
+        reason="TA-Lib not installed",
+    )
+    def test_native_matches_talib_after_warmup(self):
+        """Native phasor matches TA-Lib EXACTLY from the lookback (32) onward.
+
+        The native Hilbert pipeline is a direct port of the TA-Lib C loop, so
+        the raw I1 / Q1 phasor components are bit-for-bit identical (up to float
+        rounding) once TA-Lib emits values at bar 32.
+        """
+        import talib
+
+        arr = _price_series(500)
+        df = pl.DataFrame({"close": arr})
+        result = df.select(ht_phasor("close", talib=False)).unnest("HT_PHASOR")
+        exp_ip, exp_qd = talib.HT_PHASOR(arr)
+        start = 32  # TA-Lib HT_PHASOR lookback
+        np.testing.assert_allclose(result["inphase"].to_numpy()[start:], exp_ip[start:], rtol=0, atol=1e-8)
+        np.testing.assert_allclose(result["quadrature"].to_numpy()[start:], exp_qd[start:], rtol=0, atol=1e-8)

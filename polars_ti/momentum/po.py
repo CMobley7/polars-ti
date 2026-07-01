@@ -12,6 +12,7 @@ from polars_ti.overlap.linreg import linreg
 def po(
     close: IntoExpr,
     length: int = 14,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Projection Oscillator (PO)
@@ -31,6 +32,8 @@ def po(
     Args:
         close: Column name or pl.Expr for 'close' prices
         length: Rolling window period. Default: 14
+        talib: If True and TA-Lib is installed, uses TA-Lib for the underlying
+            linreg. Native and TA-Lib LINREG agree exactly. Default: True
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -41,7 +44,7 @@ def po(
         return None
 
     # Calculate linear regression using pl_linreg
-    lr = linreg(close, length=length, talib=True)
+    lr = linreg(close, length=length, talib=talib)
 
     # PO = 100 * (close - LR) / LR with division protection
     # When LR is 0, result should be NaN

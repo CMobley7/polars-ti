@@ -67,26 +67,24 @@ class TestHtDcperiod:
         not __import__("importlib").util.find_spec("talib"),
         reason="TA-Lib not installed",
     )
-    def test_native_close_to_talib_after_warmup(self):
-        """Native path should be numerically close to TA-Lib after warmup."""
+    def test_native_matches_talib_after_warmup(self):
+        """Native path matches TA-Lib EXACTLY from the lookback (32) onward.
+
+        The Hilbert pipeline is a direct port of the TA-Lib C loop, so the
+        smoothed dominant-cycle period is bit-for-bit identical (up to float
+        rounding) once TA-Lib emits values at bar 32.
+        """
         import talib
 
         arr = _price_series(500)
         df = pl.DataFrame({"close": arr})
         native = df.select(ht_dcperiod("close", talib=False))["HT_DCPERIOD"].to_numpy()
         expected = talib.HT_DCPERIOD(arr)
-        # Compare only in the stable region
-        mask = ~np.isnan(native) & ~np.isnan(expected)
-        stable = np.where(mask)[0]
-        if len(stable) > 20:
-            start = stable[20]  # skip first 20 valid bars
-            # The native path is an approximation of TA-Lib; allow looser tolerance
-            # (~15% relative, ~5 absolute) since the HT pipeline starts from index 6
-            # while TA-Lib uses a longer warmup that produces slightly different values.
-            np.testing.assert_allclose(
-                native[start:],
-                expected[start:],
-                rtol=0.15,
-                atol=5.0,
-                err_msg="Native HT_DCPERIOD deviates too far from TA-Lib",
-            )
+        start = 32  # TA-Lib HT_DCPERIOD lookback
+        np.testing.assert_allclose(
+            native[start:],
+            expected[start:],
+            rtol=0,
+            atol=1e-8,
+            err_msg="Native HT_DCPERIOD must equal TA-Lib after warmup",
+        )

@@ -75,9 +75,14 @@ def nb_linreg(
                 result[i] = 0.0
             continue
 
-        # Default: LINREG value or TSF
+        # Default: LINREG value or TSF.
+        # With x = [1, 2, ..., length], the regression endpoint (LINREG) is at
+        # x = length, so LINREG = m * length + b.  The Time Series Forecast is
+        # the one-step-ahead projection at x = length + 1, so it must add one
+        # more slope step: TSF = m * (length + 1) + b.  This matches TA-Lib's
+        # TSF / LINEARREG exactly (verified against talib.TSF / talib.LINEARREG).
         if tsf:
-            result[i] = m * (length - 1) + b
+            result[i] = m * (length + 1) + b
         else:
             result[i] = m * length + b
 
