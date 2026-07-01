@@ -1,31 +1,30 @@
 # -*- coding: utf-8 -*-
-"""Validation tests for Tulip-parity indicators against the classic fork and TA-Lib.
+"""Validation tests for Tulip-parity indicators against golden fixtures and TA-Lib.
 
 Compares polars_ti native outputs to:
-  - pandas-ta-classic (classic fork) for all new tulip-parity indicators
-  - TA-Lib directly for avgprice (AVGPRICE), medprice (MEDPRICE), typprice (TYPPRICE)
+  - Committed golden fixtures generated once from pandas-ta-classic (the classic
+    fork).  This lets the cross-validation run in CI *without* the clone, which
+    is gitignored and absent there.  Regenerate with
+    ``tests/fixtures/_generate_classic_parity.py`` when the reference changes.
+  - TA-Lib directly for avgprice (AVGPRICE), medprice (MEDPRICE),
+    typprice (TYPPRICE).
 
-The comparison uses identical float64 arrays sourced from the same Polars frame
-to avoid 1-ULP CSV-parse mismatches.
+The fixtures were produced from the *same* float64 SPY_D slice these tests load,
+so the comparison is not polluted by ULP-level CSV-parse differences.
 """
 
-import sys
+import os
 
 import numpy as np
 import polars as pl
 import pytest
 
 import polars_ti as ti  # noqa: F401
-
-sys.path.insert(0, "tmp/pandas-ta-classic")
-# The classic fork is a local reference clone (gitignored tmp/); it is not
-# present in CI, so skip these cross-validations gracefully when it is absent.
-pta = pytest.importorskip("pandas_ta_classic")
-
-from polars_ti.maps import Imports  # noqa: E402
+from polars_ti.maps import Imports
 
 SLICE_ROWS = 500
 ABS_TOL = 1e-10  # tight float64 tolerance
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "classic_tulip_parity.parquet")
 
 
 @pytest.fixture(scope="module")
@@ -36,14 +35,15 @@ def data():
     return df, arrs
 
 
-def _pd_series(arr, arrs):
-    """Wrap a numpy array in a pandas Series with matching index."""
-    import pandas as pd
-
-    return pd.Series(arr)
+@pytest.fixture(scope="module")
+def golden():
+    """Committed classic-fork reference outputs (generated once from the clone)."""
+    return pl.read_parquet(FIXTURE)
 
 
 def _assert_close(name, got, ref, tol=ABS_TOL):
+    got = np.asarray(got, dtype=float)
+    ref = np.asarray(ref, dtype=float)
     mask = ~(np.isnan(got) | np.isnan(ref))
     assert mask.sum() > 0, f"{name}: no valid (non-NaN) rows to compare"
     max_err = float(np.max(np.abs(got[mask] - ref[mask])))
@@ -51,23 +51,14 @@ def _assert_close(name, got, ref, tol=ABS_TOL):
 
 
 # ---------------------------------------------------------------------------
-# avgprice / medprice / typprice — vs classic fork AND TA-Lib
+# avgprice / medprice / typprice — vs classic fixture AND TA-Lib
 # ---------------------------------------------------------------------------
 
 
-def test_avgprice_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
+def test_avgprice_vs_classic(data, golden):
+    df, _ = data
     r_native = df.ti.avgprice(talib=False).to_series().to_numpy()
-    r_classic = pta.avgprice(
-        pd.Series(arrs["open"]),
-        pd.Series(arrs["high"]),
-        pd.Series(arrs["low"]),
-        pd.Series(arrs["close"]),
-        talib=False,
-    ).values
-    _assert_close("avgprice vs classic", r_native, r_classic)
+    _assert_close("avgprice vs classic", r_native, golden["avgprice"].to_numpy())
 
 
 @pytest.mark.skipif(not Imports["talib"], reason="requires TA-Lib")
@@ -80,13 +71,10 @@ def test_avgprice_talib_path(data):
     _assert_close("avgprice talib-path vs talib.AVGPRICE", r_polars, r_talib)
 
 
-def test_medprice_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
+def test_medprice_vs_classic(data, golden):
+    df, _ = data
     r_native = df.ti.medprice(talib=False).to_series().to_numpy()
-    r_classic = pta.medprice(pd.Series(arrs["high"]), pd.Series(arrs["low"]), talib=False).values
-    _assert_close("medprice vs classic", r_native, r_classic)
+    _assert_close("medprice vs classic", r_native, golden["medprice"].to_numpy())
 
 
 @pytest.mark.skipif(not Imports["talib"], reason="requires TA-Lib")
@@ -99,15 +87,10 @@ def test_medprice_talib_path(data):
     _assert_close("medprice talib-path vs talib.MEDPRICE", r_polars, r_talib)
 
 
-def test_typprice_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
+def test_typprice_vs_classic(data, golden):
+    df, _ = data
     r_native = df.ti.typprice(talib=False).to_series().to_numpy()
-    r_classic = pta.typprice(
-        pd.Series(arrs["high"]), pd.Series(arrs["low"]), pd.Series(arrs["close"]), talib=False
-    ).values
-    _assert_close("typprice vs classic", r_native, r_classic)
+    _assert_close("typprice vs classic", r_native, golden["typprice"].to_numpy())
 
 
 @pytest.mark.skipif(not Imports["talib"], reason="requires TA-Lib")
@@ -125,21 +108,11 @@ def test_typprice_talib_path(data):
 # ---------------------------------------------------------------------------
 
 
-def test_msw_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    # Run polars msw — returns a struct, expand it
+def test_msw_vs_classic(data, golden):
+    df, _ = data
     msw_out = df.select(df.ti.msw()).to_series().struct.unnest()
-    sine_native = msw_out["sine"].to_numpy()
-    lead_native = msw_out["lead"].to_numpy()
-
-    r_classic = pta.msw(pd.Series(arrs["close"]))
-    sine_classic = r_classic["MSW_SINE_5"].values
-    lead_classic = r_classic["MSW_LEAD_5"].values
-
-    _assert_close("msw sine vs classic", sine_native, sine_classic)
-    _assert_close("msw lead vs classic", lead_native, lead_classic)
+    _assert_close("msw sine vs classic", msw_out["sine"].to_numpy(), golden["msw_sine"].to_numpy())
+    _assert_close("msw lead vs classic", msw_out["lead"].to_numpy(), golden["msw_lead"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -147,13 +120,9 @@ def test_msw_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_cvi_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.cvi().to_series().to_numpy()
-    r_classic = pta.cvi(pd.Series(arrs["high"]), pd.Series(arrs["low"])).values
-    _assert_close("cvi vs classic", r_native, r_classic)
+def test_cvi_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("cvi vs classic", df.ti.cvi().to_series().to_numpy(), golden["cvi"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -161,13 +130,9 @@ def test_cvi_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_hvol_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.hvol().to_series().to_numpy()
-    r_classic = pta.hvol(pd.Series(arrs["close"])).values
-    _assert_close("hvol vs classic", r_native, r_classic)
+def test_hvol_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("hvol vs classic", df.ti.hvol().to_series().to_numpy(), golden["hvol"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -175,13 +140,9 @@ def test_hvol_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_avolume_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.avolume().to_series().to_numpy()
-    r_classic = pta.avolume(pd.Series(arrs["close"])).values
-    _assert_close("avolume vs classic", r_native, r_classic)
+def test_avolume_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("avolume vs classic", df.ti.avolume().to_series().to_numpy(), golden["avolume"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -189,13 +150,9 @@ def test_avolume_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_marketfi_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.marketfi().to_series().to_numpy()
-    r_classic = pta.marketfi(pd.Series(arrs["high"]), pd.Series(arrs["low"]), pd.Series(arrs["volume"])).values
-    _assert_close("marketfi vs classic", r_native, r_classic)
+def test_marketfi_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("marketfi vs classic", df.ti.marketfi().to_series().to_numpy(), golden["marketfi"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -203,13 +160,9 @@ def test_marketfi_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_vosc_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.vosc().to_series().to_numpy()
-    r_classic = pta.vosc(pd.Series(arrs["volume"])).values
-    _assert_close("vosc vs classic", r_native, r_classic)
+def test_vosc_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("vosc vs classic", df.ti.vosc().to_series().to_numpy(), golden["vosc"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -217,13 +170,9 @@ def test_vosc_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_wad_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.wad().to_series().to_numpy()
-    r_classic = pta.wad(pd.Series(arrs["high"]), pd.Series(arrs["low"]), pd.Series(arrs["close"])).values
-    _assert_close("wad vs classic", r_native, r_classic)
+def test_wad_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("wad vs classic", df.ti.wad().to_series().to_numpy(), golden["wad"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -231,13 +180,9 @@ def test_wad_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_emv_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.emv().to_series().to_numpy()
-    r_classic = pta.emv(pd.Series(arrs["high"]), pd.Series(arrs["low"]), pd.Series(arrs["volume"])).values
-    _assert_close("emv vs classic", r_native, r_classic)
+def test_emv_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("emv vs classic", df.ti.emv().to_series().to_numpy(), golden["emv"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -245,13 +190,9 @@ def test_emv_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_fosc_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.fosc().to_series().to_numpy()
-    r_classic = pta.fosc(pd.Series(arrs["close"])).values
-    _assert_close("fosc vs classic", r_native, r_classic, tol=1e-9)
+def test_fosc_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("fosc vs classic", df.ti.fosc().to_series().to_numpy(), golden["fosc"].to_numpy(), tol=1e-9)
 
 
 # ---------------------------------------------------------------------------
@@ -259,13 +200,9 @@ def test_fosc_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_stderr_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.stderr().to_series().to_numpy()
-    r_classic = pta.stderr(pd.Series(arrs["close"])).values
-    _assert_close("stderr vs classic", r_native, r_classic)
+def test_stderr_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("stderr vs classic", df.ti.stderr().to_series().to_numpy(), golden["stderr"].to_numpy())
 
 
 # ---------------------------------------------------------------------------
@@ -273,10 +210,6 @@ def test_stderr_vs_classic(data):
 # ---------------------------------------------------------------------------
 
 
-def test_md_vs_classic(data):
-    df, arrs = data
-    import pandas as pd
-
-    r_native = df.ti.md().to_series().to_numpy()
-    r_classic = pta.md(pd.Series(arrs["close"])).values
-    _assert_close("md vs classic", r_native, r_classic)
+def test_md_vs_classic(data, golden):
+    df, _ = data
+    _assert_close("md vs classic", df.ti.md().to_series().to_numpy(), golden["md"].to_numpy())
