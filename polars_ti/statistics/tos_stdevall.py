@@ -91,19 +91,27 @@ def tos_stdevall(
 
     def compute_stdevall(s: pl.Series) -> pl.Series:
         """Compute TOS_STDEVALL using Numba kernels."""
-        arr = s.to_numpy().astype(np.float64)
-        n = len(arr)
+        full = s.to_numpy().astype(np.float64)
+        n = len(full)
 
-        # Use length or full series
+        # Use length or full series. When a length is given, the regression is
+        # computed on the trailing `length` slice but written back into a
+        # full-length array at the trailing positions (leading rows stay NaN),
+        # so the output height always equals the input height.
         if _length is not None and _length < n:
-            arr = arr[-_length:]
-            n = _length
+            arr = full[-_length:]
+            m = len(arr)
+            start = n - m
+        else:
+            arr = full
+            m = n
+            start = 0
 
         # Linear regression using Numba
         slope, intercept = nb_linreg(arr)
-        lr = np.empty(n, dtype=np.float64)
-        for i in range(n):
-            lr[i] = slope * i + intercept
+        lr = np.full(n, np.nan, dtype=np.float64)
+        for i in range(m):
+            lr[start + i] = slope * i + intercept
 
         stdev = nb_std(arr, _ddof)
 

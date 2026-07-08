@@ -87,6 +87,7 @@ def qqe(
     factor: float = 4.236,
     mamode: str = "ema",
     talib: bool = True,
+    drift: int = 1,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Quantitative Qualitative Estimation (QQE)
@@ -112,6 +113,7 @@ def qqe(
         smooth: MA smoothing period for RSI. Default: 5
         factor: ATR multiplier for bands. Default: 4.236
         mamode: MA type for RSI smoothing. Default: 'ema'
+        drift: The difference period for the RSI MA True Range. Default: 1
         offset: Shift result by N periods. Default: 0
 
     Returns:
@@ -134,6 +136,7 @@ def qqe(
     _wilders_length = wilders_length
     _props_str = _props
     _talib = talib
+    _drift = drift
 
     def compute_qqe(s: pl.Series) -> pl.DataFrame:
         """Compute QQE using pure Polars/Numba — no pandas dependency."""
@@ -148,8 +151,12 @@ def qqe(
         rsi_ma_expr = ma(_mamode, "_rsi", length=_smooth, talib=_talib)
         rsi_ma_col = tmp2.select(rsi_ma_expr).to_series().to_numpy()
 
-        # Step 3: RSI MA True Range
-        rsi_ma_tr = np.abs(np.diff(rsi_ma_col, prepend=np.nan))
+        # Step 3: RSI MA True Range (abs of the ``drift``-period difference,
+        # matching pandas ``rsi_ma.diff(drift)``).
+        rsi_ma_diff = np.full_like(rsi_ma_col, np.nan)
+        if _drift < len(rsi_ma_col):
+            rsi_ma_diff[_drift:] = rsi_ma_col[_drift:] - rsi_ma_col[:-_drift]
+        rsi_ma_tr = np.abs(rsi_ma_diff)
 
         # Step 4: Double EMA of RSI TR
         tmp3 = pl.DataFrame({"_tr": rsi_ma_tr})

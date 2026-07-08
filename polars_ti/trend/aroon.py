@@ -82,6 +82,10 @@ def aroon(
                 up[:offset] = np.nan
                 down[:offset] = np.nan
                 osc[:offset] = np.nan
+            else:
+                up[offset:] = np.nan
+                down[offset:] = np.nan
+                osc[offset:] = np.nan
 
         return pl.Series(values=[{"AROONU": u, "AROOND": d, "AROONOSC": o} for u, d, o in zip(up, down, osc)])
 

@@ -95,3 +95,26 @@ class TestPlTmo:
         )
         result = df.select(tmo_indicator("open", "close"))
         assert result.height == 63
+
+
+class TestPlTmoMamodeNative:
+    """Native MA cascade honours ``mamode`` (default 'ema') via the ma() dispatcher."""
+
+    @pytest.fixture
+    def sample_df(self):
+        np.random.seed(42)
+        n = 100
+        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
+        open_ = close - np.random.randn(n) * 0.3
+        return pl.DataFrame({"open": open_, "close": close})
+
+    def test_mamode_default_unchanged_and_sma_changes(self, sample_df):
+        main = "TMO_14_5_3"
+        d_def = sample_df.select(tmo_indicator("open", "close")).unnest("TMO")[main].to_numpy()
+        d_ema = sample_df.select(tmo_indicator("open", "close", mamode="ema")).unnest("TMO")[main].to_numpy()
+        d_sma = sample_df.select(tmo_indicator("open", "close", mamode="sma")).unnest("TMO")[main].to_numpy()
+
+        # Default equals explicit "ema".
+        assert np.array_equal(d_def, d_ema, equal_nan=True)
+        # Non-default mamode changes the output.
+        assert np.nanmax(np.abs(d_sma - d_def)) > 0.0

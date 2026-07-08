@@ -145,6 +145,10 @@ def stc(
                 pff[:offset] = np.nan
                 pf[:offset] = np.nan
                 macd_arr[:offset] = np.nan
+            else:
+                pff[offset:] = np.nan
+                pf[offset:] = np.nan
+                macd_arr[offset:] = np.nan
 
         return pl.DataFrame(
             {

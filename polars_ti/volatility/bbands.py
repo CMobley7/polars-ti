@@ -75,6 +75,12 @@ def bbands(
                     upper[:_offset] = np.nan
                     bandwidth[:_offset] = np.nan
                     percent[:_offset] = np.nan
+                else:
+                    lower[_offset:] = np.nan
+                    mid[_offset:] = np.nan
+                    upper[_offset:] = np.nan
+                    bandwidth[_offset:] = np.nan
+                    percent[_offset:] = np.nan
 
             _props = f"_{_length}_{_std}"
             return pl.DataFrame(
@@ -112,8 +118,10 @@ def bbands(
         upper = mid + deviations
 
         ulr = upper - lower
-        bandwidth = (pl.lit(100.0) * ulr) / mid
-        percent = (close_expr - lower) / ulr
+        # Guard divide-by-zero to match the TA-Lib branch (NaN, not inf) when
+        # mid==0 (e.g. zero-mean/detrended input) or ulr==0 (flat bands).
+        bandwidth = pl.when(mid != 0).then((pl.lit(100.0) * ulr) / mid).otherwise(None)
+        percent = pl.when(ulr != 0).then((close_expr - lower) / ulr).otherwise(None)
 
         if offset != 0:
             lower = lower.shift(offset)

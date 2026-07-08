@@ -61,6 +61,7 @@ def crsi(
     length_rsi: int = 3,
     length_streak: int = 2,
     length_rank: int = 100,
+    scalar: float = 100.0,
     talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
@@ -75,6 +76,7 @@ def crsi(
         length_rsi: RSI period. Default: 3
         length_streak: Streak RSI period. Default: 2
         length_rank: Percent Rank lookback. Default: 100
+        scalar: How much to magnify the RSI components. Default: 100.0
         talib: If True and TA-Lib installed, use TA-Lib for RSI. Default: True
         offset: Shift result. Default: 0
 
@@ -107,8 +109,8 @@ def crsi(
     pr_expr = close_expr.map_batches(compute_pr, return_dtype=pl.Float64)
 
     # Use pl_rsi for both RSI calculations (reuses existing RSI implementation)
-    close_rsi_expr = rsi(close_expr, length=length_rsi, talib=talib, offset=0)
-    streak_rsi_expr = rsi(streak_expr, length=length_streak, talib=talib, offset=0)
+    close_rsi_expr = rsi(close_expr, length=length_rsi, scalar=scalar, talib=talib, offset=0)
+    streak_rsi_expr = rsi(streak_expr, length=length_streak, scalar=scalar, talib=talib, offset=0)
 
     # CRSI = (close_rsi + streak_rsi + percent_rank) / 3
     crsi_expr = (close_rsi_expr + streak_rsi_expr + pr_expr) / 3.0

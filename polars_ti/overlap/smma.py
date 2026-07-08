@@ -48,6 +48,9 @@ def smma(
 
     def compute_smma(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
+        # Guard: indexing row length-1 of a length-n slice raises when n < length.
+        if len(arr) < length:
+            return pl.Series(np.full(len(arr), np.nan))
         # Get initial value from MA
         temp_df = pl.DataFrame({"c": arr[:length]})
         initial = temp_df.select(ma(mamode, "c", length=length, talib=talib)).item(length - 1, 0)
@@ -57,6 +60,8 @@ def smma(
             result = np.roll(result, offset)
             if offset > 0:
                 result[:offset] = np.nan
+            else:
+                result[offset:] = np.nan
         return pl.Series(result)
 
     return close_expr.map_batches(compute_smma, return_dtype=pl.Float64).alias(f"SMMA_{length}")

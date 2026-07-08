@@ -265,6 +265,10 @@ def zigzag(
                 zz_swing[:offset] = np.nan
                 zz_value[:offset] = np.nan
                 zz_dev[:offset] = np.nan
+            else:
+                zz_swing[offset:] = np.nan
+                zz_value[offset:] = np.nan
+                zz_dev[offset:] = np.nan
 
         _props = f"_{deviation}%_{legs}"
         n = len(h)

@@ -134,33 +134,6 @@ def get_time(exchange: str = "NYSE", full: bool = True, to_string: bool = False)
         return f"[get_time error: {exc}]" if to_string else None
 
 
-def total_time(df, tf: str = "years") -> Float:
-    """Calculates the total time of a DataFrame. Difference of the Last and
-    First index. Options: 'months', 'weeks', 'days', 'hours', 'minutes'
-    and 'seconds'. Default: 'years'.
-    Useful for annualization."""
-    if hasattr(df, "columns") and hasattr(df, "__getitem__"):
-        date_col = "date" if "date" in df.columns else df.columns[0]
-        first = df[date_col].min()
-        last = df[date_col].max()
-        time_diff = last - first
-    else:
-        time_diff = df.index[-1] - df.index[0]
-    TimeFrame = {
-        "years": time_diff.days / 365.242199074074074,  # PR 602
-        "months": time_diff.days / 30.417,
-        "weeks": time_diff.days / 7,
-        "days": time_diff.days,
-        "hours": time_diff.days * 24,
-        "minutes": time_diff.total_seconds() / 60,
-        "seconds": time_diff.total_seconds(),
-    }
-
-    if isinstance(tf, str) and tf in TimeFrame.keys():
-        return TimeFrame[tf]
-    return TimeFrame["years"]
-
-
 def to_utc(df):
     """Either localizes the DataFrame Index to UTC or it applies tz_convert to
     set the Index to UTC.

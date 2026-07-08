@@ -106,7 +106,10 @@ class TestPlTrixh:
 
         # Should not raise, and should have some valid values
         assert result.shape[0] == 500
-        assert result["TRIX_18_9"].null_count() > 0  # Some nulls expected due to warmup
+        # Warm-up produces non-finite (NaN) values, consistent with trix()'s
+        # map_batches path and the pandas baseline (which emits NaN, not null).
+        trix_col = result["TRIX_18_9"]
+        assert (trix_col.is_nan() | trix_col.is_null()).sum() > 0  # warm-up NaNs
 
     def test_expr_input(self, sample_data: pl.DataFrame) -> None:
         """Test pl_trixh accepts pl.Expr as input."""
