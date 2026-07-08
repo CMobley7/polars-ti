@@ -56,3 +56,16 @@ class TestPlDm:
         valid_dmn = result["DMN_14"].filter(~result["DMN_14"].is_null())
         assert valid_dmp.min() >= 0
         assert valid_dmn.min() >= 0
+
+    def test_drift_parameter(self, sample_df):
+        """Restored ``drift`` param (native path): default unchanged, drift=2 changes output."""
+        dmp_def, _ = dm("high", "low", talib=False)
+        dmp_one, _ = dm("high", "low", talib=False, drift=1)
+        dmp_two, _ = dm("high", "low", talib=False, drift=2)
+
+        a_def = sample_df.select(dmp_def)["DMP_14"].to_numpy()
+        a_one = sample_df.select(dmp_one)["DMP_14"].to_numpy()
+        a_two = sample_df.select(dmp_two)["DMP_14"].to_numpy()
+
+        assert np.array_equal(a_def, a_one, equal_nan=True)
+        assert np.nanmax(np.abs(a_two - a_def)) > 0.0

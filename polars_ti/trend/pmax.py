@@ -102,6 +102,8 @@ def pmax(
                 a[:] = np.roll(a, offset)
                 if offset > 0:
                     a[:offset] = np.nan
+                else:
+                    a[offset:] = np.nan
 
         _props = f"_{length}_{multiplier}"
         n = len(c)

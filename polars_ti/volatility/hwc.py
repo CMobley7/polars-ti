@@ -104,6 +104,10 @@ def hwc(
                 result[:_offset] = np.nan
                 upper[:_offset] = np.nan
                 lower[:_offset] = np.nan
+            else:
+                result[_offset:] = np.nan
+                upper[_offset:] = np.nan
+                lower[_offset:] = np.nan
 
         return pl.DataFrame({"hwm": result, "hwu": upper, "hwl": lower}).to_struct("hwc")
 

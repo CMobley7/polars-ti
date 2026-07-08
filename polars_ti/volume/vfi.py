@@ -5,7 +5,6 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
 
@@ -59,8 +58,9 @@ def vfi(
 
     # VFI = sum(vcp, length) / rolling_mean(vave, length)
     vave_mean = vave.rolling_mean(window_size=length, min_samples=length)
-    # Protect against division by zero using shared utility
-    vave_mean_safe = non_zero_range(vave_mean, pl.lit(0.0))
+    # Protect against division by zero: null out zero denominators (matches the
+    # baseline ``replace(0, NaN)`` instead of adding eps -> a huge finite spike).
+    vave_mean_safe = pl.when(vave_mean == 0).then(None).otherwise(vave_mean)
 
     vfi_expr = vcp.rolling_sum(window_size=length, min_samples=length) / vave_mean_safe
 

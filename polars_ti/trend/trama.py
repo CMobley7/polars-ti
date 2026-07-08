@@ -37,19 +37,6 @@ from polars_ti.utils._validate import v_expr
 
 
 @_njit_trama(cache=True)
-def _nb_rolling_mean(arr, window):
-    """Numba-optimized rolling mean."""
-    n = len(arr)
-    result = np.full(n, np.nan)
-    for i in range(window - 1, n):
-        s = 0.0
-        for j in range(window):
-            s += arr[i - j]
-        result[i] = s / window
-    return result
-
-
-@_njit_trama(cache=True)
 def _nb_rolling_max(arr, window):
     """Numba-optimized rolling max."""
     n = len(arr)
@@ -80,6 +67,7 @@ def _nb_rolling_min(arr, window):
 def trama(
     close: IntoExpr,
     length: int = 10,
+    mamode: str = "sma",
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Trend Regulated Adaptive Moving Average (TRAMA)
@@ -89,12 +77,16 @@ def trama(
     Args:
         close: Column name or pl.Expr for input values
         length: Period. Default: 10
+        mamode: MA type used to smooth the trend signal. Default: 'sma'
         offset: Shift result. Default: 0
 
     Returns:
         pl.Expr: TRAMA expression
     """
+    from polars_ti.ma import ma
+
     close_expr = v_expr(close)
+    _mamode = (mamode or "sma").lower()
 
     def _compute(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
@@ -116,8 +108,16 @@ def trama(
         # Trend signal: 1 if either new high or new low
         trend_signal = np.where((hh > 0) | (ll > 0), 1.0, 0.0)
 
-        # Trend coefficient: squared SMA of trend signal
-        tc = _nb_rolling_mean(trend_signal, length) ** 2
+        # Trend coefficient: squared moving average of the trend signal.
+        # Route through the shared ``ma`` dispatcher so ``mamode`` is honoured;
+        # with the default "sma" this is byte-identical to the prior rolling mean.
+        smoothed = (
+            pl.DataFrame({"_ts": trend_signal})
+            .select(ma(_mamode, pl.col("_ts"), length=length, talib=False))
+            .to_series()
+            .to_numpy()
+        )
+        tc = smoothed**2
 
         trama_arr = nb_trama(arr, tc)
         return pl.Series(values=trama_arr, name=s.name)

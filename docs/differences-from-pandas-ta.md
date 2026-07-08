@@ -278,7 +278,8 @@ the parity suite:
 | `cdl_doji` | Shifted HL-range average + `<=` comparison. |
 | `natr` | Default `mamode="rma"`. |
 | `trima` | Asymmetric ceil/floor sub-windows. |
-| `linreg` (TSF) | Native one-step-ahead forecast `m*(L+1)+b`, equal to `talib.TSF`; this in turn corrected `fosc` and `po`. |
+| `linreg` (TSF) | Native one-step-ahead forecast `m*(L+1)+b`, equal to `talib.TSF`; this in turn corrected `fosc` (which calls `linreg(..., tsf=True)`). |
+| `po` | Honors its `talib=` argument instead of hard-coding `talib=True` on the underlying `linreg` call. (`po` uses the standard `m*L+b` fit, not TSF, so it was unaffected by the TSF fix above.) |
 
 ### 8b. New indicators (7)
 

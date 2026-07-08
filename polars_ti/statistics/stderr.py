@@ -40,7 +40,8 @@ def stderr(
         return None
 
     _length = length
-    _ddof = ddof
+    # Clamp ddof to a valid range; ddof>=length would otherwise yield all-NaN.
+    _ddof = ddof if 0 <= ddof < length else 1
     _offset = offset
 
     result = close_expr.rolling_std(window_size=_length, ddof=_ddof) / np.sqrt(_length)

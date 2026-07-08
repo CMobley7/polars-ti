@@ -7,7 +7,7 @@ from sys import float_info as sflt
 
 import polars as pl
 from numba import njit
-from numpy import argmax, argmin, finfo, float64
+from numpy import argmax, argmin, finfo, float64, where
 from polars_ti.maps import Imports
 from polars_ti.utils._validate import v_bool, v_dataframe, v_pos_default, v_series
 
@@ -35,10 +35,11 @@ def non_zero_range(high, low):
 
 @njit(cache=True)
 def nb_non_zero_range(x, y):
+    # Add epsilon only to the individual flat bars (high == low), not the whole
+    # array. The prior ``diff.any() == 0`` guard only triggered when EVERY bar was
+    # flat, leaving isolated flat bars at 0 -> downstream divide-by-zero.
     diff = x - y
-    if diff.any() == 0:
-        diff += finfo(float64).eps
-    return diff
+    return where(diff == 0, finfo(float64).eps, diff)
 
 
 def recent_maximum_index(x) -> int:
@@ -57,9 +58,6 @@ def signed_series(series, initial: int, lag: int | None = None):
     and returns:
     sign = Series([nan, -1.0, 0.0, -1.0, 0.0, 1.0, 1.0, 0.0, 1.0, -1.0])
     """
-    initial = None
-    if initial is not None and not isinstance(lag, str):
-        initial = initial
     series = v_series(series)
     lag = v_pos_default(lag, 1)
     if isinstance(series, pl.Series):

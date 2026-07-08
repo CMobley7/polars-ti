@@ -20,6 +20,13 @@ def _nb_psar(high, low, sar0, has_close, af0, max_af):
     af_arr = np.zeros(n)
     reversal = np.zeros(n, dtype=np.int64)
 
+    # Guard degenerate inputs before touching index 1 (avoids Numba OOB/UB).
+    if n < 2:
+        if n == 1:
+            af_arr[0] = af0
+            sar[0] = sar0 if has_close else high[0]
+        return long_arr, short_arr, af_arr, reversal
+
     af = af0
     af_arr[0] = af0
     af_arr[1] = af0
@@ -107,7 +114,7 @@ def psar(
         h = data["_h"].to_numpy().astype(np.float64)
         l_ = data["_l"].to_numpy().astype(np.float64)
         c_arr = data["_c"].to_numpy().astype(np.float64)
-        sar0 = float(c_arr[0]) if _has_close else 0.0
+        sar0 = float(c_arr[0]) if _has_close and len(c_arr) > 0 else 0.0
         long_a, short_a, af_a, rev_a = _nb_psar(h, l_, sar0, _has_close, _af0, max_af)
 
         # Reclassify long/short from the combined SAR using close (classic
@@ -125,9 +132,13 @@ def psar(
                 a[:] = np.roll(a, offset)
                 if offset > 0:
                     a[:offset] = np.nan
+                else:
+                    a[offset:] = np.nan
             rev_a = np.roll(rev_a, offset)
             if offset > 0:
                 rev_a[:offset] = 0
+            else:
+                rev_a[offset:] = 0
 
         _props = f"_{_af0}_{max_af}"
         n = len(h)

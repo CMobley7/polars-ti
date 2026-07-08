@@ -42,8 +42,10 @@ def ui(
     if close_expr is None:
         return None
 
-    # Highest close over rolling window
-    highest_close = close_expr.rolling_max(window_size=length, min_samples=1)
+    # Highest close over rolling window. Require a full window (min_samples=length)
+    # to match the baseline first-valid index; a partial-window max systematically
+    # understates the early Ulcer Index values.
+    highest_close = close_expr.rolling_max(window_size=length, min_samples=length)
 
     # Downside = scalar * (close - highest) / highest
     downside = pl.lit(scalar) * (close_expr - highest_close) / highest_close

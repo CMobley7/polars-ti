@@ -75,6 +75,8 @@ def atr(
                 result = np.roll(result, _offset)
                 if _offset > 0:
                     result[:_offset] = np.nan
+                else:
+                    result[_offset:] = np.nan
             return pl.Series(result)
 
         return (

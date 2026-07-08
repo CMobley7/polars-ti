@@ -132,3 +132,32 @@ class TestPlSqueezeIntegration:
 
         assert result.shape[0] == 1
         assert "total_on" in result.columns
+
+
+class TestPlSqueezeLazyBearRegression:
+    """Regression: LazyBear momentum uses the KC-middle basis, not the old stub."""
+
+    def _frame(self):
+        np.random.seed(42)
+        n = 200
+        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
+        high = close + np.abs(np.random.randn(n) * 0.3)
+        low = close - np.abs(np.random.randn(n) * 0.3)
+        return pl.DataFrame({"high": high, "low": low, "close": close})
+
+    def test_lazybear_matches_baseline_and_differs_from_stub(self):
+        from polars_ti.overlap.linreg import linreg
+
+        df = self._frame()
+        col = "SQZ_20_2.0_20_1.5_LB"
+        lb = df.select(squeeze(lazybear=True)).unnest(col)[col].to_numpy()
+
+        # Values must be finite after warmup and match the f158f3e baseline
+        # (avg_ = 0.5 * (0.5*(HH+LL) + KC_middle); linreg with tsf default False).
+        assert not np.all(np.isnan(lb))
+        assert lb[-1] == pytest.approx(-1.2105602438926475, abs=1e-6)
+
+        # Must differ materially from the old simplified (HH+LL)/2 tsf=True stub.
+        avg_hl = (pl.col("high").rolling_max(20) + pl.col("low").rolling_min(20)) / 2
+        old_stub = df.select(linreg(pl.col("close") - avg_hl, length=20, tsf=True)).to_series().to_numpy()
+        assert np.nanmax(np.abs(lb - old_stub)) > 1e-3

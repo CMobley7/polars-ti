@@ -298,19 +298,6 @@ from polars_ti.volume.wad import wad
 from polars_ti.volume.wb_tsv import wb_tsv
 
 
-def _collect(result) -> pl.DataFrame | None:
-    """Collect either a LazyFrame, one or more Expr, or a DataFrame to raw data."""
-    if result is None:
-        return None
-    if isinstance(result, pl.LazyFrame):
-        return result.collect()
-    if isinstance(result, pl.DataFrame):
-        return result
-    # Single or list of pl.Expr — evaluate against a zero-row frame isn't possible
-    # without the parent frame; callers that need raw eval should pass it through
-    return result
-
-
 @pl.api.register_dataframe_namespace("ti")
 class TechnicalIndicators:
     """Polars DataFrame namespace extension for Technical Indicators.
@@ -405,7 +392,7 @@ class TechnicalIndicators:
         exprs,
         append: bool = False,
         **kwargs,
-    ) -> pl.DataFrame:
+    ) -> pl.DataFrame | None:
         """Evaluate *exprs* against the parent DataFrame and optionally append.
 
         Args:
@@ -436,7 +423,9 @@ class TechnicalIndicators:
         elif isinstance(exprs, pl.LazyFrame):
             result_df = exprs.collect()
         else:
-            return df
+            # Indicator returned None (invalid/short input): propagate None rather
+            # than silently handing back the entire parent DataFrame.
+            return None
 
         if append:
             # Drop columns that already exist (avoid duplicates)
@@ -637,10 +626,12 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(cdl_doji(o, h, lo, c, **kw), **kw)
 
-    def cdl_inside(self, high=None, low=None, **kw):
+    def cdl_inside(self, open_=None, high=None, low=None, close=None, **kw):
+        o = self._col(open_ or kw.pop("open", "open"))
         h = self._col(high or kw.pop("high", "high"))
         lo = self._col(low or kw.pop("low", "low"))
-        return self._post_process(cdl_inside(h, lo, **kw), **kw)
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(cdl_inside(o, h, lo, c, **kw), **kw)
 
     def cdl_pattern(self, name="all", **kw):
         result = cdl_pattern(self._df, name=name, **kw)
@@ -1737,10 +1728,12 @@ class TechnicalIndicators:
         return self._post_process(vortex(h, lo, c, **kw), **kw)
 
     def xsignals(self, signal=None, xa=None, xb=None, **kw):
+        # xa/xb are numeric cross thresholds (or column names), NOT the boolean
+        # `above` flag; pass them through unchanged and only resolve `signal`.
         s = self._col(signal or kw.pop("signal", "signal"))
-        a = self._col(xa or kw.pop("above", "above"))
-        b = self._col(xb or kw.pop("below", "below"))
-        return self._post_process(xsignals(s, a, b, **kw), **kw)
+        xa = xa if xa is not None else kw.pop("xa", None)
+        xb = xb if xb is not None else kw.pop("xb", None)
+        return self._post_process(xsignals(s, xa, xb, **kw), **kw)
 
     def zigzag(self, high=None, low=None, close=None, **kw):
         # zigzag() signature is zigzag(high, low, ...); 'close' is unused.
@@ -2021,9 +2014,12 @@ class TechnicalIndicators:
         return self._post_process(vosc(v, **kw), **kw)
 
     def vp(self, close=None, volume=None, **kw):
-        c = self._col(close or kw.pop("close", "close"))
-        v = self._col(volume or kw.pop("volume", "volume"))
-        return self._post_process(vp(c, v, **kw), **kw)
+        # vp() needs the DataFrame (uses df.height) and column *names*, like
+        # cdl_pattern; passing Exprs raises AttributeError on `.height`.
+        c_name = close or kw.pop("close", "close")
+        v_name = volume or kw.pop("volume", "volume")
+        result = vp(self._df, close=c_name, volume=v_name, **kw)
+        return self._post_process(result, **kw)
 
     def vwap(self, high=None, low=None, close=None, volume=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
@@ -2067,14 +2063,24 @@ class TechnicalIndicators:
 # ---------------------------------------------------------------------------
 import functools as _functools
 
-_NON_INDICATOR_METHODS = {"categories", "study"}
+_NON_INDICATOR_METHODS = {"categories", "study", "strategy"}
 
 
 def _support_append(method):
     @_functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         append = bool(kwargs.pop("append", False))
+        # Universal prefix/suffix support: pop before the indicator fn sees them
+        # (it would raise TypeError), then rename produced columns to
+        # ``{prefix}_{col}_{suffix}`` (missing parts omitted cleanly). Works for
+        # direct calls, append=True, and study() dispatch alike.
+        prefix = kwargs.pop("prefix", None)
+        suffix = kwargs.pop("suffix", None)
         result = method(self, *args, **kwargs)
+        if (prefix or suffix) and isinstance(result, pl.DataFrame):
+            pre = f"{prefix}_" if prefix else ""
+            suf = f"_{suffix}" if suffix else ""
+            result = result.rename({c: f"{pre}{c}{suf}" for c in result.columns})
         if append and isinstance(result, pl.DataFrame):
             new_cols = [c for c in result.columns if c not in self._df.columns]
             return self._df.hstack(result.select(new_cols))

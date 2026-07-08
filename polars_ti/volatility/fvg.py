@@ -113,6 +113,10 @@ def fvg(
                 fvg_high[:_offset] = np.nan
                 fvg_low[:_offset] = np.nan
                 fvg_type[:_offset] = np.nan
+            else:
+                fvg_high[_offset:] = np.nan
+                fvg_low[_offset:] = np.nan
+                fvg_type[_offset:] = np.nan
 
         return pl.DataFrame({"fvg_high": fvg_high, "fvg_low": fvg_low, "fvg_type": fvg_type}).to_struct("fvg")
 

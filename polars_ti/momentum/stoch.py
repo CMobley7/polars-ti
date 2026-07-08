@@ -45,6 +45,38 @@ def _sma_numba(values: np.ndarray, length: int) -> np.ndarray:
 
 
 @njit(cache=True)
+def _stoch_rawk(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    k: int,
+) -> np.ndarray:
+    """Numba kernel: raw (unsmoothed) %K = 100 * (close - LL) / (HH - LL)."""
+    n = len(close)
+    lowest_low = np.full(n, np.nan, dtype=np.float64)
+    highest_high = np.full(n, np.nan, dtype=np.float64)
+
+    for i in range(k - 1, n):
+        ll = low[i]
+        hh = high[i]
+        for j in range(i - k + 1, i):
+            if low[j] < ll:
+                ll = low[j]
+            if high[j] > hh:
+                hh = high[j]
+        lowest_low[i] = ll
+        highest_high[i] = hh
+
+    stoch_raw = np.full(n, np.nan, dtype=np.float64)
+    for i in range(k - 1, n):
+        range_val = highest_high[i] - lowest_low[i]
+        if range_val != 0:
+            stoch_raw[i] = 100.0 * (close[i] - lowest_low[i]) / range_val
+
+    return stoch_raw
+
+
+@njit(cache=True)
 def _stoch_core(
     high: np.ndarray,
     low: np.ndarray,
@@ -134,6 +166,7 @@ def stoch(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib, tal_ma
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -141,6 +174,20 @@ def stoch(
 
     if high_expr is None or low_expr is None or close_expr is None:
         return None
+
+    def _apply_ma(arr: np.ndarray, mamode: str, length: int) -> np.ndarray:
+        """Apply the requested MA to *arr* starting at its first valid index,
+        mirroring the pandas baseline (ma(mamode, series.loc[first_valid:]))."""
+        n = len(arr)
+        out = np.full(n, np.nan, dtype=np.float64)
+        valid = np.flatnonzero(~np.isnan(arr))
+        if valid.size == 0:
+            return out
+        start = int(valid[0])
+        sub = arr[start:]
+        smoothed = pl.DataFrame({"_c": sub}).select(ma(mamode, "_c", length=length, talib=talib)).to_series().to_numpy()
+        out[start:] = smoothed
+        return out
 
     _k = k
     _d = d
@@ -199,7 +246,15 @@ def stoch(
             low_arr = s.struct.field("low").to_numpy().astype(np.float64)
             close_arr = s.struct.field("close").to_numpy().astype(np.float64)
 
-            stoch_k, stoch_d, stoch_h = _stoch_core(high_arr, low_arr, close_arr, _k, _smooth_k, _d)
+            if _mamode == "sma":
+                # SMA path preserved byte-identical via the dedicated kernel.
+                stoch_k, stoch_d, stoch_h = _stoch_core(high_arr, low_arr, close_arr, _k, _smooth_k, _d)
+            else:
+                # Honor the requested mamode for %K/%D smoothing (native path).
+                raw = _stoch_rawk(high_arr, low_arr, close_arr, _k)
+                stoch_k = raw if _smooth_k == 1 else _apply_ma(raw, _mamode, _smooth_k)
+                stoch_d = _apply_ma(stoch_k, _mamode, _d)
+                stoch_h = stoch_k - stoch_d
 
             return pl.DataFrame(
                 {

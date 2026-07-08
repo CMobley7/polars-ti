@@ -123,7 +123,10 @@ def ppo(
         if _use_talib:
             from talib import PPO as TALIB_PPO
 
-            ppo_line = TALIB_PPO(arr, fastperiod=_fast, slowperiod=_slow, matype=tal_ma(_mamode))
+            # TA-Lib PPO hardcodes scalar=100; rescale so user ``scalar`` is
+            # honoured (signal/histogram derive from the scaled line). At
+            # scalar=100 this is an exact *1.0 no-op.
+            ppo_line = TALIB_PPO(arr, fastperiod=_fast, slowperiod=_slow, matype=tal_ma(_mamode)) * (_scalar / 100.0)
         else:
             if _mamode == "sma":
                 fast_ma = _sma_numba_ppo(arr, _fast)

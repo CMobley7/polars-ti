@@ -131,6 +131,12 @@ def squeeze(
                     squeeze_on[:offset] = 0
                     squeeze_off[:offset] = 0
                     no_squeeze[:offset] = 0
+            else:
+                sqz_val[offset:] = np.nan
+                if asint:
+                    squeeze_on[offset:] = 0
+                    squeeze_off[offset:] = 0
+                    no_squeeze[offset:] = 0
 
         return pl.DataFrame(
             {
@@ -143,13 +149,16 @@ def squeeze(
 
     # Calculate momentum component
     if lazybear:
-        # LazyBear mode uses linreg
+        # LazyBear mode (matches f158f3e squeeze(lazybear=True)):
+        #   avg_ = 0.5 * (0.5 * (HH + LL) + KC_middle)
+        #   SQZ  = linreg(close - avg_, length=kc_length)   (tsf default False)
+        # Reuse the Keltner Channel MIDDLE (basis) band already derived above so
+        # the basis stays consistent with the KC bands used for classification.
         highest_high = high_expr.rolling_max(window_size=kc_length)
         lowest_low = low_expr.rolling_min(window_size=kc_length)
-        # Need kc basis (middle band)
-        # For now we use simplified version
-        avg_hl = (highest_high + lowest_low) / 2
-        sqz_val = linreg(close_expr - avg_hl, length=kc_length, tsf=True, offset=0)
+        kc_mid = kc_struct.struct.field("kcb")
+        avg_ = 0.5 * (0.5 * (highest_high + lowest_low) + kc_mid)
+        sqz_val = linreg(close_expr - avg_, length=kc_length, offset=0)
     else:
         # Standard mode: smoothed momentum
         momo = mom(close_expr, length=mom_length, talib=False, offset=0)

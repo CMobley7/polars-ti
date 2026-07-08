@@ -117,6 +117,7 @@ def stochf(
     """
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib, tal_ma
+    from polars_ti.ma import ma
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -124,6 +125,20 @@ def stochf(
 
     if high_expr is None or low_expr is None or close_expr is None:
         return None
+
+    def _apply_ma(arr: np.ndarray, mamode: str, length: int) -> np.ndarray:
+        """Apply the requested MA to *arr* starting at its first valid index,
+        mirroring the pandas baseline (ma(mamode, series.loc[first_valid:]))."""
+        n = len(arr)
+        out = np.full(n, np.nan, dtype=np.float64)
+        valid = np.flatnonzero(~np.isnan(arr))
+        if valid.size == 0:
+            return out
+        start = int(valid[0])
+        sub = arr[start:]
+        smoothed = pl.DataFrame({"_c": sub}).select(ma(mamode, "_c", length=length, talib=talib)).to_series().to_numpy()
+        out[start:] = smoothed
+        return out
 
     _k = k
     _d = d
@@ -177,6 +192,10 @@ def stochf(
             close_arr = s.struct.field("close").to_numpy().astype(np.float64)
 
             stochf_k, stochf_d = _stochf_core(high_arr, low_arr, close_arr, _k, _d)
+            if _mamode != "sma":
+                # %K is always the raw (unsmoothed) line; recompute %D with the
+                # requested mamode (native path previously hardcoded SMA).
+                stochf_d = _apply_ma(stochf_k, _mamode, _d)
 
             return pl.DataFrame(
                 {

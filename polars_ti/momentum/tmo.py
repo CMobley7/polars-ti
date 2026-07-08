@@ -38,54 +38,6 @@ def _signed_rolling_deltas_numba(
     return result
 
 
-@njit(cache=True)
-def _ema_numba(values: np.ndarray, length: int) -> np.ndarray:
-    """Numba EMA with NaN-tolerant pandas-ta presma seed.
-
-    Mirrors ``polars_ti.overlap.ema._ema_numba`` (presma=True): build the seeded
-    series (NaN-skipping SMA at index length-1) then run ewm(adjust=False),
-    re-seeding from the first finite value so a leading-NaN run longer than
-    ``length`` (cascaded EMA warmup) does not poison the whole column.
-    """
-    n = len(values)
-    result = np.full(n, np.nan, dtype=np.float64)
-
-    if n < length:
-        return result
-
-    alpha = 2.0 / (length + 1)
-
-    seeded = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        seeded[i] = values[i]
-    sma_sum = 0.0
-    valid_count = 0
-    for i in range(length):
-        if not np.isnan(values[i]):
-            sma_sum += values[i]
-            valid_count += 1
-    for i in range(length - 1):
-        seeded[i] = np.nan
-    seeded[length - 1] = (sma_sum / valid_count) if valid_count > 0 else np.nan
-
-    first_valid = -1
-    for i in range(n):
-        if not np.isnan(seeded[i]):
-            first_valid = i
-            break
-    if first_valid < 0:
-        return result
-
-    result[first_valid] = seeded[first_valid]
-    for i in range(first_valid + 1, n):
-        if not np.isnan(seeded[i]):
-            result[i] = alpha * seeded[i] + (1 - alpha) * result[i - 1]
-        else:
-            result[i] = result[i - 1]
-
-    return result
-
-
 def _tmo_core(
     open_arr: np.ndarray,
     close_arr: np.ndarray,
@@ -94,35 +46,36 @@ def _tmo_core(
     smooth_length: int,
     exclusive: bool,
     compute_momentum: bool,
+    mamode: str = "ema",
     use_talib: bool = False,
 ) -> tuple:
     """TMO calculation.
 
-    When ``use_talib`` is True (and TA-Lib is installed) the EMA cascade is
-    computed with TA-Lib's ``EMA`` so it matches the OLD pandas-ta TA-Lib mode
-    (which threaded ``talib`` into the ``ma()`` calls). Otherwise the
-    NaN-tolerant pandas-ta presma EMA kernel is used (native mode).
+    The MA cascade honours ``mamode`` (default "ema") by routing every
+    smoothing step through the shared ``ma()`` dispatcher, matching the OLD
+    pandas-ta ``ma(mamode, ...)`` calls. When ``use_talib`` is True (and TA-Lib
+    is installed) the dispatcher threads TA-Lib into the MAs that support it.
+    For the default EMA path this reproduces the NaN-tolerant pandas-ta presma
+    EMA kernel byte-for-byte.
     """
+    from polars_ti.ma import ma
+
     n = len(close_arr)
 
     # 1. Calculate signed rolling deltas
     signed_diff = _signed_rolling_deltas_numba(open_arr, close_arr, tmo_length, exclusive)
 
-    if use_talib:
-        from talib import EMA as _TALIB_EMA
-
-        def _ema(values, length):
-            return _TALIB_EMA(values, length)
-    else:
-        _ema = _ema_numba
+    def _ema(values: np.ndarray, length: int) -> np.ndarray:
+        frame = pl.DataFrame({"_v": values.astype(np.float64)})
+        return frame.select(ma(mamode, "_v", length=length, talib=use_talib)).to_series().to_numpy()
 
     # 2. Initial MA smoothing
     initial_ma = _ema(signed_diff, calc_length)
 
-    # 3. Main signal = EMA(initial_ma, smooth_length)
+    # 3. Main signal = MA(initial_ma, smooth_length)
     main = _ema(initial_ma, smooth_length)
 
-    # 4. Smooth signal = EMA(main, smooth_length)
+    # 4. Smooth signal = MA(main, smooth_length)
     smooth = _ema(main, smooth_length)
 
     # 5. Momentum (if requested)
@@ -201,7 +154,8 @@ def tmo(
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
 
-    _use_talib = Imports["talib"] and v_talib(talib) and mamode == "ema"
+    _mamode = mamode
+    _use_talib = Imports["talib"] and v_talib(talib)
 
     def compute_tmo(s: pl.Series) -> pl.Series:
         open_arr = s.struct.field("open").to_numpy().astype(np.float64)
@@ -215,6 +169,7 @@ def tmo(
             _smooth_length,
             _exclusive,
             _compute_momentum,
+            _mamode,
             _use_talib,
         )
 

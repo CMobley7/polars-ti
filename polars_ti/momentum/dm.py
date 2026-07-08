@@ -15,6 +15,7 @@ def dm(
     length: int = 14,
     mamode: str = "rma",
     talib: bool = True,
+    drift: int = 1,
     offset: int = 0,
 ) -> list[PlExpr]:
     """Polars: Directional Movement (DM)
@@ -28,6 +29,7 @@ def dm(
         length: Period. Default: 14
         mamode: MA type. Default: 'rma'
         talib: If True and TA-Lib installed, use TA-Lib. Default: True
+        drift: The difference period for the native path. Default: 1
         offset: Shift result. Default: 0
 
     Returns:
@@ -67,9 +69,9 @@ def dm(
         dmp_expr = struct_expr.map_batches(compute_dmp, return_dtype=pl.Float64)
         dmn_expr = struct_expr.map_batches(compute_dmn, return_dtype=pl.Float64)
     else:
-        # Pure Polars: up = high - high.shift(1), dn = low.shift(1) - low
-        up = high_expr - high_expr.shift(1)
-        dn = low_expr.shift(1) - low_expr
+        # Pure Polars: up = high - high.shift(drift), dn = low.shift(drift) - low
+        up = high_expr - high_expr.shift(drift)
+        dn = low_expr.shift(drift) - low_expr
 
         # +DM: when up > dn AND up > 0
         pos_raw = pl.when((up > dn) & (up > 0)).then(up).otherwise(0.0)

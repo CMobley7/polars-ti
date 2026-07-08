@@ -56,56 +56,26 @@ def trixh(
 
     _props = f"_{length}_{signal}"
 
-    # Get TRIX and Signal from pl_trix
-    # Note: pl_trix default length is 30, we use 18 for trixh
-    trix_exprs = trix(
+    # Delegate the TRIX line and its signal to trix() (single source of truth,
+    # mirroring the pandas baseline). trix() returns a struct exposing the TRIX
+    # and TRIXs fields for both the TA-Lib and native paths; the histogram is
+    # simply their difference. This avoids reimplementing — and silently
+    # diverging from — trix()'s triple-EMA warm-up seeding on the native path.
+    trix_struct = trix(
         close_expr,
         length=length,
         signal=signal,
         scalar=scalar,
         drift=drift,
         talib=talib,
-        offset=0,  # Apply offset at the end
+        offset=0,  # applied below to all three outputs
     )
 
-    if trix_exprs is None:
+    if trix_struct is None:
         return None
 
-    # Extract the TRIX and Signal expressions (before alias)
-    # We need to compute histogram = trix - signal
-    # But since pl_trix returns aliased expressions, we need to rebuild
-
-    # Rebuild TRIX calculation to get the raw expressions for histogram computation
-    from polars_ti.maps import Imports
-    from polars_ti.utils import v_talib
-    from polars_ti.overlap.ema import ema
-    import numpy as np
-
-    _use_talib = Imports["talib"] and v_talib(talib)
-    _length = length
-
-    if _use_talib:
-
-        def compute_trix(s: pl.Series) -> pl.Series:
-            from talib import TRIX as TALIB_TRIX
-
-            arr = s.to_numpy().astype(np.float64)
-            result = TALIB_TRIX(arr, timeperiod=_length)
-            return pl.Series(f"TRIX{_props}", result)
-
-        trix_expr = close_expr.map_batches(compute_trix, return_dtype=pl.Float64)
-    else:
-        # Use pl_ema composition: triple EMA (native branch -> talib=False)
-        ema1 = ema(close_expr, length=length, talib=False)
-        ema2 = ema(ema1, length=length, talib=False)
-        ema3 = ema(ema2, length=length, talib=False)
-
-        # TRIX = scalar * pct_change(ema3, drift)
-        ema3_shifted = ema3.shift(drift)
-        trix_expr = scalar * (ema3 - ema3_shifted) / ema3_shifted
-
-    # Signal = SMA of TRIX
-    trix_signal_expr = trix_expr.rolling_mean(window_size=signal, min_samples=signal)
+    trix_expr = trix_struct.struct.field(f"TRIX{_props}")
+    trix_signal_expr = trix_struct.struct.field(f"TRIXs{_props}")
 
     # Histogram = TRIX - Signal
     histogram_expr = trix_expr - trix_signal_expr
