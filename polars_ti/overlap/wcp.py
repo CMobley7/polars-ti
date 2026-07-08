@@ -46,6 +46,8 @@ def wcp(
                 result = np.roll(result, offset)
                 if offset > 0:
                     result[:offset] = np.nan
+                else:
+                    result[offset:] = np.nan
             return pl.Series(result)
 
         return (

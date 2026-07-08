@@ -55,3 +55,14 @@ class TestPlCrsi:
         valid = result["CRSI_3_2_100"].filter(~result["CRSI_3_2_100"].is_nan())
         assert valid.min() >= 0
         assert valid.max() <= 100
+
+    def test_scalar_parameter(self, sample_df):
+        """Restored ``scalar`` param: default unchanged, non-default changes the
+        native RSI components (TA-Lib RSI ignores scalar, so test the native path)."""
+        col = "CRSI_3_2_100"
+        c_def = sample_df.select(crsi("close", talib=False))[col].to_numpy()
+        c_hundred = sample_df.select(crsi("close", scalar=100.0, talib=False))[col].to_numpy()
+        c_fifty = sample_df.select(crsi("close", scalar=50.0, talib=False))[col].to_numpy()
+
+        assert np.array_equal(c_def, c_hundred, equal_nan=True)
+        assert np.nanmax(np.abs(c_fifty - c_def)) > 0.0

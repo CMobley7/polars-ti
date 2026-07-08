@@ -47,3 +47,13 @@ class TestPlQqe:
         unnested = result.unnest(result.columns[0])
         qqe_vals = unnested.to_numpy()[:, 0]
         assert (~np.isnan(qqe_vals)).sum() > 50
+
+    def test_drift_parameter(self, sample_df):
+        """Restored ``drift`` param: default unchanged, non-default changes output."""
+        col = "QQE_14_5_4.236"
+        d_default = sample_df.select(qqe("close")).unnest(col)[col].to_numpy()
+        d_explicit = sample_df.select(qqe("close", drift=1)).unnest(col)[col].to_numpy()
+        d_two = sample_df.select(qqe("close", drift=2)).unnest(col)[col].to_numpy()
+
+        assert np.array_equal(d_default, d_explicit, equal_nan=True)
+        assert np.nanmax(np.abs(d_two - d_default)) > 0.0

@@ -34,7 +34,10 @@ def kama(
     """
     close_expr = v_expr(close)
 
-    if Imports["talib"] and talib:
+    # TA-Lib's KAMA hardwires fast=2/slow=30 and ignores the fast/slow args, so
+    # only take the TA-Lib fast-path for the default (2, 30); otherwise route to
+    # the native kernel below which honors fast/slow.
+    if Imports["talib"] and talib and fast == 2 and slow == 30:
 
         def compute_kama(s: pl.Series) -> pl.Series:
             from talib import KAMA
@@ -45,6 +48,8 @@ def kama(
                 result = np.roll(result, offset)
                 if offset > 0:
                     result[:offset] = np.nan
+                else:
+                    result[offset:] = np.nan
             return pl.Series(result)
 
         return close_expr.map_batches(compute_kama, return_dtype=pl.Float64).alias(f"KAMA_{length}_{fast}_{slow}")
@@ -54,8 +59,12 @@ def kama(
         def nb_kama(close_arr: np.ndarray, length: int, fast: int, slow: int) -> np.ndarray:
             """Numba-optimized KAMA calculation."""
             m = len(close_arr)
-            result = np.empty(m, dtype=np.float64)
-            result[: length - 1] = np.nan
+            result = np.full(m, np.nan, dtype=np.float64)
+
+            # Guard short input before writing the seed at index length-1
+            # (an unchecked @njit OOB write here corrupts the heap -> SIGABRT).
+            if m < length:
+                return result
 
             fr = 2.0 / (fast + 1)
             sr = 2.0 / (slow + 1)
@@ -93,6 +102,8 @@ def kama(
                 result = np.roll(result, offset)
                 if offset > 0:
                     result[:offset] = np.nan
+                else:
+                    result[offset:] = np.nan
             return pl.Series(result)
 
         return close_expr.map_batches(compute_kama, return_dtype=pl.Float64).alias(f"KAMA_{length}_{fast}_{slow}")

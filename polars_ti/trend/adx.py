@@ -19,6 +19,11 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
     dmp_out = np.full(n, np.nan)
     dmn_out = np.full(n, np.nan)
 
+    # Guard: seed loops below index into arrays of size n at [0, length);
+    # when n < length that reads/writes out of bounds. Return all-NaN.
+    if n < length:
+        return adx_out, adxr_out, dmp_out, dmn_out
+
     # True Range
     tr = np.zeros(n)
     tr[0] = high[0] - low[0]
@@ -158,6 +163,8 @@ def adx(
                 arr[:] = np.roll(arr, offset)
                 if offset > 0:
                     arr[:offset] = np.nan
+                else:
+                    arr[offset:] = np.nan
 
         n = len(h)
         return pl.Series(

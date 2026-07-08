@@ -156,11 +156,22 @@ def trix(
     if _use_talib:
 
         def compute_trix_talib(s: pl.Series) -> pl.Series:
-            from talib import TRIX as TALIB_TRIX
+            from talib import EMA as TALIB_EMA
 
             arr = s.to_numpy().astype(np.float64)
 
-            trix = TALIB_TRIX(arr, timeperiod=_length)
+            # Use TA-Lib only for the triple-EMA backend, then apply scalar/drift
+            # manually so user-supplied ``scalar``/``drift`` are honoured. At the
+            # defaults (scalar=100, drift=1) this equals talib.TRIX exactly.
+            ema1 = TALIB_EMA(arr, timeperiod=_length)
+            ema2 = TALIB_EMA(ema1, timeperiod=_length)
+            ema3 = TALIB_EMA(ema2, timeperiod=_length)
+
+            trix = np.full(arr.shape, np.nan, dtype=np.float64)
+            for i in range(_drift, len(arr)):
+                prev = ema3[i - _drift]
+                if not np.isnan(ema3[i]) and not np.isnan(prev) and prev != 0:
+                    trix[i] = _scalar * (ema3[i] / prev - 1.0)
             trix_signal = _sma_numba(trix, _signal)
 
             return pl.DataFrame(

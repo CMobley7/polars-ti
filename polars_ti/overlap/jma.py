@@ -128,6 +128,8 @@ def jma(
             result = np.roll(result, offset)
             if offset > 0:
                 result[:offset] = np.nan
+            else:
+                result[offset:] = np.nan
         return pl.Series(result)
 
     return close_expr.map_batches(compute_jma, return_dtype=pl.Float64).alias(f"JMA_{length}_{phase}")

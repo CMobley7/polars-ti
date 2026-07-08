@@ -162,6 +162,14 @@ def squeeze_pro(
                     squeeze_on_narrow[:offset] = 0
                     squeeze_off_wide[:offset] = 0
                     no_squeeze[:offset] = 0
+            else:
+                sqz[offset:] = np.nan
+                if asint:
+                    squeeze_on_wide[offset:] = 0
+                    squeeze_on_normal[offset:] = 0
+                    squeeze_on_narrow[offset:] = 0
+                    squeeze_off_wide[offset:] = 0
+                    no_squeeze[offset:] = 0
 
         return pl.DataFrame(
             {

@@ -40,7 +40,7 @@ class Study:
     cores: Int = cpu_count()  # Number of cores. Default cpu_count()
     description: str = ""  # Helpful. More descriptive version or notes or w/e.
     # Optional. Gets Exchange Time and Local Time execution time
-    created: str = get_time(to_string=True)
+    created: str = field(default_factory=lambda: get_time(to_string=True))
 
     def __post_init__(self):
         if isinstance(self.cores, int) and self.cores >= 0 and self.cores <= cpu_count():

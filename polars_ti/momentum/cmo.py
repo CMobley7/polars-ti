@@ -44,12 +44,15 @@ def cmo(
 
     if _use_talib:
         _length = length
+        _scalar = scalar
 
         def compute_cmo_talib(s: pl.Series) -> pl.Series:
             from talib import CMO as TALIB_CMO
 
             arr = s.to_numpy().astype(np.float64)
-            result = TALIB_CMO(arr, timeperiod=_length)
+            # TA-Lib CMO hardcodes scalar=100; rescale so user ``scalar`` takes
+            # effect. At scalar=100 this is an exact *1.0 no-op.
+            result = TALIB_CMO(arr, timeperiod=_length) * (_scalar / 100.0)
             return pl.Series(result)
 
         cmo_expr = close_expr.map_batches(compute_cmo_talib, return_dtype=pl.Float64)

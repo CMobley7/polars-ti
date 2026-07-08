@@ -77,6 +77,10 @@ def accbands(
                     lower[:_offset] = np.nan
                     mid[:_offset] = np.nan
                     upper[:_offset] = np.nan
+                else:
+                    lower[_offset:] = np.nan
+                    mid[_offset:] = np.nan
+                    upper[_offset:] = np.nan
 
             return pl.DataFrame(
                 {

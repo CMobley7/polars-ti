@@ -101,6 +101,9 @@ def ott(
             if offset > 0:
                 trend[:offset] = np.nan
                 after_dir[:offset] = 1
+            else:
+                trend[offset:] = np.nan
+                after_dir[offset:] = 1
 
         return pl.Series(
             [

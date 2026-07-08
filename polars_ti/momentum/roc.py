@@ -1,13 +1,4 @@
 # -*- coding: utf-8 -*-
-from numba import njit
-from polars_ti.utils._numba import nb_idiff, nb_shift
-
-
-@njit(cache=True)
-def nb_roc(x, n, k):
-    return k * nb_idiff(x, n) / nb_shift(x, n)
-
-
 # =============================================================================
 # Polars ROC (Rate of Change) Implementation
 # =============================================================================
@@ -57,7 +48,9 @@ def roc(
             from talib import ROC as TALIB_ROC
 
             arr = s.to_numpy().astype(np.float64)
-            result = TALIB_ROC(arr, timeperiod=_length)
+            # TA-Lib ROC hardcodes scalar=100; rescale so user ``scalar`` is
+            # honoured. At scalar=100 this is an exact *1.0 no-op.
+            result = TALIB_ROC(arr, timeperiod=_length) * (_scalar / 100.0)
             return pl.Series(result)
 
         roc_expr = close_expr.map_batches(compute_roc, return_dtype=pl.Float64)

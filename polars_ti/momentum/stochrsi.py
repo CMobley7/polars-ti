@@ -65,44 +65,55 @@ def _rsi_numba(values: np.ndarray, length: int) -> np.ndarray:
 
 @njit(cache=True)
 def _sma_numba(values: np.ndarray, length: int) -> np.ndarray:
-    """Numba-optimized SMA handling NaNs."""
+    """Numba-optimized SMA with rolling-mean (min_periods=length) semantics.
+
+    A window is only defined when every one of its ``length`` values is finite,
+    matching pandas ``Series.rolling(length).mean()`` (and the OLD pandas-ta
+    ``nb_sma`` convolution). Each maximal contiguous run of finite values is
+    accumulated independently with a sliding sum, so an interior NaN cleanly
+    breaks the window and the mean recovers on the next full valid window
+    (rather than desyncing the running sum or poisoning the whole tail). For the
+    common single-run case (leading-NaN warmup then all-valid) the sliding sum
+    is identical to the previous implementation, so output stays byte-identical.
+    """
     n = len(values)
     result = np.full(n, np.nan, dtype=np.float64)
 
     if n < length:
         return result
 
-    first_valid = -1
-    for i in range(n):
-        if not np.isnan(values[i]):
-            first_valid = i
-            break
+    i = 0
+    while i < n:
+        if np.isnan(values[i]):
+            i += 1
+            continue
 
-    if first_valid == -1 or n - first_valid < length:
-        return result
+        # Extent of the current contiguous run of finite values: [i, run_end).
+        run_end = i
+        while run_end < n and not np.isnan(values[run_end]):
+            run_end += 1
 
-    window_sum = 0.0
-    for i in range(first_valid, first_valid + length):
-        window_sum += values[i]
-    result[first_valid + length - 1] = window_sum / length
+        if run_end - i >= length:
+            window_sum = 0.0
+            for j in range(i, i + length):
+                window_sum += values[j]
+            result[i + length - 1] = window_sum / length
+            for j in range(i + length, run_end):
+                window_sum = window_sum - values[j - length] + values[j]
+                result[j] = window_sum / length
 
-    for i in range(first_valid + length, n):
-        if not np.isnan(values[i]):
-            window_sum = window_sum - values[i - length] + values[i]
-            result[i] = window_sum / length
+        i = run_end
 
     return result
 
 
 @njit(cache=True)
-def _stochrsi_core(
+def _stochrsi_raw_core(
     close: np.ndarray,
     length: int,
     rsi_length: int,
-    k: int,
-    d: int,
-) -> tuple:
-    """Numba kernel for StochRSI calculation."""
+) -> np.ndarray:
+    """Numba kernel for the raw StochRSI (pre %K/%D smoothing)."""
     n = len(close)
 
     # 1. Calculate RSI
@@ -140,12 +151,35 @@ def _stochrsi_core(
             if range_val != 0:
                 stochrsi_raw[i] = 100.0 * (rsi[i] - lowest_rsi[i]) / range_val
 
-    # 4. %K = SMA(stochrsi, k)
-    stochrsi_k = _sma_numba(stochrsi_raw, k)
+    return stochrsi_raw
 
-    # 5. %D = SMA(%K, d)
-    stochrsi_d = _sma_numba(stochrsi_k, d)
 
+def _stochrsi_smooth(
+    stochrsi_raw: np.ndarray,
+    k: int,
+    d: int,
+    mamode: str,
+    use_talib: bool,
+) -> tuple:
+    """Smooth the raw StochRSI into %K/%D honouring ``mamode``.
+
+    The default "sma" keeps the local NaN-tolerant ``_sma_numba`` kernel so the
+    output is byte-identical to the prior implementation (golden-safe). Any
+    other ``mamode`` is routed through the shared ``ma()`` dispatcher.
+    """
+    if mamode == "sma":
+        stochrsi_k = _sma_numba(stochrsi_raw, k)
+        stochrsi_d = _sma_numba(stochrsi_k, d)
+        return stochrsi_k, stochrsi_d
+
+    from polars_ti.ma import ma
+
+    def _smooth(values: np.ndarray, length: int) -> np.ndarray:
+        frame = pl.DataFrame({"_v": values.astype(np.float64)})
+        return frame.select(ma(mamode, "_v", length=length, talib=use_talib)).to_series().to_numpy()
+
+    stochrsi_k = _smooth(stochrsi_raw, k)
+    stochrsi_d = _smooth(stochrsi_k, d)
     return stochrsi_k, stochrsi_d
 
 
@@ -196,6 +230,7 @@ def stochrsi(
     _k = k
     _d = d
     _props = f"_{length}_{rsi_length}_{k}_{d}"
+    _mamode = mamode
     _use_talib = Imports["talib"] and v_talib(talib)
 
     if _use_talib:
@@ -224,9 +259,8 @@ def stochrsi(
             range_val = np.where(range_val == 0, np.nan, range_val)
             stochrsi_raw = 100.0 * (rsi - lowest_rsi) / range_val
 
-            # %K and %D smoothing
-            stochrsi_k = _sma_numba(stochrsi_raw, _k)
-            stochrsi_d = _sma_numba(stochrsi_k, _d)
+            # %K and %D smoothing (honour mamode; default "sma")
+            stochrsi_k, stochrsi_d = _stochrsi_smooth(stochrsi_raw, _k, _d, _mamode, _use_talib)
 
             return pl.DataFrame(
                 {
@@ -248,7 +282,8 @@ def stochrsi(
         # Pure Numba path
         def compute_stochrsi_numba(s: pl.Series) -> pl.Series:
             arr = s.to_numpy().astype(np.float64)
-            stochrsi_k, stochrsi_d = _stochrsi_core(arr, _length, _rsi_length, _k, _d)
+            stochrsi_raw = _stochrsi_raw_core(arr, _length, _rsi_length)
+            stochrsi_k, stochrsi_d = _stochrsi_smooth(stochrsi_raw, _k, _d, _mamode, _use_talib)
 
             return pl.DataFrame(
                 {

@@ -217,6 +217,13 @@ def halftrend(
                 direction[:_offset] = np.nan
                 arr_up[:_offset] = np.nan
                 arr_down[:_offset] = np.nan
+            else:
+                atr_high[_offset:] = np.nan
+                atr_low[_offset:] = np.nan
+                ht_close[_offset:] = np.nan
+                direction[_offset:] = np.nan
+                arr_up[_offset:] = np.nan
+                arr_down[_offset:] = np.nan
 
         # Direction is emitted as string labels ("long"/"short"/None), matching
         # the OLD pandas-ta halftrend output.

@@ -160,6 +160,9 @@ def alphatrend(
             if offset > 0:
                 at[:offset] = np.nan
                 atl[:offset] = np.nan
+            else:
+                at[offset:] = np.nan
+                atl[offset:] = np.nan
 
         n = len(la)
         return pl.Series(values=[{at_name: at[i], atl_name: atl[i]} for i in range(n)])

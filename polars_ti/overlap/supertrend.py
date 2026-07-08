@@ -112,6 +112,8 @@ def supertrend(
                 arr[:] = np.roll(arr, _offset)
                 if _offset > 0:
                     arr[:_offset] = np.nan
+                else:
+                    arr[_offset:] = np.nan
 
         n = len(close_arr)
         return pl.Series(

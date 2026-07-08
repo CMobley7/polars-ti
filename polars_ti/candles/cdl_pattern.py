@@ -276,13 +276,4 @@ def cdl_doji_expr(
     return cdl_doji(open_, high, low, close, length, factor, scalar)
 
 
-def cdl_inside_expr(
-    high: IntoExpr,
-    low: IntoExpr,
-    scalar: float = 100.0,
-) -> PlExpr:
-    """Alias for cdl_inside for consistency."""
-    return cdl_inside(high, low, scalar)
-
-
 cdl = cdl_pattern  # Alias matching pandas naming convention

@@ -42,12 +42,19 @@ def pivot_classic(high, low, close):
 
 @njit(cache=True)
 def pivot_demark(open_, high, low, close):
-    if (open_ == close).all():
-        tp = 0.25 * (high + low + 2 * close)
-    elif (close > open_).all():
-        tp = 0.25 * (2 * high + low + close)
-    else:
-        tp = 0.25 * (high + 2 * low + close)
+    # Per-bar branch selection (not a whole-series .all() collapse):
+    #   down bar (close < open):  0.25 * (high + 2*low + close)
+    #   up bar   (close > open):  0.25 * (2*high + low + close)
+    #   equal:                    0.25 * (high + low + 2*close)
+    tp = np.where(
+        close < open_,
+        0.25 * (high + 2.0 * low + close),
+        np.where(
+            close > open_,
+            0.25 * (2.0 * high + low + close),
+            0.25 * (high + low + 2.0 * close),
+        ),
+    )
 
     s1 = 2 * tp - high
     r1 = 2 * tp - low

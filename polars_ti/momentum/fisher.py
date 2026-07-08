@@ -16,6 +16,10 @@ def nb_fisher(hl2_arr: np.ndarray, lowest: np.ndarray, hlr: np.ndarray, length: 
     n = len(hl2_arr)
     result = np.full(n, np.nan)
 
+    # Guard: writing result[length-1] is out of bounds when n < length.
+    if n < length:
+        return result
+
     # Initialize: result[length-1] = 0 (matches Pandas)
     result[length - 1] = 0.0
 

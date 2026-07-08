@@ -8,11 +8,16 @@ from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
 
 
-def zscore(col: IntoExpr, length: int = 30, ddof: int = 1) -> PlExpr:
-    """Polars: Rolling Z-Score calculation."""
+def zscore(col: IntoExpr, length: int = 30, ddof: int = 1, full: bool = False) -> PlExpr:
+    """Polars: Z-Score calculation (rolling by default, whole-series when full)."""
     expr = v_expr(col)
-    mean = expr.rolling_mean(window_size=length, min_samples=length)
-    std = expr.rolling_std(window_size=length, ddof=ddof, min_samples=length)
+    if full:
+        # Whole-series mean/std instead of a rolling window.
+        mean = expr.mean()
+        std = expr.std(ddof=ddof)
+    else:
+        mean = expr.rolling_mean(window_size=length, min_samples=length)
+        std = expr.rolling_std(window_size=length, ddof=ddof, min_samples=length)
     return (expr - mean) / std
 
 
@@ -49,10 +54,10 @@ def cdl_z(
 
     # Build base expressions
     exprs = [
-        zscore(open_, length, ddof).alias(f"open_Z{props}"),
-        zscore(high, length, ddof).alias(f"high_Z{props}"),
-        zscore(low, length, ddof).alias(f"low_Z{props}"),
-        zscore(close, length, ddof).alias(f"close_Z{props}"),
+        zscore(open_, length, ddof, full).alias(f"open_Z{props}"),
+        zscore(high, length, ddof, full).alias(f"high_Z{props}"),
+        zscore(low, length, ddof, full).alias(f"low_Z{props}"),
+        zscore(close, length, ddof, full).alias(f"close_Z{props}"),
     ]
 
     # Apply offset if needed

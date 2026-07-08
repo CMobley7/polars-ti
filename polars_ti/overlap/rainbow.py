@@ -39,14 +39,13 @@ def rainbow(
     prev_expr = close_expr
 
     for i in range(1, num_ribbons + 1):
-        # Each SMA is calculated on the previous SMA
+        # Each SMA is calculated on the previous (UNSHIFTED) SMA so the offset
+        # does not compound across ribbons.
         sma_expr = sma(prev_expr, length=length, talib=False)
-
-        # Apply offset if needed
-        if offset != 0:
-            sma_expr = sma_expr.shift(offset)
-
-        ribbon_exprs.append(sma_expr.alias(f"RAINBOW_{i}"))
         prev_expr = sma_expr
+
+        # Apply offset only to the aliased OUTPUT expression.
+        out_expr = sma_expr.shift(offset) if offset != 0 else sma_expr
+        ribbon_exprs.append(out_expr.alias(f"RAINBOW_{i}"))
 
     return pl.struct(ribbon_exprs).alias(f"RAINBOW_{length}_{num_ribbons}")
