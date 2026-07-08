@@ -44,5 +44,6 @@ class TestPlPvr:
     def test_drift_parameter(self, sample_df):
         result = sample_df.select(pvr("close", "volume", drift=2))
         arr = result["PVR"].to_numpy()
-        # First 2 values should be null due to drift
-        assert np.isnan(arr[0]) and np.isnan(arr[1])
+        # Leading diffs are fill_null(0) -> category 1 (matches the pandas
+        # baseline's .diff(drift).fillna(0) and the native golden's PVR[0]=1).
+        assert arr[0] == 1.0 and arr[1] == 1.0
