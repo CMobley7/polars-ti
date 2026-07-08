@@ -31,8 +31,10 @@ def pvr(
     if close_expr is None or volume_expr is None:
         return None
 
-    close_diff = close_expr.diff(drift)
-    volume_diff = volume_expr.diff(drift)
+    # fill_null(0) on the leading diff so row 0 is a deterministic category 1
+    # (both diffs 0 -> up/flat), matching the pandas baseline's .diff().fillna(0).
+    close_diff = close_expr.diff(drift).fill_null(0)
+    volume_diff = volume_expr.diff(drift).fill_null(0)
 
     # PVR categories:
     # 1: close up, volume up
