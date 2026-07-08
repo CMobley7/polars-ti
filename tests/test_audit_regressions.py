@@ -197,3 +197,13 @@ def test_kama_short_frame_no_crash():
     out = df.select(kama("close", talib=False)).to_series().to_numpy()
     assert out.shape[0] == 3
     assert bool(np.all(np.isnan(out)))
+
+
+# --- Stage-4 r3: pvr row 0 is deterministic category 1 (was null) ------------
+def test_pvr_first_row_is_category_one():
+    """pvr's first bar must be category 1 (baseline .diff().fillna(0)), not null."""
+    from polars_ti.volume.pvr import pvr
+
+    df = pl.DataFrame({"close": [100.0, 100.5, 101.0, 100.0, 101.5], "volume": [500.0, 600, 400, 300, 700]})
+    out = df.select(pvr("close", "volume")).to_series().to_numpy()
+    assert out[0] == 1.0
