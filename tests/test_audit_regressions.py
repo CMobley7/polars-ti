@@ -207,3 +207,21 @@ def test_pvr_first_row_is_category_one():
     df = pl.DataFrame({"close": [100.0, 100.5, 101.0, 100.0, 101.5], "volume": [500.0, 600, 400, 300, 700]})
     out = df.select(pvr("close", "volume")).to_series().to_numpy()
     assert out[0] == 1.0
+
+
+# --- Stage-4 r4: kvo interior flat bar must not poison the TA-Lib EMA --------
+def test_kvo_flat_bar_does_not_truncate_series():
+    """An unchanged hlc3 bar (diff==0) must map to 0.0, not null. A null flows
+    into the default TA-Lib EMA and NaN-poisons the entire tail (df.ti.kvo()
+    collapsed to ~50 valid values on real data). Row 0 (null diff) stays null."""
+    from polars_ti.volume.kvo import kvo
+
+    t = np.arange(200.0)
+    c = 100 + np.sin(t / 9) + 0.05 * t
+    h, low = c + 1, c - 1
+    for col in (c, h, low):
+        col[120] = col[119]  # flat hlc3 bar mid-series
+    df = pl.DataFrame({"high": h, "low": low, "close": c, "volume": 1e6 + 50 * t})
+    arr = df.select(kvo("high", "low", "close", "volume")).to_series(0).to_numpy()
+    valid = ~np.isnan(arr)
+    assert int(np.max(np.where(valid)[0])) >= 190  # not truncated at the flat bar

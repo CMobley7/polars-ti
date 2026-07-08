@@ -55,10 +55,21 @@ def kvo(
     # Use pl_hlc3 for code reuse
     hlc3_expr = hlc3(high_expr, low_expr, close_expr)
 
-    # signed_volume = volume * sign(hlc3.diff())
-    # Note: diff() on first row is null, which propagates to signed_volume (matches Pandas NaN)
+    # signed_volume = volume * sign(hlc3.diff()). A flat bar (diff == 0) must map
+    # to 0.0, NOT null: a null here flows into the TA-Lib EMA (default path) and
+    # propagates NaN forward forever, truncating the whole series after the first
+    # flat bar. Only the leading row (null diff) stays null (dropped at warmup),
+    # matching pandas-ta's signed_series + first_valid_index slice.
     hlc3_diff = hlc3_expr.diff()
-    sign = pl.when(hlc3_diff > 0).then(1.0).when(hlc3_diff < 0).then(-1.0).otherwise(pl.lit(None))
+    sign = (
+        pl.when(hlc3_diff > 0)
+        .then(1.0)
+        .when(hlc3_diff < 0)
+        .then(-1.0)
+        .when(hlc3_diff == 0)
+        .then(0.0)
+        .otherwise(pl.lit(None))
+    )
     signed_volume = volume_expr * sign
 
     # KVO = MA(signed_volume, fast) - MA(signed_volume, slow)
