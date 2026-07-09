@@ -103,11 +103,15 @@ def psar(
     Returns:
         pl.Expr: Struct with PSARl, PSARs, PSARaf, PSARr columns
     """
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     _has_close = close is not None
     close_expr = v_expr(close) if _has_close else low_expr
     _af0 = af0 if af0 and af0 > 0 else af if af and af > 0 else 0.02
+    _use_talib = Imports["talib"] and v_talib(talib)
 
     def _compute(s: pl.Series) -> pl.Series:
         data = s.struct.unnest()
@@ -117,15 +121,31 @@ def psar(
         sar0 = float(c_arr[0]) if _has_close and len(c_arr) > 0 else 0.0
         long_a, short_a, af_a, rev_a = _nb_psar(h, l_, sar0, _has_close, _af0, max_af)
 
+        # The combined SAR line: on the talib path use talib.SAR (a single C call);
+        # otherwise the native kernel's SAR (which already equals talib.SAR). Either
+        # way, af_a/rev_a come from the native pass — talib.SAR provides no
+        # acceleration/reversal, and emitting them as null would leave PSARaf an
+        # all-null column, so we keep the (consistent) native values.
+        native_combined = np.where(~np.isnan(long_a), long_a, short_a)
+        if _use_talib:
+            from talib import SAR as _SAR
+
+            combined = _SAR(h, l_, acceleration=_af0, maximum=max_af)
+        else:
+            combined = native_combined
+
         # Reclassify long/short from the combined SAR using close (classic
         # 9258bf6): SAR < close -> long, SAR >= close -> short. This matches
         # TA-Lib's convention and avoids off-by-one splits at reversal bars that
         # the `falling` flag alone produces. The combined SAR (the per-bar value)
         # is unchanged; only which of PSARl/PSARs holds it changes.
         if _has_close:
-            combined = np.where(~np.isnan(long_a), long_a, short_a)
-            long_a = np.where(combined < c_arr, combined, np.nan)
-            short_a = np.where(combined >= c_arr, combined, np.nan)
+            is_long = combined < c_arr
+        else:
+            is_long = ~np.isnan(long_a)
+        if _has_close or _use_talib:
+            long_a = np.where(is_long, combined, np.nan)
+            short_a = np.where(~is_long, combined, np.nan)
 
         if offset != 0:
             for a in [long_a, short_a, af_a]:
