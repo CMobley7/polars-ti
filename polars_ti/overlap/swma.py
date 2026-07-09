@@ -34,17 +34,19 @@ def swma(
     if close_expr is None:
         return None
 
-    # Get symmetric triangle weights
-    triangle_weights = symmetric_triangle(length, weighted=True)
-    weights_list = triangle_weights.tolist()
-
     _length = length
-    _weights = weights_list
+    _weights: list[float] | None = None
 
     def triangle_weighted_mean(s: pl.Series) -> float:
+        nonlocal _weights
         vals = s.to_numpy()
         if len(vals) < _length:
             return float("nan")
+        if _weights is None:
+            # Build the length-sized weight vector lazily — only once a full window
+            # exists — so an absurd length (>> data) returns all-null instead of
+            # eagerly allocating an O(length) array (a hang/OOM on e.g. length=1e9).
+            _weights = symmetric_triangle(_length, weighted=True).tolist()
         return (vals * _weights[-len(vals) :]).sum()
 
     swma_expr = close_expr.rolling_map(function=triangle_weighted_mean, window_size=length, min_samples=length)

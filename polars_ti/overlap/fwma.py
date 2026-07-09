@@ -35,21 +35,24 @@ def fwma(
     if close_expr is None:
         return None
 
-    # Get Fibonacci weights
-    fibs = fibonacci(n=length, weighted=True)
-    if not asc:
-        fibs = fibs[::-1]
-    weights_sum = fibs.sum()
-    fib_list = fibs.tolist()
-
     _length = length
-    _weights = fib_list
-    _total = weights_sum
+    _weights: list[float] | None = None
+    _total: float | None = None
 
     def fib_weighted_mean(s: pl.Series) -> float:
+        nonlocal _weights, _total
         vals = s.to_numpy()
         if len(vals) < _length:
             return float("nan")
+        if _weights is None:
+            # Build the length-sized weight vector lazily — only once a full window
+            # exists — so an absurd length (>> data) returns all-null instead of
+            # eagerly allocating an O(length) array (a hang/OOM on e.g. length=1e9).
+            fibs = fibonacci(n=_length, weighted=True)
+            if not asc:
+                fibs = fibs[::-1]
+            _total = fibs.sum()
+            _weights = fibs.tolist()
         return (vals * _weights[-len(vals) :]).sum() / _total
 
     fwma_expr = close_expr.rolling_map(function=fib_weighted_mean, window_size=length, min_samples=length)

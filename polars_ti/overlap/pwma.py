@@ -35,19 +35,22 @@ def pwma(
     if close_expr is None:
         return None
 
-    # Get Pascal's Triangle weights (row n-1 for length n)
-    pascal_weights = pascals_triangle(n=length - 1, weighted=True)
-    if not asc:
-        pascal_weights = pascal_weights[::-1]
-    weights_list = pascal_weights.tolist()
-
     _length = length
-    _weights = weights_list
+    _weights: list[float] | None = None
 
     def pascal_weighted_mean(s: pl.Series) -> float:
+        nonlocal _weights
         vals = s.to_numpy()
         if len(vals) < _length:
             return float("nan")
+        if _weights is None:
+            # Build the length-sized weight vector lazily — only once a full window
+            # exists — so an absurd length (>> data) returns all-null instead of
+            # eagerly allocating an O(length) array (a hang/OOM on e.g. length=1e9).
+            pascal_weights = pascals_triangle(n=_length - 1, weighted=True)
+            if not asc:
+                pascal_weights = pascal_weights[::-1]
+            _weights = pascal_weights.tolist()
         return (vals * _weights[-len(vals) :]).sum()
 
     pwma_expr = close_expr.rolling_map(function=pascal_weighted_mean, window_size=length, min_samples=length)
