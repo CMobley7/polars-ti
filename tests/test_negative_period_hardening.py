@@ -125,3 +125,17 @@ def test_v_pos_int_contract():
         v_pos_int(True, "length")  # bool rejected
     with pytest.raises(ValueError):
         v_pos_int(None, "length")
+
+
+# Weight-based moving averages built an O(length) weight vector eagerly, so an
+# absurd length (>> data) allocated gigabytes and hung/OOM'd. Weights are now
+# built lazily inside the rolling closure — only once a full window exists — so a
+# length larger than the data returns all-null (the mathematically correct result)
+# without the allocation.
+@pytest.mark.parametrize("indicator", ["alma", "swma", "sinwma", "fwma", "pwma"])
+def test_weighted_ma_huge_length_returns_null_not_hang(indicator):
+    df = pl.DataFrame({"close": [1.0 + i * 0.1 for i in range(40)]})
+    result = df.select(getattr(ti, indicator)("close", length=10**9).alias("x"))
+    col = result.get_column("x")
+    # length >> n: no full window exists, so every value is null/NaN (no hang).
+    assert col.is_null().all() or col.is_nan().all()

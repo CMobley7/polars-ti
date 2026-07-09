@@ -35,23 +35,25 @@ def alma(
     if close_expr is None:
         return None
 
-    # Pre-compute Gaussian weights
-    x = np.arange(length, dtype=np.float64)
-    k = np.floor(dist_offset * (length - 1))
-    weights = np.exp(-0.5 * ((sigma / length) * (x - k)) ** 2)
-    weights = weights / weights.sum()
-    weights_list = weights.tolist()
-
     _length = length
-    _weights = weights_list
+    _weights: list[float] | None = None
 
     def gaussian_weighted_mean(s: pl.Series) -> float:
+        nonlocal _weights
         vals = s.to_numpy()
         if len(vals) < _length:
             return float("nan")
         # Check for NaN in window
         if np.isnan(vals).any():
             return float("nan")
+        if _weights is None:
+            # Build the length-sized weight vector lazily — only once a full window
+            # exists — so an absurd length (>> data) returns all-null instead of
+            # eagerly allocating an O(length) array (a hang/OOM on e.g. length=1e9).
+            x = np.arange(_length, dtype=np.float64)
+            k = np.floor(dist_offset * (_length - 1))
+            w = np.exp(-0.5 * ((sigma / _length) * (x - k)) ** 2)
+            _weights = (w / w.sum()).tolist()
         return (vals * _weights).sum()
 
     alma_expr = close_expr.rolling_map(function=gaussian_weighted_mean, window_size=length, min_samples=length)
