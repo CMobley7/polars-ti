@@ -71,3 +71,19 @@ class TestPlHl2:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(hl2("high", "low")).collect()
         assert "HL2" in result.columns
+
+    def test_talib_routes_to_medprice(self, sample_df):
+        """talib=True routes to talib.MEDPRICE exactly."""
+        talib = pytest.importorskip("talib")
+        got = sample_df.select(hl2("high", "low", talib=True))["HL2"].to_numpy()
+        ref = talib.MEDPRICE(
+            sample_df["high"].to_numpy().astype(np.float64),
+            sample_df["low"].to_numpy().astype(np.float64),
+        )
+        assert np.nanmax(np.abs(got - ref)) == 0.0
+
+    def test_default_output_unchanged_by_talib(self, sample_df):
+        """Default (talib=True) output equals the native (talib=False) formula."""
+        default = sample_df.select(hl2("high", "low"))["HL2"].to_numpy()
+        native = sample_df.select(hl2("high", "low", talib=False))["HL2"].to_numpy()
+        np.testing.assert_array_equal(default, native)

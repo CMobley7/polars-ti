@@ -2,9 +2,12 @@
 # =============================================================================
 # Polars CDL_DOJI Implementation
 # =============================================================================
+import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.maps import Imports
+from polars_ti.utils import v_talib
 from polars_ti.utils._candles import high_low_range, real_body
 from polars_ti.utils._validate import v_expr
 
@@ -18,6 +21,7 @@ def cdl_doji(
     factor: float = 10.0,
     scalar: float = 100.0,
     asint: bool = True,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Candle Type - Doji
@@ -37,15 +41,57 @@ def cdl_doji(
         factor: Doji threshold percentage. Default: 10.0 (means 10%)
         scalar: Result multiplier. Default: 100.0
         asint: Return integer (scaled) instead of boolean. Default: True
+        talib: If True and TA-Lib is installed, route via talib.CDLDOJI.
+            Default: True. NOTE (downgrade): talib.CDLDOJI exposes no
+            ``length``/``factor`` knobs — it uses TA-Lib's built-in candle
+            settings — so on the TA-Lib path ``length`` and ``factor`` are
+            ignored (they still name the output column for consistency). The
+            native default is pinned to equal ``talib.CDLDOJI`` on the shared
+            (post-warmup) region, so the default output is unchanged apart from
+            TA-Lib emitting 0 during its lookback where the native path emits
+            null.
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        pl.Expr: CDL_DOJI expression (100 for doji, 0 otherwise)
+        pl.Expr: CDL_DOJI expression (scalar for doji, 0 otherwise)
     """
     open_expr = v_expr(open_)
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
+
+    _alias = f"CDL_DOJI_{length}_{0.01 * factor}"
+
+    if Imports["talib"] and v_talib(talib):
+        _scalar = scalar
+        _asint = asint
+
+        def _compute(s: pl.Series) -> pl.Series:
+            from talib import CDLDOJI
+
+            data = s.struct.unnest()
+            raw = CDLDOJI(
+                data["_o"].to_numpy().astype(np.float64),
+                data["_h"].to_numpy().astype(np.float64),
+                data["_l"].to_numpy().astype(np.float64),
+                data["_c"].to_numpy().astype(np.float64),
+            )
+            hit = raw != 0
+            if _asint:
+                return pl.Series(np.where(hit, _scalar, 0.0).astype(np.int64))
+            return pl.Series(hit)
+
+        doji = pl.struct(
+            open_expr.alias("_o"),
+            high_expr.alias("_h"),
+            low_expr.alias("_l"),
+            close_expr.alias("_c"),
+        ).map_batches(_compute, return_dtype=pl.Int64 if asint else pl.Boolean)
+
+        if offset != 0:
+            doji = doji.shift(offset)
+
+        return doji.alias(_alias)
 
     # Calculate real body (absolute difference between close and open)
     body = (close_expr - open_expr).abs()
@@ -72,4 +118,4 @@ def cdl_doji(
     if offset != 0:
         doji = doji.shift(offset)
 
-    return doji.alias(f"CDL_DOJI_{length}_{0.01 * factor}")
+    return doji.alias(_alias)
