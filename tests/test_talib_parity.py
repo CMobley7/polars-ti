@@ -88,7 +88,12 @@ def test_full_talib_parity_has_broad_coverage(report):
     # DMN_14 and CMO_14 are pinned to the TA-Lib reference via ``match_talib``
     # for the classic-port native Wilder-smoothing alignment, so they are graded
     # against talib_reference rather than the pandas golden here.)
-    assert len(_graded_cols(report)) >= 350
+    #
+    # The EMA-seed alignment reclassified DEMA_10 (match_talib) plus the
+    # ZL_EMA/TSI/TMO/EFI/KVO family (intentional) out of pandas-golden grading:
+    # their native output now matches TA-Lib and is pinned native==talib by
+    # tests/overlap/test_native_talib_alignment.py, so the floor is 340.
+    assert len(_graded_cols(report)) >= 340
 
 
 def test_full_talib_parity(report):
