@@ -40,6 +40,10 @@ def natr(
     Returns:
         pl.Expr: NATR expression
     """
+    import numpy as np
+
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
     from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
@@ -49,9 +53,29 @@ def natr(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    # NATR = (scalar / close) * ATR (matches Pandas exactly)
-    atr_result = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
-    result = (pl.lit(scalar) / close_expr) * atr_result
+    if Imports["talib"] and v_talib(talib) and scalar == 100.0:
+        # Fast path: TA-Lib's dedicated NATR is a single C call (NATR is a fixed
+        # 100*ATR/close, so only the scalar=100 default routes here).
+        def _compute(s: pl.Series) -> pl.Series:
+            from talib import NATR as _NATR
+
+            d = s.struct.unnest()
+            return pl.Series(
+                _NATR(
+                    d["_h"].to_numpy().astype(np.float64),
+                    d["_l"].to_numpy().astype(np.float64),
+                    d["_c"].to_numpy().astype(np.float64),
+                    timeperiod=length,
+                )
+            )
+
+        result = pl.struct(high_expr.alias("_h"), low_expr.alias("_l"), close_expr.alias("_c")).map_batches(
+            _compute, return_dtype=pl.Float64
+        )
+    else:
+        # NATR = (scalar / close) * ATR (native atr now matches talib.ATR too)
+        atr_result = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
+        result = (pl.lit(scalar) / close_expr) * atr_result
 
     # Apply offset
     if offset != 0:

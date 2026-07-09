@@ -260,3 +260,21 @@ def test_aroon_talib_routes_and_native_matches():
     d, u = _talib.AROON(hi, lo, 14)
     assert np.nanmax(np.abs(tt["AROOND"].to_numpy() - d)[20:]) < 1e-9  # routes to talib
     assert np.nanmax(np.abs(nn["AROOND"].to_numpy() - d)[20:]) < 1e-9  # native matches too
+
+
+# --- perf: trix/natr route to the dedicated talib fn (fast path) at defaults ---
+def test_trix_natr_route_to_dedicated_talib_fn():
+    import talib as _talib
+    from polars_ti.momentum.trix import trix
+    from polars_ti.volatility.natr import natr
+
+    df = _ohlcv(400)
+    c = df["close"].to_numpy()
+    tx = df.select(trix("close", length=30, signal=9, talib=True).alias("t")).unnest("t")["TRIX_30_9"].to_numpy()
+    assert np.nanmax(np.abs(tx - _talib.TRIX(c, 30))[80:]) == 0.0  # dedicated talib.TRIX
+    # non-default scalar falls back to composition and is honored
+    tx50 = df.select(trix("close", length=30, scalar=50.0, talib=True).alias("t")).unnest("t")["TRIX_30_9"].to_numpy()
+    assert abs(np.nanmedian(tx50[100:] / tx[100:]) - 0.5) < 1e-6
+    h, lo = df["high"].to_numpy(), df["low"].to_numpy()
+    nt = df.select(natr("high", "low", "close", length=14, talib=True)).to_series().to_numpy()
+    assert np.nanmax(np.abs(nt - _talib.NATR(h, lo, c, 14))[40:]) == 0.0  # dedicated talib.NATR
