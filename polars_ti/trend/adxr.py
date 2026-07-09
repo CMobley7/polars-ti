@@ -14,7 +14,7 @@ def adxr(
     low: IntoExpr,
     close: IntoExpr,
     length: int = 14,
-    lensig: int = 14,
+    lensig: int | None = None,
     scalar: float = 100.0,
     talib: bool = True,
     offset: int = 0,
@@ -34,7 +34,7 @@ def adxr(
         low: Column name or pl.Expr for 'low' prices
         close: Column name or pl.Expr for 'close' prices
         length: ADX/DM period. Default: 14
-        lensig: ADX signal period. Default: 14
+        lensig: ADX signal (smoothing) period. Defaults to ``length`` when None.
         scalar: Magnification factor. Default: 100
         talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
@@ -52,7 +52,12 @@ def adxr(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    # TA-Lib's ADXR exposes only a single ``timeperiod``, so its fast path is
+    # valid only when the ADX smoothing period equals ``length``. lensig defaults
+    # to length when omitted (matching pandas-ta), keeping the fast path active
+    # for the common case; an explicit lensig != length routes to native.
+    _lensig = lensig if lensig is not None else length
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and _lensig == length
     _length = length
 
     if _use_talib:
@@ -74,13 +79,13 @@ def adxr(
             low_expr,
             close_expr,
             length=length,
-            lensig=lensig,
+            lensig=_lensig,
             scalar=scalar,
             talib=False,
-        ).struct.field(f"ADX_{lensig}")
+        ).struct.field(f"ADX_{_lensig}")
         adxr_expr = 0.5 * (adx_line + adx_line.shift(length - 1))
 
     if offset != 0:
         adxr_expr = adxr_expr.shift(offset)
 
-    return adxr_expr.alias(f"ADXR_{lensig}")
+    return adxr_expr.alias(f"ADXR_{_lensig}")

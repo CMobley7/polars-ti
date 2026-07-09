@@ -11,7 +11,7 @@ from polars_ti.utils import v_talib
 from polars_ti.utils._validate import v_expr
 
 
-def hl2(high: IntoExpr, low: IntoExpr, talib: bool = True) -> PlExpr:
+def hl2(high: IntoExpr, low: IntoExpr, talib: bool = True, offset: int = 0) -> PlExpr:
     """Polars: HL2 - Midpoint of High and Low
 
     Equivalent to TA-Lib's ``MEDPRICE``. The native ``(high + low) / 2``
@@ -24,6 +24,7 @@ def hl2(high: IntoExpr, low: IntoExpr, talib: bool = True) -> PlExpr:
         low: Column name or pl.Expr for 'low' prices
         talib: If True and TA-Lib is installed, route via talib.MEDPRICE.
             Default: True
+        offset: Shift the result by N periods. Default: 0
 
     Returns:
         pl.Expr: HL2 expression
@@ -46,10 +47,13 @@ def hl2(high: IntoExpr, low: IntoExpr, talib: bool = True) -> PlExpr:
                 )
             )
 
-        return (
-            pl.struct(high_expr.alias("_high"), low_expr.alias("_low"))
-            .map_batches(_compute, return_dtype=pl.Float64)
-            .alias("HL2")
+        hl2_expr = pl.struct(high_expr.alias("_high"), low_expr.alias("_low")).map_batches(
+            _compute, return_dtype=pl.Float64
         )
+    else:
+        hl2_expr = (high_expr + low_expr) / 2
 
-    return ((high_expr + low_expr) / 2).alias("HL2")
+    if offset != 0:
+        hl2_expr = hl2_expr.shift(offset)
+
+    return hl2_expr.alias("HL2")

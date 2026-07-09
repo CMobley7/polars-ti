@@ -64,6 +64,40 @@ def test_native_adx_converges_to_talib(spy):
     assert np.nanmax(np.abs(native[200:] - ref[200:])) < 1e-3
 
 
+def test_lensig_defaults_to_length(spy):
+    """Omitting lensig defaults it to length: columns and the TA-Lib fast path
+    must key off ``length``, not a hardcoded 14."""
+    result = spy.select(adx("high", "low", "close", length=21)).unnest("ADX_21")
+    for col in ("ADX_21", "ADXR_21_2", "DMP_21", "DMN_21"):
+        assert col in result.columns
+
+
+@pytest.mark.skipif(not Imports["talib"], reason="requires TA-Lib")
+def test_lensig_default_routes_talib_at_length(spy):
+    """With lensig omitted, adx(length=21, talib=True) must hit the TA-Lib fast
+    path and match talib.ADX(21) exactly (previously mislabeled/native)."""
+    import talib
+
+    result = spy.select(adx("high", "low", "close", length=21, talib=True)).unnest("ADX_21")
+    ref = talib.ADX(
+        spy["high"].to_numpy().astype("float64"),
+        spy["low"].to_numpy().astype("float64"),
+        spy["close"].to_numpy().astype("float64"),
+        timeperiod=21,
+    )
+    vals = result["ADX_21"].to_numpy()
+    m = ~np.isnan(vals) & ~np.isnan(ref)
+    assert m.sum() > 1000
+    assert np.max(np.abs(vals[m] - ref[m])) == 0.0
+
+
+def test_explicit_lensig_differs_from_length_uses_native(spy):
+    """An explicit lensig != length is honored (native), labeling by lensig."""
+    result = spy.select(adx("high", "low", "close", length=21, lensig=10)).unnest("ADX_10")
+    assert "ADX_10" in result.columns
+    assert "DMP_21" in result.columns
+
+
 @pytest.mark.skipif(not Imports["talib"], reason="requires TA-Lib")
 def test_talib_path_matches_talib(spy):
     import talib

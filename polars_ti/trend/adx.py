@@ -115,7 +115,7 @@ def adx(
     low: IntoExpr,
     close: IntoExpr,
     length: int = 14,
-    lensig: int = 14,
+    lensig: int | None = None,
     adxr_length: int = 2,
     scalar: float = 100.0,
     talib: bool = True,
@@ -130,7 +130,7 @@ def adx(
         low: Column name or pl.Expr for 'low' prices
         close: Column name or pl.Expr for 'close' prices
         length: ATR/DM period. Default: 14
-        lensig: Signal period. Default: 14
+        lensig: Signal (ADX smoothing) period. Defaults to ``length`` when None.
         adxr_length: ADXR lookback. Default: 2
         scalar: Magnification. Default: 100
         talib: If True and TA-Lib installed, use TA-Lib. Default: True
@@ -143,6 +143,12 @@ def adx(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
+    # TA-Lib's ADX/ADXR expose only a single ``timeperiod``; the fast path is
+    # therefore valid solely when the ADX smoothing period equals ``length``.
+    # When the caller omits lensig it defaults to length (matching pandas-ta),
+    # keeping the fast path active for the common case.
+    _lensig = lensig if lensig is not None else length
+
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
 
@@ -152,7 +158,7 @@ def adx(
         l_ = data["_l"].to_numpy().astype(np.float64)
         c = data["_c"].to_numpy().astype(np.float64)
 
-        if Imports["talib"] and v_talib(talib) and length > 1 and lensig == length:
+        if Imports["talib"] and v_talib(talib) and length > 1 and _lensig == length:
             from talib import ADX, MINUS_DM, PLUS_DM
 
             adx_arr = ADX(h, l_, c, timeperiod=length)
@@ -161,7 +167,7 @@ def adx(
             adxr_arr = 0.5 * (adx_arr + np.roll(adx_arr, adxr_length))
             adxr_arr[:adxr_length] = np.nan
         else:
-            adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, lensig, adxr_length, scalar)
+            adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, _lensig, adxr_length, scalar)
 
         if offset != 0:
             for arr in [adx_arr, adxr_arr, dmp_arr, dmn_arr]:
@@ -175,8 +181,8 @@ def adx(
         return pl.Series(
             values=[
                 {
-                    f"ADX_{lensig}": adx_arr[i],
-                    f"ADXR_{lensig}_{adxr_length}": adxr_arr[i],
+                    f"ADX_{_lensig}": adx_arr[i],
+                    f"ADXR_{_lensig}_{adxr_length}": adxr_arr[i],
                     f"DMP_{length}": dmp_arr[i],
                     f"DMN_{length}": dmn_arr[i],
                 }
@@ -185,8 +191,8 @@ def adx(
         )
 
     fields = [
-        pl.Field(f"ADX_{lensig}", pl.Float64),
-        pl.Field(f"ADXR_{lensig}_{adxr_length}", pl.Float64),
+        pl.Field(f"ADX_{_lensig}", pl.Float64),
+        pl.Field(f"ADXR_{_lensig}_{adxr_length}", pl.Float64),
         pl.Field(f"DMP_{length}", pl.Float64),
         pl.Field(f"DMN_{length}", pl.Float64),
     ]
@@ -197,5 +203,5 @@ def adx(
             close_expr.alias("_c"),
         )
         .map_batches(_compute, return_dtype=pl.Struct(fields))
-        .alias(f"ADX_{lensig}")
+        .alias(f"ADX_{_lensig}")
     )
