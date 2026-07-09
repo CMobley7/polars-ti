@@ -104,7 +104,9 @@ def ema(
     _length = length
     _presma = presma
     _adjust = adjust
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    # TA-Lib EMA always SMA-seeds its warmup (presma=True); only route there for
+    # presma=True so presma=False falls back to native (which honors it).
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and presma
 
     def compute_ema(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(float64)

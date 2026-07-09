@@ -108,6 +108,9 @@ def psar(
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
+    # Consistency with hl2: a None input expr yields None rather than raising.
+    if high_expr is None or low_expr is None:
+        return None
     _has_close = close is not None
     close_expr = v_expr(close) if _has_close else low_expr
     # Precedence (matches baseline v_pos_default chain): explicit af0 wins, else

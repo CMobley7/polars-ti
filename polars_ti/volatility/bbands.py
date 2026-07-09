@@ -30,7 +30,9 @@ def bbands(
         close: Column name or pl.Expr for 'close'
         length: SMA period. Default: 5
         std: Standard deviation multiplier. Default: 2.0
-        ddof: Delta degrees of freedom (ignored when talib=True). Default: 1
+        ddof: Delta degrees of freedom. Honored on both paths; a non-default
+            ddof falls back to the native path (TA-Lib BBANDS is population-only).
+            Default: 0
         talib: If True and TA-Lib installed, uses TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
 
@@ -42,7 +44,9 @@ def bbands(
     if close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib)
+    # TA-Lib BBANDS computes a population std (ddof=0); only route there for the
+    # default ddof so a non-default ddof falls back to native (which honors it).
+    _use_talib = Imports["talib"] and v_talib(talib) and ddof == 0
     _length = length
     _std = std
     _ddof = ddof
