@@ -42,8 +42,9 @@ def _study(talib: bool) -> pl.DataFrame:
 @pytest.mark.parametrize("talib", _TALIB_MODES)
 def test_study_column_manifest(manifest, talib):
     """The AllStudy output (flattened) must match the committed column manifest
-    exactly in each mode — no silent drops, no unexpected additions. The
-    talib=False set legitimately lacks the ~60 TA-Lib-only candle patterns."""
+    exactly in each mode — no silent drops, no unexpected additions. With the
+    native candlestick suite, the talib=False set now matches the talib=True set
+    (both include the ~60 candle patterns)."""
     flat = flatten_structs(_study(talib))
     got = sorted(flat.columns)
     key = "flat_columns_talib" if talib else "flat_columns_notalib"

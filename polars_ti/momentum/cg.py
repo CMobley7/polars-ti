@@ -19,8 +19,12 @@ def nb_cg(close: np.ndarray, length: int) -> np.ndarray:
     where weight[i] = 1..length (1 for oldest, length for newest in window)
     """
     n = len(close)
-    result = np.empty(n, dtype=np.float64)
-    result[: length - 1] = np.nan
+    result = np.full(n, np.nan, dtype=np.float64)
+
+    if length > n:
+        # Window larger than the data -> all NaN. Return before allocating the
+        # O(length) weight vector, which on an absurd length would exhaust memory.
+        return result
 
     weights = np.arange(1, length + 1, dtype=np.float64)
 
