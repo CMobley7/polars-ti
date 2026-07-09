@@ -15,9 +15,13 @@ all_features = df.ti.study(ti.AllStudy, talib=True)
 
 | Study | What it runs |
 | :--- | :--- |
-| `ti.AllStudy` | every registered indicator (all 262) |
+| `ti.AllStudy` | every registered indicator (all 267) |
 | `ti.CommonStudy` | a small common set |
 | `"momentum"`, `"overlap"`, … | one category (pass the category name as a string) |
+
+The `study` argument must be a `Study` instance or a category string. Passing
+anything else (e.g. `None` or a typo'd value) raises `TypeError` rather than
+silently running the full `AllStudy`.
 
 ```python
 momentum = df.ti.study("momentum")          # category shorthand
@@ -60,8 +64,9 @@ df.ti.study(study, talib=True, errors="warn", cores=0)
   - `"raise"` — re-raise the first failure immediately.
   - `"ignore"` — silently skip failures.
 
-  (Note: an unrecognized `kind` — e.g. a typo — is silently skipped under every
-  error mode; it is not treated as a failure.)
+  (Note: an unrecognized `kind` — e.g. a typo — honors the `errors=` policy: it
+  raises under `"raise"`, is reported under `"warn"`, and is skipped under
+  `"ignore"`.)
 - **`cores`** (default `0`): reserved for future multiprocessing; currently all
   indicators run sequentially.
 
