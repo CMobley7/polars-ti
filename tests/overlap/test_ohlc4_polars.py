@@ -87,3 +87,21 @@ class TestPlOhlc4:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(ohlc4("open", "high", "low", "close")).collect()
         assert "OHLC4" in result.columns
+
+    def test_talib_routes_to_avgprice(self, sample_df):
+        """talib=True routes to talib.AVGPRICE exactly."""
+        talib = pytest.importorskip("talib")
+        got = sample_df.select(ohlc4("open", "high", "low", "close", talib=True))["OHLC4"].to_numpy()
+        ref = talib.AVGPRICE(
+            sample_df["open"].to_numpy().astype(np.float64),
+            sample_df["high"].to_numpy().astype(np.float64),
+            sample_df["low"].to_numpy().astype(np.float64),
+            sample_df["close"].to_numpy().astype(np.float64),
+        )
+        assert np.nanmax(np.abs(got - ref)) == 0.0
+
+    def test_default_output_unchanged_by_talib(self, sample_df):
+        """Default (talib=True) output equals the native (talib=False) formula."""
+        default = sample_df.select(ohlc4("open", "high", "low", "close"))["OHLC4"].to_numpy()
+        native = sample_df.select(ohlc4("open", "high", "low", "close", talib=False))["OHLC4"].to_numpy()
+        np.testing.assert_allclose(default, native, rtol=0, atol=1e-12)
