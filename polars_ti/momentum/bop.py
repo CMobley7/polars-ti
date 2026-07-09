@@ -56,6 +56,10 @@ def bop(
             l = df["low"].to_numpy().astype(np.float64)
             c = df["close"].to_numpy().astype(np.float64)
             result = TALIB_BOP(o, h, l, c)
+            # TA-Lib BOP is fixed at scalar=1.0; honor a non-default scalar with a
+            # linear rescale (BOP = scalar * (close - open) / (high - low)).
+            if scalar != 1.0:
+                result = result * scalar
             return pl.Series("BOP", result)
 
         bop_expr = pl.struct(
