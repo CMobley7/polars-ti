@@ -67,15 +67,20 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
         pos_rma[i] = alpha * pos[i] + (1 - alpha) * pos_rma[i - 1]
         neg_rma[i] = alpha * neg[i] + (1 - alpha) * neg_rma[i - 1]
 
-    # +DI, -DI, DX
+    # DMP/DMN outputs are the Wilder sum-smoothed directional movement, matching
+    # TA-Lib PLUS_DM/MINUS_DM (== length * RMA of the raw DM). DX is derived from
+    # the directional indicators (+DI/-DI = scalar * smoothed_DM / smoothed_TR),
+    # which are scale-invariant to the sum-vs-average smoothing choice.
     dx = np.full(n, np.nan)
     for i in range(length - 1, n):
+        dmp_out[i] = length * pos_rma[i]
+        dmn_out[i] = length * neg_rma[i]
         if atr_rma[i] != 0:
-            dmp_out[i] = scalar * pos_rma[i] / atr_rma[i]
-            dmn_out[i] = scalar * neg_rma[i] / atr_rma[i]
-            di_sum = dmp_out[i] + dmn_out[i]
+            di_pos = scalar * pos_rma[i] / atr_rma[i]
+            di_neg = scalar * neg_rma[i] / atr_rma[i]
+            di_sum = di_pos + di_neg
             if di_sum != 0:
-                dx[i] = scalar * abs(dmp_out[i] - dmn_out[i]) / di_sum
+                dx[i] = scalar * abs(di_pos - di_neg) / di_sum
 
     # ADX = RMA of DX
     # Find first valid dx

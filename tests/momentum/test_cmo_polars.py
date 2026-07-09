@@ -59,3 +59,26 @@ class TestPlCmo:
         valid = result["CMO_14"].filter(~result["CMO_14"].is_nan())
         assert valid.min() >= -100
         assert valid.max() <= 100
+
+
+class TestCmoTalibParity:
+    """Native (talib=False) CMO must equal TA-Lib CMO.
+
+    TA-Lib Wilder-smooths the up/down moves (``CMO == 2*RSI - 100``); the OLD
+    native path used a flat rolling sum and diverged by ~63. The classic port
+    switches the native path to Wilder smoothing so it matches TA-Lib exactly.
+    """
+
+    @pytest.fixture
+    def spy(self):
+        return pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+
+    def test_native_matches_talib_cmo(self, spy):
+        pytest.importorskip("talib")
+        import talib
+
+        native = spy.select(cmo("close", talib=False))["CMO_14"].to_numpy()
+        ref = talib.CMO(spy["close"].to_numpy().astype("float64"), timeperiod=14)
+        m = ~np.isnan(native) & ~np.isnan(ref)
+        assert m.sum() > 1000
+        assert np.max(np.abs(native[m] - ref[m])) < 1e-6
