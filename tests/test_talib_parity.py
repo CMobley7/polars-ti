@@ -84,8 +84,11 @@ def _graded_cols(report):
 
 
 def test_full_talib_parity_has_broad_coverage(report):
-    # The graded set is the large majority of the all-study output.
-    assert len(_graded_cols(report)) > 350
+    # The graded set is the large majority of the all-study output. (DMP_14,
+    # DMN_14 and CMO_14 are pinned to the TA-Lib reference via ``match_talib``
+    # for the classic-port native Wilder-smoothing alignment, so they are graded
+    # against talib_reference rather than the pandas golden here.)
+    assert len(_graded_cols(report)) >= 350
 
 
 def test_full_talib_parity(report):

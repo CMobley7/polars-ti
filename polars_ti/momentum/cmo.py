@@ -4,9 +4,57 @@
 # =============================================================================
 import polars as pl
 import numpy as np
+from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _nb_cmo(close, length, drift, scalar):
+    """Wilder-smoothed Chande Momentum Oscillator, matching TA-Lib CMO.
+
+    TA-Lib smooths the up/down moves with Wilder's running average (the same
+    smoothing as RSI; ``CMO == 2*RSI - 100``) rather than a flat rolling sum.
+    The seed at index ``drift + length - 1`` is the simple average of the first
+    ``length`` moves; subsequent bars use ``avg[i] = avg[i-1]*(length-1)/length
+    + move[i]/length``.
+    """
+    n = len(close)
+    out = np.full(n, np.nan)
+    if n < length + drift:
+        return out
+
+    up = np.zeros(n)
+    dn = np.zeros(n)
+    for i in range(drift, n):
+        change = close[i] - close[i - drift]
+        if change > 0:
+            up[i] = change
+        elif change < 0:
+            dn[i] = -change
+
+    seed = drift + length - 1
+    up_sum = 0.0
+    dn_sum = 0.0
+    for i in range(drift, seed + 1):
+        up_sum += up[i]
+        dn_sum += dn[i]
+    avg_up = up_sum / length
+    avg_dn = dn_sum / length
+    total = avg_up + avg_dn
+    if total != 0:
+        out[seed] = scalar * (avg_up - avg_dn) / total
+
+    alpha = 1.0 / length
+    for i in range(seed + 1, n):
+        avg_up = avg_up * (1 - alpha) + up[i] * alpha
+        avg_dn = avg_dn * (1 - alpha) + dn[i] * alpha
+        total = avg_up + avg_dn
+        if total != 0:
+            out[i] = scalar * (avg_up - avg_dn) / total
+
+    return out
 
 
 def cmo(
@@ -57,22 +105,17 @@ def cmo(
 
         cmo_expr = close_expr.map_batches(compute_cmo_talib, return_dtype=pl.Float64)
     else:
-        # Calculate momentum (diff)
-        mom = close_expr.diff(drift)
+        # Native path: Wilder-smoothed CMO, matching TA-Lib (the OLD native path
+        # used a flat rolling sum, which diverged from TA-Lib by tens of points).
+        _length = length
+        _scalar = scalar
+        _drift = drift
 
-        # Positive gains (clipped lower=0)
-        pos = mom.clip(lower_bound=0)
+        def compute_cmo_native(s: pl.Series) -> pl.Series:
+            arr = s.to_numpy().astype(np.float64)
+            return pl.Series(_nb_cmo(arr, _length, _drift, _scalar))
 
-        # Negative losses (clipped upper=0, then abs)
-        neg = mom.clip(upper_bound=0).abs()
-
-        # Rolling sums
-        pos_sum = pos.rolling_sum(window_size=length)
-        neg_sum = neg.rolling_sum(window_size=length)
-
-        # CMO = scalar * (pos_sum - neg_sum) / (pos_sum + neg_sum)
-        total = pos_sum + neg_sum
-        cmo_expr = pl.when(total != 0).then(scalar * (pos_sum - neg_sum) / total).otherwise(pl.lit(None))
+        cmo_expr = close_expr.map_batches(compute_cmo_native, return_dtype=pl.Float64)
 
     if offset != 0:
         cmo_expr = cmo_expr.shift(offset)

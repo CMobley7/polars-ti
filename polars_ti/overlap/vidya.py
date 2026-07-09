@@ -84,11 +84,18 @@ def vidya(
 
             cmo_vals = CMO(arr, _length) / 100.0  # Scale to 0-1
         else:
-            from polars_ti.momentum.cmo import cmo
-
-            tmp = pl.DataFrame({"_close": arr})
-            cmo_col = tmp.select(cmo("_close", length=_length, drift=_drift, talib=False)).to_series().to_numpy()
-            cmo_vals = cmo_col / 100.0  # Scale to 0-1
+            # Classic fork (commit 1474768) inlines a rolling-sum CMO here — the
+            # flat pos/neg window sums, NOT the standalone (Wilder-smoothed) CMO
+            # indicator. Keep it inlined so VIDYA tracks the classic reference
+            # regardless of the standalone cmo()'s smoothing convention.
+            mom = pl.Series(arr).diff(_drift)
+            pos = mom.clip(lower_bound=0)
+            neg = mom.clip(upper_bound=0).abs()
+            pos_sum = pos.rolling_sum(window_size=_length)
+            neg_sum = neg.rolling_sum(window_size=_length)
+            total = pos_sum + neg_sum
+            cmo_col = pl.when(total != 0).then((pos_sum - neg_sum) / total).otherwise(None)
+            cmo_vals = pl.select(cmo_col).to_series().to_numpy()  # already in [-1, 1]
 
         # Clamp |CMO| to [0, 1] and treat NaN as 0 so that ``alpha * abs_cmo``
         # stays in [0, alpha] and the recurrence is a stable convex combination

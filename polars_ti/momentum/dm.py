@@ -4,9 +4,52 @@
 # =============================================================================
 import polars as pl
 import numpy as np
+from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
+
+
+@njit(cache=True)
+def _nb_dm(high, low, length, drift):
+    """Wilder sum-smoothed +DM/-DM, matching TA-Lib PLUS_DM/MINUS_DM.
+
+    Raw directional movement is accumulated with Wilder's running-sum recursion
+    (``smoothed[i] = smoothed[i-1] - smoothed[i-1]/length + raw[i]``) seeded by
+    the plain sum of the first ``length`` raw values. This is the sum-scale
+    smoothing TA-Lib exposes, not the average-scale RMA of the OLD native path.
+    """
+    n = len(high)
+    dmp = np.full(n, np.nan)
+    dmn = np.full(n, np.nan)
+
+    # Seed loop below writes at [length - 1]; guard tiny inputs.
+    if n < length:
+        return dmp, dmn
+
+    pos = np.zeros(n)
+    neg = np.zeros(n)
+    for i in range(drift, n):
+        up = high[i] - high[i - drift]
+        dn = low[i - drift] - low[i]
+        if up > dn and up > 0:
+            pos[i] = up
+        if dn > up and dn > 0:
+            neg[i] = dn
+
+    pos_sum = 0.0
+    neg_sum = 0.0
+    for i in range(length):
+        pos_sum += pos[i]
+        neg_sum += neg[i]
+    dmp[length - 1] = pos_sum
+    dmn[length - 1] = neg_sum
+
+    for i in range(length, n):
+        dmp[i] = dmp[i - 1] - dmp[i - 1] / length + pos[i]
+        dmn[i] = dmn[i - 1] - dmn[i - 1] / length + neg[i]
+
+    return dmp, dmn
 
 
 def dm(
@@ -36,13 +79,11 @@ def dm(
         list[pl.Expr]: [DMP_14, DMN_14] expressions
     """
     from polars_ti.maps import Imports
-    from polars_ti.utils import v_talib, v_mamode
-    from polars_ti.ma import ma
+    from polars_ti.utils import v_talib
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     _use_talib = Imports["talib"] and v_talib(talib)
-    _mamode = v_mamode(mamode, "rma")
 
     if _use_talib:
         _length = length
@@ -69,18 +110,24 @@ def dm(
         dmp_expr = struct_expr.map_batches(compute_dmp, return_dtype=pl.Float64)
         dmn_expr = struct_expr.map_batches(compute_dmn, return_dtype=pl.Float64)
     else:
-        # Pure Polars: up = high - high.shift(drift), dn = low.shift(drift) - low
-        up = high_expr - high_expr.shift(drift)
-        dn = low_expr.shift(drift) - low_expr
+        # Native path: Wilder sum-smoothing to match TA-Lib PLUS_DM/MINUS_DM
+        # (the OLD native path smoothed on the average scale via ma('rma'), which
+        # diverged from TA-Lib by tens of points).
+        _length = length
+        _drift = drift
 
-        # +DM: when up > dn AND up > 0
-        pos_raw = pl.when((up > dn) & (up > 0)).then(up).otherwise(0.0)
-        # -DM: when dn > up AND dn > 0
-        neg_raw = pl.when((dn > up) & (dn > 0)).then(dn).otherwise(0.0)
+        def compute_dm_native(s: pl.Series) -> pl.Series:
+            df = s.struct.unnest()
+            high_arr = df["high"].to_numpy().astype(np.float64)
+            low_arr = df["low"].to_numpy().astype(np.float64)
+            dmp_arr, dmn_arr = _nb_dm(high_arr, low_arr, _length, _drift)
+            return pl.Series([{"DMP": p, "DMN": n} for p, n in zip(dmp_arr, dmn_arr)])
 
-        # Smooth with MA
-        dmp_expr = ma(_mamode, pos_raw, length=length, offset=0)
-        dmn_expr = ma(_mamode, neg_raw, length=length, offset=0)
+        struct_expr = pl.struct(high=high_expr, low=low_expr)
+        fields = pl.Struct([pl.Field("DMP", pl.Float64), pl.Field("DMN", pl.Float64)])
+        native = struct_expr.map_batches(compute_dm_native, return_dtype=fields)
+        dmp_expr = native.struct.field("DMP")
+        dmn_expr = native.struct.field("DMN")
 
     if offset != 0:
         dmp_expr = dmp_expr.shift(offset)
