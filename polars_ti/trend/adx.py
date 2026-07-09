@@ -162,6 +162,9 @@ def adx(
             from talib import ADX, MINUS_DM, PLUS_DM
 
             adx_arr = ADX(h, l_, c, timeperiod=length)
+            if scalar != 100.0:
+                # TA-Lib ADX is 0-100; honor the user's scalar (DMP/DMN are raw DM).
+                adx_arr = adx_arr * (scalar / 100.0)
             dmp_arr = PLUS_DM(h, l_, timeperiod=length)
             dmn_arr = MINUS_DM(h, l_, timeperiod=length)
             adxr_arr = 0.5 * (adx_arr + np.roll(adx_arr, adxr_length))

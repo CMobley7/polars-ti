@@ -53,7 +53,7 @@ def natr(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    if Imports["talib"] and v_talib(talib) and scalar == 100.0:
+    if Imports["talib"] and v_talib(talib) and scalar == 100.0 and mamode == "rma":
         # Fast path: TA-Lib's dedicated NATR is a single C call (NATR is a fixed
         # 100*ATR/close, so only the scalar=100 default routes here).
         def _compute(s: pl.Series) -> pl.Series:

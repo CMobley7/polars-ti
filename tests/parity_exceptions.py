@@ -83,6 +83,16 @@ _INTENTIONAL = {
     # baked in ddof=1. Consistent with the z-score ddof=0 choice above.
     "STDEV_30": "NEW ddof=0 (population, TA-Lib style) default vs OLD ddof=1 (§7)",
     "VAR_30": "NEW ddof=0 (population, TA-Lib style) default vs OLD ddof=1 (§7)",
+    # atr/natr now HONOR mamode on the talib path (route to talib.ATR only for
+    # mamode="rma"; else native). So cksp(book, sma-ATR), atrts, and alphatrend
+    # now use their intended ATR smoothing in talib mode too — talib mode ==
+    # native mode (0.0). The OLD talib golden baked in talib.ATR (Wilder,
+    # mamode-ignored). Same class as the ABER_ATR non-propagation entry.
+    "CKSPl_10_3_20": "talib now honors book SMA-ATR; == native mode; OLD talib golden was Wilder (§5)",
+    "CKSPs_10_3_20": "talib now honors book SMA-ATR; == native mode; OLD talib golden was Wilder (§5)",
+    "ATRTSe_14_20_3.0": "talib now honors atr mamode; == native mode; OLD talib golden was Wilder (§5)",
+    "ALPHAT_14_1_50": "talib now honors internal atr mamode; == native mode; OLD talib golden was Wilder (§5)",
+    "ALPHATl_14_1_50_2": "talib now honors internal atr mamode; == native mode; OLD talib golden was Wilder (§5)",
     "PVI": "NEW seeds initial=100 (StockCharts canonical) vs OLD first-close (§7)",
     "PVIe_255": "NEW seeds initial=100 vs OLD first-close (§7)",
     "MASSI_9_25": "NEW NaN-skipping cascaded EMA vs OLD nested TA-Lib EMA (§7)",
@@ -166,9 +176,7 @@ _FIXED_GROUPS = {
     "macd": ["MACD_12_26_9", "MACDh_12_26_9", "MACDs_12_26_9"],
     "ppo": ["PPO_12_26_9", "PPOh_12_26_9", "PPOs_12_26_9"],
     # WS2 — present-but-all-NaN repaired (§3)
-    "atrts": ["ATRTSe_14_20_3.0"],
     "chop": ["CHOP_14_1_100.0"],
-    "cksp": ["CKSPl_10_3_20", "CKSPs_10_3_20"],
     "halftrend_tl": ["HT_TL"],  # trend line fixed; the other HT_* still broken
     # WS4 — NaN-comparison guard in increasing()/decreasing() (NaN > 0 == True
     # in Polars produced spurious warmup 1s); now 0 during warmup like pandas.
@@ -190,7 +198,6 @@ _FIXED_GROUPS = {
     # (1/50 not 1.0/50.0); reuse talib-aware atr()/rsi() (mamode='sma') so
     # talib mode matches OLD exactly. (Native residual tracks OLD's buggy native
     # RSI seed — see RSI_14 match_talib exception.)
-    "alphatrend": ["ALPHAT_14_1_50", "ALPHATl_14_1_50_2"],
     # WS2 — accessor passed high/low into the close/length args; trixh takes
     # only close. Now emits TRIX/TRIXs/TRIXh_18_9.
     "trixh": ["TRIXh_18_9"],
