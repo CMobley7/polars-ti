@@ -30,25 +30,29 @@ def _nb_find_pivots(data: np.ndarray, left: int, right: int, is_high: bool) -> n
 
 @njit(cache=True)
 def _nb_avwap(close: np.ndarray, volume: np.ndarray, pivots: np.ndarray) -> np.ndarray:
-    """Calculate Anchored VWAP from pivot points."""
+    """Calculate Anchored VWAP from pivot points.
+
+    The VWAP is accumulated incrementally and reset at each pivot (the anchor),
+    giving O(n) overall. The previous form recomputed the running sum from the
+    last pivot to the current bar on every row, which is O(n^2) between pivots and
+    fully O(n^2) when the series has no pivots (e.g. a strictly monotonic input).
+    """
     n = len(close)
     result = np.full(n, np.nan)
-    last_pivot = 0
+    vp_sum = 0.0
+    v_sum = 0.0
 
     for i in range(n):
         if pivots[i]:
-            last_pivot = i
-
-        if last_pivot <= i:
-            # Calculate VWAP from last pivot to current
+            # Re-anchor: the VWAP window restarts at this pivot bar.
             vp_sum = 0.0
             v_sum = 0.0
-            for j in range(last_pivot, i + 1):
-                vp_sum += volume[j] * close[j]
-                v_sum += volume[j]
 
-            if v_sum > 0:
-                result[i] = vp_sum / v_sum
+        vp_sum += volume[i] * close[i]
+        v_sum += volume[i]
+
+        if v_sum > 0:
+            result[i] = vp_sum / v_sum
 
     return result
 
