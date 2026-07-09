@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from polars_ti.trend.adx import adx
+from polars_ti.trend.adxr import adxr
 from polars_ti.trend.alphatrend import alphatrend
 from polars_ti.trend.amat import amat
 from polars_ti.trend.aroon import aroon
@@ -28,6 +29,7 @@ from polars_ti.trend.zigzag import zigzag
 
 __all__ = [
     "adx",
+    "adxr",
     "alphatrend",
     "amat",
     "aroon",

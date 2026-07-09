@@ -181,6 +181,7 @@ Category: Dict[str, ListStr] = {
         "kama",
         "linreg",
         "mama",
+        "mavp",
         "mcgd",
         "medprice",
         "midpoint",
@@ -202,6 +203,7 @@ Category: Dict[str, ListStr] = {
         "t3",
         "tema",
         "trima",
+        "tsf",
         "typprice",
         "vidya",
         "wcp",
@@ -232,6 +234,7 @@ Category: Dict[str, ListStr] = {
     # Trend
     "trend": [
         "adx",
+        "adxr",
         "alphatrend",
         "amat",
         "aroon",

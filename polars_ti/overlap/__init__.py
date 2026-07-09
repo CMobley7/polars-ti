@@ -15,6 +15,7 @@ from polars_ti.overlap.jma import jma
 from polars_ti.overlap.kama import kama
 from polars_ti.overlap.linreg import linreg
 from polars_ti.overlap.mama import mama
+from polars_ti.overlap.mavp import mavp
 from polars_ti.overlap.mcgd import mcgd
 from polars_ti.overlap.medprice import medprice
 from polars_ti.overlap.midpoint import midpoint
@@ -36,6 +37,7 @@ from polars_ti.overlap.swma import swma
 from polars_ti.overlap.t3 import t3
 from polars_ti.overlap.tema import tema
 from polars_ti.overlap.trima import trima
+from polars_ti.overlap.tsf import tsf
 from polars_ti.overlap.typprice import typprice
 from polars_ti.overlap.vidya import vidya
 from polars_ti.overlap.wcp import wcp
@@ -59,6 +61,7 @@ __all__ = [
     "kama",
     "linreg",
     "mama",
+    "mavp",
     "mcgd",
     "medprice",
     "midpoint",
@@ -80,6 +83,7 @@ __all__ = [
     "t3",
     "tema",
     "trima",
+    "tsf",
     "typprice",
     "vidya",
     "wcp",
