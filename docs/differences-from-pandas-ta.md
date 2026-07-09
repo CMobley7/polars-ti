@@ -17,13 +17,15 @@ and why* reference.
 - **Engine:** pure **Polars + Numba/NumPy**. There is **zero runtime pandas
   dependency** — indicators are Polars expressions, not pandas `Series`
   operations.
-- **Indicators:** **262** total — **176** from the original pandas-ta
+- **Indicators:** **267** total — **176** from the original pandas-ta
   (development) port (including **17 added** from community forks, see
   [§6](#6-new-indicators--credits)), plus **86** added for feature parity with the
   community fork `xgboosted/pandas-ta-classic` (see
-  [§8](#8-feature-parity-with-pandas-ta-classic)). The 86 additions include a
+  [§8](#8-feature-parity-with-pandas-ta-classic)), plus a further **3** TA-Lib
+  indicators (`adxr`, `tsf`, `mavp`) added to complete TA-Lib coverage (see
+  [§8h](#8h-additional-ta-lib-parity-indicators-3)). The classic additions include a
   full native candlestick-pattern suite, so the **candles** category alone holds
-  **63** functions.
+  **65** functions.
 - **Columns:** the Polars all-study output is a **superset** of the pandas
   all-study output — every pandas column is reproduced; none are dropped
   (see [§3](#3-indicator--column-counts)).
@@ -46,7 +48,9 @@ and why* reference.
 | Legacy `pl_*` names | n/a | removed — use the indicator name directly (`rsi`, `sma`, `atr`, …) |
 | Multi-output indicators | multiple columns in a DataFrame | a single Polars **struct** column (accessor) or a **list of expressions**; unnest for flat columns |
 | TA-Lib | `talib=` per call | `talib=` per call **and** a study-wide `talib=` flag; native paths fully implemented so TA-Lib is optional |
-| Study errors | exceptions bubble up | `df.ti.study(..., errors="warn"|"raise"|"ignore")`, default `"warn"` |
+| TA-Lib param honoring | `talib=True` silently **ignored** non-default extra params the TA-Lib C function can't take (`scalar`, `c`, `mamode`, `ddof`, `drift`, `presma`, `min_periods`, weights, …) | those params are **honored** — linear ones (`scalar`, `c`) are rescaled, the rest fall through to the native path; defaults are byte-identical (see [§4e](#4e-parameter-honoring-on-the-ta-lib-path)) |
+| Invalid period params | a negative / non-integer `length`/`fast`/`slow`/… could reach a Numba kernel and **crash the process** (heap OOB / SIGSEGV) | no indicator crashes the process on a bad period any more; the ~40 crash-prone kernels are guarded and raise a clear `ValueError` (see [§4e](#4e-parameter-honoring-on-the-ta-lib-path)) |
+| Study errors | exceptions bubble up | `df.ti.study(..., errors="warn"|"raise"|"ignore")`, default `"warn"`; an unknown indicator `kind` in a custom `Study` honors this policy (raises under `"raise"`), and a `study` argument that is neither a category string nor a `Study` raises `TypeError` |
 
 See [Getting started](getting-started.md) for the return-type details and how to
 unnest struct columns.
@@ -58,9 +62,9 @@ unnest struct columns.
 This section compares Polars-TI against the **original pandas-ta (development)
 baseline** it was ported from. The numbers below therefore reflect the
 **176-indicator** original port; the **86** additional indicators from
-`pandas-ta-classic` are covered separately in
-[§8](#8-feature-parity-with-pandas-ta-classic) and bring the current total to
-**262** (see [§1](#1-summary)).
+`pandas-ta-classic` plus **3** further TA-Lib-parity indicators are covered
+separately in [§8](#8-feature-parity-with-pandas-ta-classic) and bring the current
+total to **267** (see [§1](#1-summary)).
 
 Measured on a deterministic 1,500-row slice of `data/SPY_D.csv`, all-study,
 with TA-Lib installed:
@@ -73,10 +77,13 @@ with TA-Lib installed:
 | Extra columns exposed | — | **+2** (`DMP_14`/`DMN_14` are also surfaced inside the `ADX` struct) |
 | All-study indicator columns (native, no TA-Lib) | — | 329 |
 
-The native (no-TA-Lib) study has fewer columns only because ~60 TA-Lib
-candlestick patterns have no native implementation — pandas-ta behaves the same
-way when TA-Lib is absent. (Since then, the `pandas-ta-classic` port added a full
-**native** candlestick suite; see [§8](#8-feature-parity-with-pandas-ta-classic).)
+The native (no-TA-Lib) figure above (**329**) reflects the **original
+176-indicator port**, when ~60 TA-Lib candlestick patterns had no native
+implementation (pandas-ta behaves the same way when TA-Lib is absent). The
+`pandas-ta-classic` port has since added a full **native** candlestick suite
+(see [§8e](#8e-full-native-candlestick-suite-60-patterns)), so the **current**
+all-study produces the **same column set in both modes** — native mode no longer
+drops the candlestick patterns.
 
 Some indicators changed their **column names** (struct/dotted layout). Those are
 not drops; they are folded by an authoritative old↔new name map
@@ -161,6 +168,46 @@ mappings (old flat → new):
 
 The full map lives in `tests/_parity.py` (`RENAME_MAP`). To get flat columns with
 the familiar names, unnest the struct column (e.g. `.unnest("AROON_14")`).
+
+### 4e. Parameter honoring on the TA-Lib path
+
+pandas-ta's `talib=True` branch calls the TA-Lib C function directly, which
+**silently drops** any extra parameter TA-Lib cannot represent — so
+`rsi(scalar=50, talib=True)` returned the same values as the default, ignoring
+`scalar`. Polars-TI **honors** these parameters even on the TA-Lib path, while
+keeping the default output **byte-identical** to TA-Lib:
+
+- **Linear parameters are rescaled** on the TA-Lib result: `scalar` (bop, rsi,
+  adx, adxr, dx, roc, cmo, ppo, trix) and `c` (cci). Example:
+  `bop(scalar=2.0, talib=True)` is exactly `2 ×` the default.
+- **Non-linear parameters fall through to the native path**, which already
+  applies them: `mamode` (atr, natr, accbands, dx), `ddof` (stdev, variance,
+  bbands), `drift` (cmo, dm, vidya, dx), `presma` (ema, t3, tema),
+  `min_periods` (sma), the `fast_w`/`medium_w`/`slow_w` weights and `drift`
+  (uo), and `c` (accbands). For `mama`/`ht_trendline` the `prenan` leading-NaN
+  count is applied as a mask on both paths (routing to native would change the
+  underlying algorithm, so it is not used).
+
+At each parameter's TA-Lib default this is a no-op, so no golden column moves;
+every case is verified in `tests/test_round4_param_honoring.py`. A few
+capability gaps remain **deferred** (documented, not silently wrong): `dm`'s
+`mamode` (neither path varies it — both are Wilder sum-smoothing), `adx`
+`mamode`/`tvmode`, `vwap` anchoring without a datetime column, and
+`variance`/`tos_stdevall` `min_periods`.
+
+**Input validation.** Period/window parameters (`length`, `fast`, `slow`,
+`signal`, `drift`, …) flow into Numba kernels that index and allocate with them.
+In ~40 indicators a negative or non-integer value used to cause out-of-bounds
+access — a hard **process crash** (SIGSEGV/SIGABRT). Those kernels are now guarded
+by a shared `v_pos_int` validator that raises a clear `ValueError`
+(`length must be an integer >= 1`) before the kernel runs; a fork-isolated sweep
+of all indicators confirms none crash the process on a bad period any more. (The
+remaining period-taking indicators never crashed — a bad period there raises a
+different exception, e.g. `OverflowError`/`TypeError`, or yields a degenerate
+result; only the crash-prone kernels needed the guard.) Separately, the
+weight-based moving averages (`alma`, `swma`, `sinwma`, `fwma`, `pwma`) plus `cg`
+and `msw` build/allocate their weights lazily, so a period larger than the data
+returns all-null instead of hanging on an O(n) allocation.
 
 ---
 
@@ -263,8 +310,9 @@ Beyond the original [twopirllc/pandas-ta](https://github.com/twopirllc/pandas-ta
 [xgboosted/pandas-ta-classic](https://github.com/xgboosted/pandas-ta-classic) —
 a fork off pandas-ta's **main** branch that carries extra indicators and a set of
 correctness fixes. Adopting them brings the library to **262 indicators** (176
-original + **86** added here). This section documents what was ported and how
-accurately.
+original + **86** added here); three further TA-Lib-parity indicators
+([§8h](#8h-additional-ta-lib-parity-indicators-3)) bring the current total to
+**267**. This section documents what was ported and how accurately.
 
 ### 8a. Correctness fixes adopted from the classic fork
 
@@ -335,3 +383,17 @@ benchmarked, TA-Lib's C implementation is roughly **19× faster** for candlestic
 logic, so `talib=True` remains the fast path — the native patterns exist so the
 library is fully functional when TA-Lib is not installed, not to beat it on
 speed.
+
+### 8h. Additional TA-Lib-parity indicators (3)
+
+Three TA-Lib indicators that neither the original port nor the classic fork
+exposed were added to complete TA-Lib coverage, each with a native path plus a
+TA-Lib fast path:
+
+| Indicator | Category | Description | Accuracy |
+| :--- | :--- | :--- | :--- |
+| `adxr` | Trend | Average Directional Movement Index Rating — `(ADX + ADX.shift(length-1)) / 2` | exact vs `talib.ADXR` on the TA-Lib path |
+| `tsf` | Overlap | Time Series Forecast — the one-step-ahead linear-regression forecast | native `m*(L+1)+b` is exact vs `talib.TSF`; TA-Lib path routes to `talib.TSF` |
+| `mavp` | Overlap | Moving Average with Variable Period — a per-bar variable-period SMA | matches `talib.MAVP` for `matype=0` (SMA); other `matype` values route to TA-Lib |
+
+This brings the total to **267** indicators.

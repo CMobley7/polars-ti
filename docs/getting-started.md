@@ -12,8 +12,9 @@ Or for local development:
 uv sync --extra test --dev
 ```
 
-TA-Lib is optional but recommended for full candlestick coverage and
-independent parity checks:
+TA-Lib is optional — used for speed (it accelerates the candlestick patterns
+~19×) and independent parity checks; every indicator, including all candlestick
+patterns, also has a native implementation:
 
 ```bash
 uv pip install TA-Lib

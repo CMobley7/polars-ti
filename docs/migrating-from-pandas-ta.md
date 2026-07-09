@@ -100,3 +100,19 @@ pandas-ta's native path was buggy (Polars-TI matches TA-Lib/canonical) or
 because of a documented convention change. None are Polars-TI being wrong — the
 full list with magnitudes and reasons is in
 [Differences §4](differences-from-pandas-ta.md#4-output-differences-with-reasons).
+
+One case worth calling out for porters: with `talib=True`, Polars-TI **honors**
+extra parameters (`scalar`, `c`, `mamode`, `ddof`, `drift`, `presma`,
+`min_periods`, the UO weights, …) that pandas-ta's TA-Lib path silently ignored.
+If you called e.g. `rsi(..., scalar=50, talib=True)` in pandas-ta and relied on
+the (incorrectly unscaled) result, Polars-TI now applies the parameter. Defaults
+are unchanged. See
+[Differences §4e](differences-from-pandas-ta.md#4e-parameter-honoring-on-the-ta-lib-path).
+
+## 9. Invalid parameters fail fast
+
+A negative or non-integer period (`length`/`fast`/`slow`/…) that used to reach a
+Numba kernel and crash the process now raises a clear `ValueError` in the affected
+indicators (e.g. `df.ti.ema(length=-5)` → `ValueError: length must be an integer
+>= 1`). A `study()` argument that is neither a category string nor a `Study`
+raises `TypeError`. Fix the offending call rather than catching these.
