@@ -228,6 +228,7 @@ def test_kvo_flat_bar_does_not_truncate_series():
 
 
 # --- ddof: stdev/variance default is ddof=0 (population, TA-Lib convention) ----
+@requires_talib
 def test_stdev_variance_default_ddof_is_population():
     """Default stdev/variance now use ddof=0 (population) matching talib.STDDEV/VAR,
     not pandas-ta's inherited ddof=1. Callers can still pass ddof=1."""
@@ -247,6 +248,7 @@ def test_stdev_variance_default_ddof_is_population():
 
 
 # --- API consistency: aroon exposes talib and routes to talib.AROON -----------
+@requires_talib
 def test_aroon_talib_routes_and_native_matches():
     import talib as _talib
     from polars_ti.trend.aroon import aroon
@@ -263,6 +265,7 @@ def test_aroon_talib_routes_and_native_matches():
 
 
 # --- perf: trix/natr route to the dedicated talib fn (fast path) at defaults ---
+@requires_talib
 def test_trix_natr_route_to_dedicated_talib_fn():
     import talib as _talib
     from polars_ti.momentum.trix import trix
@@ -281,6 +284,7 @@ def test_trix_natr_route_to_dedicated_talib_fn():
 
 
 # --- psar routes its SAR line to talib.SAR without an all-null PSARaf ----------
+@requires_talib
 def test_psar_talib_routes_sar_line_keeps_af():
     import talib as _talib
     from polars_ti.trend.psar import psar
@@ -298,6 +302,7 @@ def test_psar_talib_routes_sar_line_keeps_af():
 
 
 # --- honor-params: atr/natr/adx/adxr/stdev/variance honor their param on talib -
+@requires_talib
 def test_talib_path_honors_params():
     import talib as _talib
     import polars_ti as ti
