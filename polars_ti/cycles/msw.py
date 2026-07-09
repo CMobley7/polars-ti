@@ -7,7 +7,7 @@ import polars as pl
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 @njit(cache=True)
@@ -18,6 +18,12 @@ def nb_msw(arr: np.ndarray, period: int):
     size = len(arr)
     sine = np.full(size, np.nan)
     lead = np.full(size, np.nan)
+
+    if period > size:
+        # Window larger than the data -> no full cycle exists, so the output is
+        # all NaN. Return before allocating the O(period) basis vectors, which on
+        # an absurd period (e.g. 1e9) would exhaust memory / hang.
+        return sine, lead
 
     # Precompute cos/sin basis vectors
     cos_arr = np.empty(period)
@@ -84,7 +90,7 @@ def msw(
     if close_expr is None:
         return None
 
-    _period = period
+    _period = v_pos_int(period, "period")
     _offset = offset
 
     def _compute(s: pl.Series) -> pl.Series:
