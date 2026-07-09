@@ -12,7 +12,7 @@ from polars_ti.utils._validate import v_expr
 def variance(
     close: IntoExpr,
     length: int = 30,
-    ddof: int = 1,
+    ddof: int = 0,
     talib: bool = True,
     offset: int = 0,
 ) -> pl.Expr:
@@ -23,7 +23,7 @@ def variance(
     Args:
         close: Column name or pl.Expr for 'close' prices
         length: Rolling window period. Default: 30
-        ddof: Delta Degrees of Freedom. Default: 1
+        ddof: Delta Degrees of Freedom (population std, TA-Lib/TradingView convention). Default: 0
         talib: If True and TA-Lib installed, use TA-Lib. Default: True
         offset: Shift result by N periods. Default: 0
 
