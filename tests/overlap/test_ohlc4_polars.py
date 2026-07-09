@@ -105,3 +105,19 @@ class TestPlOhlc4:
         default = sample_df.select(ohlc4("open", "high", "low", "close"))["OHLC4"].to_numpy()
         native = sample_df.select(ohlc4("open", "high", "low", "close", talib=False))["OHLC4"].to_numpy()
         np.testing.assert_allclose(default, native, rtol=0, atol=1e-12)
+
+    @pytest.mark.parametrize("use_talib", [True, False])
+    def test_offset_shifts_result(self, sample_df, use_talib):
+        """offset shifts the series by N; the first N rows become null."""
+        if use_talib:
+            pytest.importorskip("talib")
+        base = sample_df.select(ohlc4("open", "high", "low", "close", talib=use_talib))["OHLC4"]
+        shifted = sample_df.select(ohlc4("open", "high", "low", "close", talib=use_talib, offset=1))["OHLC4"]
+        assert shifted[0] is None
+        np.testing.assert_array_equal(shifted[1:].to_numpy(), base[:-1].to_numpy())
+
+    def test_offset_zero_is_default(self, sample_df):
+        """offset=0 leaves the output identical to the unshifted default."""
+        default = sample_df.select(ohlc4("open", "high", "low", "close"))["OHLC4"].to_numpy()
+        zero = sample_df.select(ohlc4("open", "high", "low", "close", offset=0))["OHLC4"].to_numpy()
+        np.testing.assert_array_equal(default, zero)

@@ -58,6 +58,26 @@ def test_talib_path_matches_talib(spy):
     assert np.max(np.abs(native[m] - ref[m])) < 1e-12
 
 
+def test_native_period_nan_matches_talib():
+    """A NaN period must clamp to min_period exactly like TA-Lib (which casts
+    NaN to an out-of-range int and clamps), not yield NaN."""
+    pytest.importorskip("talib")
+    import talib
+
+    close = np.arange(1.0, 21.0)
+    periods = np.full(20, 3.0)
+    periods[10] = np.nan
+    df = pl.DataFrame({"close": close, "periods": periods})
+
+    native = df.select(mavp("close", "periods", min_period=2, max_period=6, talib=False)).to_series().to_numpy()
+    ref = talib.MAVP(close, periods, minperiod=2, maxperiod=6, matype=0)
+
+    assert not np.isnan(native[10])
+    m = ~np.isnan(native) & ~np.isnan(ref)
+    assert m.sum() > 5
+    assert np.max(np.abs(native[m] - ref[m])) < 1e-12
+
+
 def test_native_matype_nonzero_raises():
     """The native kernel implements SMA only; non-zero matype must be rejected
     when TA-Lib is unavailable/disabled."""

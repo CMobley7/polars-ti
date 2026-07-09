@@ -87,3 +87,19 @@ class TestPlHl2:
         default = sample_df.select(hl2("high", "low"))["HL2"].to_numpy()
         native = sample_df.select(hl2("high", "low", talib=False))["HL2"].to_numpy()
         np.testing.assert_array_equal(default, native)
+
+    @pytest.mark.parametrize("use_talib", [True, False])
+    def test_offset_shifts_result(self, sample_df, use_talib):
+        """offset shifts the series by N; the first N rows become null."""
+        if use_talib:
+            pytest.importorskip("talib")
+        base = sample_df.select(hl2("high", "low", talib=use_talib))["HL2"]
+        shifted = sample_df.select(hl2("high", "low", talib=use_talib, offset=1))["HL2"]
+        assert shifted[0] is None
+        np.testing.assert_array_equal(shifted[1:].to_numpy(), base[:-1].to_numpy())
+
+    def test_offset_zero_is_default(self, sample_df):
+        """offset=0 leaves the output identical to the unshifted default."""
+        default = sample_df.select(hl2("high", "low"))["HL2"].to_numpy()
+        zero = sample_df.select(hl2("high", "low", offset=0))["HL2"].to_numpy()
+        np.testing.assert_array_equal(default, zero)
