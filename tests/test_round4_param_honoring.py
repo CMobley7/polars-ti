@@ -115,3 +115,63 @@ def test_accbands_default_matches_talib_golden(df):
     golden = pl.read_parquet("tests/fixtures/old_talib.parquet")
     got = df.select(ti.accbands("high", "low", "close").alias("s")).unnest("s")
     assert np.allclose(got["ACCBU_20"].to_numpy(), golden.get_column("ACCBU_20").to_numpy(), equal_nan=True, atol=1e-6)
+
+
+# --- round 5: further drift / prenan stragglers -------------------------------
+@requires_talib
+def test_cmo_talib_honors_drift(df):
+    base = _col(df, ti.cmo("close", drift=1))
+    shifted = _col(df, ti.cmo("close", drift=2))
+    assert not np.allclose(base, shifted, equal_nan=True)
+
+
+@requires_talib
+def test_dm_talib_honors_drift(df):
+    e1 = ti.dm("high", "low", length=14, drift=1)
+    e2 = ti.dm("high", "low", length=14, drift=2)
+    d1 = df.select(e1[0].alias("p")).get_column("p").to_numpy()
+    d2 = df.select(e2[0].alias("p")).get_column("p").to_numpy()
+    assert not np.allclose(d1, d2, equal_nan=True)
+
+
+@requires_talib
+def test_vidya_talib_honors_drift(df):
+    base = _col(df, ti.vidya("close", drift=1))
+    shifted = _col(df, ti.vidya("close", drift=4))
+    assert not np.allclose(base, shifted, equal_nan=True)
+
+
+@requires_talib
+def test_mama_talib_honors_prenan(df):
+    """prenan is a leading-NaN mask; a larger prenan blanks bars the default kept."""
+    small = df.select(ti.mama("close", prenan=3).alias("s")).unnest("s")["MAMA_0.5_0.05"].to_numpy()
+    large = df.select(ti.mama("close", prenan=40).alias("s")).unnest("s")["MAMA_0.5_0.05"].to_numpy()
+    assert not np.isnan(small[35]) and np.isnan(large[35])
+
+
+@requires_talib
+def test_ht_trendline_talib_honors_prenan(df):
+    small = _col(df, ti.ht_trendline("close", prenan=63))
+    large = _col(df, ti.ht_trendline("close", prenan=80))
+    assert not np.isnan(small[70]) and np.isnan(large[70])
+
+
+@requires_talib
+def test_cmo_default_matches_talib_golden(df):
+    """The drift guard is a no-op at drift=1: CMO_14 default stays pinned to talib."""
+    golden = pl.read_parquet("tests/fixtures/old_talib.parquet").get_column("CMO_14").to_numpy()
+    assert np.allclose(_col(df, ti.cmo("close")), golden, equal_nan=True, atol=1e-6)
+
+
+@requires_talib
+@pytest.mark.parametrize("prenan", [3, 63])
+def test_mama_ht_default_prenan_no_op(df, prenan):
+    """At default prenan (<= TA-Lib's own warmup) the mask adds no NaNs vs raw talib."""
+    import talib
+
+    close = df.get_column("close").to_numpy().astype(np.float64)
+    mama_default = df.select(ti.mama("close").alias("s")).unnest("s")["MAMA_0.5_0.05"].to_numpy()
+    raw_mama, _ = talib.MAMA(close, 0.5, 0.05)
+    assert np.allclose(mama_default, raw_mama, equal_nan=True, atol=1e-9)
+    ht_default = _col(df, ti.ht_trendline("close"))
+    assert np.allclose(ht_default, talib.HT_TRENDLINE(close), equal_nan=True, atol=1e-9)
