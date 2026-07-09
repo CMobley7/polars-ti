@@ -53,8 +53,10 @@ def atr(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib)
     _mamode = mamode.lower() if isinstance(mamode, str) else "rma"
+    # TA-Lib ATR is always Wilder (rma); only route there for mamode="rma" so a
+    # non-default mamode is honored by the native path.
+    _use_talib = Imports["talib"] and v_talib(talib) and _mamode == "rma"
 
     if _use_talib:
         # TA-Lib path
