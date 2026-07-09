@@ -37,7 +37,13 @@ jobs:
         run: uv run ruff format --check polars_ti tests scripts
 
       - name: Mypy strict
-        run: uv run mypy --strict polars_ti scripts
+        run: |
+          # Match scripts/check.sh: only type-check scripts/ when it has Python
+          # files (it currently holds only check.sh, and mypy errors on a dir
+          # with no .py files).
+          targets=(polars_ti)
+          compgen -G "scripts/*.py" > /dev/null && targets+=(scripts)
+          uv run mypy --strict "${targets[@]}"
 
       - name: Syntax check
         run: uv run python -m compileall -q polars_ti tests scripts
