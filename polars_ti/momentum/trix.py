@@ -88,40 +88,50 @@ def trix(
     _drift = drift
     _props = f"_{length}_{signal}"
 
-    # Single unified path: the triple EMA is delegated to the library's own
-    # ``ema`` (which dispatches to TA-Lib when installed and talib is requested,
-    # and to the native NaN-tolerant EMA otherwise — the two now agree to float
-    # noise). The scalar/drift rate-of-change and the SMA signal are then applied
-    # once, so ``scalar``/``drift`` are always honoured. At the defaults
-    # (scalar=100, drift=1, talib=True) this equals ``talib.TRIX`` exactly.
-    ema3_expr = ema(ema(ema(close_expr, _length, talib=talib), _length, talib=talib), _length, talib=talib)
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
 
-    def compute_trix(s: pl.Series) -> pl.Series:
-        ema3 = s.to_numpy().astype(np.float64)
-
-        trix = np.full(ema3.shape, np.nan, dtype=np.float64)
-        for i in range(_drift, len(ema3)):
-            prev = ema3[i - _drift]
-            if not np.isnan(ema3[i]) and not np.isnan(prev) and prev != 0:
-                trix[i] = _scalar * (ema3[i] / prev - 1.0)
-        trix_signal = _sma_numba(trix, _signal)
-
-        return pl.DataFrame(
-            {
-                f"TRIX{_props}": trix,
-                f"TRIXs{_props}": trix_signal,
-            }
-        ).to_struct("TRIX")
-
-    result_expr = ema3_expr.map_batches(
-        compute_trix,
-        return_dtype=pl.Struct(
-            [
-                pl.Field(f"TRIX{_props}", pl.Float64),
-                pl.Field(f"TRIXs{_props}", pl.Float64),
-            ]
-        ),
+    _use_talib = Imports["talib"] and v_talib(talib)
+    _struct_dtype = pl.Struct(
+        [
+            pl.Field(f"TRIX{_props}", pl.Float64),
+            pl.Field(f"TRIXs{_props}", pl.Float64),
+        ]
     )
+
+    if _use_talib and _scalar == 100.0 and _drift == 1:
+        # Fast path: TA-Lib's dedicated ``TRIX`` is a single C call — much cheaper
+        # than three ``talib.EMA`` calls plus a Python rate-of-change. It hardcodes
+        # scalar=100/drift=1, so this path is only taken at those defaults (the
+        # composition below handles non-default scalar/drift).
+        def compute_trix(s: pl.Series) -> pl.Series:
+            from talib import TRIX as _TRIX
+
+            trix = _TRIX(s.to_numpy().astype(np.float64), timeperiod=_length)
+            trix_signal = _sma_numba(trix, _signal)
+            return pl.DataFrame({f"TRIX{_props}": trix, f"TRIXs{_props}": trix_signal}).to_struct("TRIX")
+
+        result_expr = close_expr.map_batches(compute_trix, return_dtype=_struct_dtype)
+    else:
+        # The triple EMA is delegated to the library's own ``ema`` (native
+        # NaN-tolerant EMA, which agrees with TA-Lib to float noise). The
+        # scalar/drift rate-of-change and the SMA signal are then applied once, so
+        # ``scalar``/``drift`` are always honoured.
+        ema3_expr = ema(ema(ema(close_expr, _length, talib=talib), _length, talib=talib), _length, talib=talib)
+
+        def compute_trix(s: pl.Series) -> pl.Series:
+            ema3 = s.to_numpy().astype(np.float64)
+
+            trix = np.full(ema3.shape, np.nan, dtype=np.float64)
+            for i in range(_drift, len(ema3)):
+                prev = ema3[i - _drift]
+                if not np.isnan(ema3[i]) and not np.isnan(prev) and prev != 0:
+                    trix[i] = _scalar * (ema3[i] / prev - 1.0)
+            trix_signal = _sma_numba(trix, _signal)
+
+            return pl.DataFrame({f"TRIX{_props}": trix, f"TRIXs{_props}": trix_signal}).to_struct("TRIX")
+
+        result_expr = ema3_expr.map_batches(compute_trix, return_dtype=_struct_dtype)
 
     if offset != 0:
         result_expr = result_expr.shift(offset)
