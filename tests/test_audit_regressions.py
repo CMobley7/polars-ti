@@ -459,3 +459,38 @@ def test_idiff_indicators_raise_on_negative_length(indicator, n):
     df = pl.DataFrame({"high": [2.0] * n, "low": [1.0] * n, "close": [1.5] * n})
     with pytest.raises(ValueError):
         getattr(df.ti, indicator)(length=-10)
+
+
+# --- H-perf: avwap O(n) incremental VWAP == the old O(n^2) recompute ----------
+def test_nb_avwap_incremental_matches_bruteforce():
+    """The O(n) incremental _nb_avwap must equal the O(n^2) recompute-from-anchor
+    reference, both with pivots (oscillating data) and without (monotonic data,
+    the worst case that was fully quadratic)."""
+    from polars_ti.volume.avwap import _nb_avwap
+
+    def brute(close, volume, pivots):
+        n = len(close)
+        out = np.full(n, np.nan)
+        last_pivot = 0
+        for i in range(n):
+            if pivots[i]:
+                last_pivot = i
+            vp = v = 0.0
+            for j in range(last_pivot, i + 1):
+                vp += volume[j] * close[j]
+                v += volume[j]
+            if v > 0:
+                out[i] = vp / v
+        return out
+
+    rng = np.random.default_rng(0)
+    for pivots in (
+        np.zeros(200, dtype=bool),  # no pivots: monotonic worst case
+        (np.arange(200) % 17 == 0),  # periodic pivots
+        rng.random(200) < 0.1,  # sparse random pivots
+    ):
+        close = np.cumsum(rng.standard_normal(200)) + 100
+        volume = rng.random(200) * 1000 + 1
+        got = _nb_avwap(close, volume, pivots)
+        want = brute(close, volume, pivots)
+        assert np.allclose(got, want, equal_nan=True, atol=1e-9)
