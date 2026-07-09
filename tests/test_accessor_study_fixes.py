@@ -132,3 +132,86 @@ def test_col_names_in_study_spec(df):
     out = df.ti.study(study)
     for c in names:
         assert c in out.columns
+
+
+# --------------------------------------------------------------------------- E
+# Fix 1: append / study must let a FRESH result overwrite an existing
+# output-column name instead of silently keeping the stale value.
+@pytest.fixture
+def ohlc():
+    return pl.DataFrame(
+        {
+            "open": [10.0, 20, 30, 40, 50, 60],
+            "high": [11.0, 21, 31, 41, 51, 61],
+            "low": [9.0, 19, 29, 39, 49, 59],
+            "close": [1.0, 2, 3, 4, 5, 6],
+            "volume": [100.0, 200, 300, 400, 500, 600],
+        }
+    )
+
+
+def test_append_recompute_overwrites_stale_column(ohlc):
+    """A second append that recomputes the same column name must win.
+
+    ``sma(length=3, close="close")`` then ``sma(length=3, close="open")`` both
+    emit ``SMA_3``; the second (open-based) value must overwrite the first.
+    """
+    d1 = ohlc.ti.sma(length=3, close="close", append=True)
+    assert d1["SMA_3"][-1] == pytest.approx(5.0)  # close-based: mean(4,5,6)
+
+    d2 = d1.ti.sma(length=3, close="open", append=True)
+    assert d2["SMA_3"][-1] == pytest.approx(50.0)  # open-based: mean(40,50,60)
+    # Overwrite happens in place: no duplicate column, position preserved.
+    assert d2.columns.count("SMA_3") == 1
+    assert d2.columns == ["open", "high", "low", "close", "volume", "SMA_3"]
+
+
+def test_study_last_spec_wins_on_column_collision(ohlc):
+    """Two study specs producing the same column name keep the LAST value."""
+    study = ti.Study(
+        name="Collide",
+        ti=[
+            {"kind": "sma", "length": 3, "close": "close"},
+            {"kind": "sma", "length": 3, "close": "open"},
+        ],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = ohlc.ti.study(study)
+    assert out.columns.count("SMA_3") == 1
+    assert out["SMA_3"][-1] == pytest.approx(50.0)  # last spec (open) wins
+
+
+# --------------------------------------------------------------------------- F
+# Fix 2: a study-wide ``open=`` must reach open_-param indicators (candles,
+# bop, ohlc4, ...) whose native signature renames the builtin to ``open_``.
+def test_study_open_kwarg_resolves_for_candles():
+    """``study('candles', open=...)`` must drop zero indicators (incl. cdl_pattern)."""
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    base = 100 + np.cumsum(rng.standard_normal(60))
+    cdf = pl.DataFrame(
+        {
+            "OpenPrice": base,
+            "High": base + np.abs(rng.standard_normal(60)),
+            "Low": base - np.abs(rng.standard_normal(60)),
+            "Close": base + rng.standard_normal(60),
+        }
+    )
+    # errors="raise" would surface the historical KeyError/ColumnNotFound.
+    out = cdf.ti.study("candles", open="OpenPrice", high="High", low="Low", close="Close", errors="raise")
+    assert isinstance(out, pl.DataFrame)
+    # Every candle column is produced (0 dropped) and resolves the aliased open.
+    assert any(c.startswith("CDL_") for c in out.columns)
+    assert out.width - cdf.width >= 60
+
+
+def test_study_open_alias_does_not_regress_kwarg_filtering(df):
+    """Fix 2 must not widen the filter for genuinely-unaccepted kwargs.
+
+    ``study('momentum', length=10)`` still drops zero indicators (fix B)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = df.ti.study("momentum", length=10)
+    assert isinstance(out, pl.DataFrame)

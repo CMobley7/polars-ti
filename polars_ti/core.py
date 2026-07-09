@@ -431,9 +431,17 @@ class TechnicalIndicators:
             return None
 
         if append:
-            # Drop columns that already exist (avoid duplicates)
+            # Fresh result wins on name collision: overwrite any pre-existing
+            # columns the result recomputes (in place, preserving position) and
+            # hstack only the genuinely new ones. A stale value is never silently
+            # kept in place of the freshly computed one.
+            existing = [c for c in result_df.columns if c in df.columns]
             new_cols = [c for c in result_df.columns if c not in df.columns]
-            self._df = df.hstack(result_df.select(new_cols))
+            if existing:
+                df = df.with_columns([result_df.get_column(c) for c in existing])
+            if new_cols:
+                df = df.hstack(result_df.select(new_cols))
+            self._df = df
             return self._df
 
         return result_df
@@ -556,6 +564,12 @@ class TechnicalIndicators:
                 return None
             accepted = set(_wrapper_kwargs)
             accepted.update(native_params)
+            # `open_` dodges the builtin in signatures, but accessors consume the
+            # value under the user-facing key `open` (via kw.pop("open", ...)).
+            # Alias it so a study-wide open= is not filtered out for candle and
+            # other open_-taking indicators.
+            if "open_" in accepted:
+                accepted.add("open")
             try:
                 acc_params = inspect.signature(accessor_fn).parameters
             except (TypeError, ValueError):
@@ -601,9 +615,18 @@ class TechnicalIndicators:
 
             try:
                 if isinstance(result, pl.DataFrame) and result.width > 0:
+                    # Fresh result wins on name collision: overwrite pre-existing
+                    # columns in place and hstack the genuinely new ones, so the
+                    # last spec producing a given column name keeps its value
+                    # instead of being silently dropped.
+                    existing = [c for c in result.columns if c in self._df.columns]
                     new_cols = [c for c in result.columns if c not in self._df.columns]
+                    df = self._df
+                    if existing:
+                        df = df.with_columns([result.get_column(c) for c in existing])
                     if new_cols:
-                        self._df = self._df.hstack(result.select(new_cols))
+                        df = df.hstack(result.select(new_cols))
+                    self._df = df
             except Exception as exc:
                 _handle_failure(kind, exc)
                 return
@@ -707,6 +730,11 @@ class TechnicalIndicators:
         return self._post_process(cdl_inside(o, h, lo, c, **kw), **kw)
 
     def cdl_pattern(self, name="all", **kw):
+        # The native fn dodges the builtin with `open_`; accept the user-facing
+        # `open` key (as every per-pattern accessor does) and forward it under
+        # the native parameter name so study-wide open= resolves here too.
+        if "open" in kw:
+            kw["open_"] = kw.pop("open")
         result = cdl_pattern(self._df, name=name, **kw)
         return self._post_process(result, **kw)
 
@@ -2215,8 +2243,18 @@ def _support_append(method):
                 result = result.rename({c: f"{pre}{c}{suf}" for c in result.columns})
 
         if append and isinstance(result, pl.DataFrame):
+            # Fresh result wins on name collision: overwrite pre-existing columns
+            # in place (preserving position) and hstack the genuinely new ones,
+            # so a re-run with different inputs overwrites the stale value instead
+            # of being silently dropped.
+            existing = [c for c in result.columns if c in self._df.columns]
             new_cols = [c for c in result.columns if c not in self._df.columns]
-            return self._df.hstack(result.select(new_cols))
+            out = self._df
+            if existing:
+                out = out.with_columns([result.get_column(c) for c in existing])
+            if new_cols:
+                out = out.hstack(result.select(new_cols))
+            return out
         return result
 
     return wrapper

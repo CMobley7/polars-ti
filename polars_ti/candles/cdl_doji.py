@@ -60,6 +60,10 @@ def cdl_doji(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
+    # Consistency with hl2: a None input expr yields None rather than raising.
+    if any(e is None for e in [open_expr, high_expr, low_expr, close_expr]):
+        return None
+
     _alias = f"CDL_DOJI_{length}_{0.01 * factor}"
 
     if Imports["talib"] and v_talib(talib):
