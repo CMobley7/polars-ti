@@ -49,6 +49,7 @@ def aroon(
     low: IntoExpr,
     length: int = 14,
     scalar: float = 100.0,
+    talib: bool = True,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Aroon & Aroon Oscillator
@@ -60,19 +61,36 @@ def aroon(
         low: Column name or pl.Expr for 'low' prices
         length: Period. Default: 14
         scalar: Magnification. Default: 100
+        talib: If True and TA-Lib is installed, use ``talib.AROON``/``AROONOSC``.
+            The native path matches TA-Lib to float noise. Default: True
         offset: Shift result. Default: 0
 
     Returns:
         pl.Expr: Struct with AROONU, AROOND, AROONOSC columns
     """
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_talib
+
     high_expr = v_expr(high)
     low_expr = v_expr(low)
+    _use_talib = Imports["talib"] and v_talib(talib)
 
     def _compute(s: pl.Series) -> pl.Series:
         data = s.struct.unnest()
         h = data["_high"].to_numpy().astype(np.float64)
         l_ = data["_low"].to_numpy().astype(np.float64)
-        up, down, osc = _nb_aroon(h, l_, length, scalar)
+        if _use_talib:
+            from talib import AROON as _AROON, AROONOSC as _AROONOSC
+
+            # TA-Lib AROON hardcodes scalar=100; rescale so ``scalar`` is honoured
+            # (exact *1.0 no-op at the default). Returns (down, up).
+            down, up = _AROON(h, l_, length)
+            osc = _AROONOSC(h, l_, length)
+            if scalar != 100.0:
+                _f = scalar / 100.0
+                up, down, osc = up * _f, down * _f, osc * _f
+        else:
+            up, down, osc = _nb_aroon(h, l_, length, scalar)
 
         if offset != 0:
             up = np.roll(up, offset)
