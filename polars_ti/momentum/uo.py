@@ -68,7 +68,17 @@ def uo(
         return None
 
     _props = f"_{fast}_{medium}_{slow}"
-    _use_talib = Imports["talib"] and validate_talib(talib)
+    # TA-Lib ULTOSC is fixed at weights 4/2/1 and drift=1; the weighted blend is
+    # not recoverable from its single scalar output, so honor non-default weights
+    # or drift by falling through to the native path (which applies both).
+    _use_talib = (
+        Imports["talib"]
+        and validate_talib(talib)
+        and fast_w == 4.0
+        and medium_w == 2.0
+        and slow_w == 1.0
+        and drift == 1
+    )
 
     if _use_talib:
         _fast = fast

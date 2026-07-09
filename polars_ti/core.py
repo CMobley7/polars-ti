@@ -1233,25 +1233,17 @@ class TechnicalIndicators:
         return self._post_process(bias(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def bop(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
         return self._post_process(bop(o, h, lo, c, **kw), **kw)
 
     def brar(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
         return self._post_process(brar(o, h, lo, c, **kw), **kw)
 
     def cci(self, high=None, low=None, close=None, **kw):
@@ -1477,14 +1469,10 @@ class TechnicalIndicators:
         return self._post_process(alma(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def avgprice(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
         return self._post_process(avgprice(o, h, lo, c, **kw), **kw)
 
     def dema(self, close=None, **kw):
@@ -1562,14 +1550,10 @@ class TechnicalIndicators:
         return self._post_process(mmar(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def ohlc4(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
         return self._post_process(ohlc4(o, h, lo, c, **kw), **kw)
 
     def ott(self, close=None, **kw):
@@ -1926,14 +1910,10 @@ class TechnicalIndicators:
         return self._post_process(donchian(h, lo, **kw), **kw)
 
     def fvg(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
         return self._post_process(fvg(o, h, lo, c, **kw), **kw)
 
     def halftrend(self, high=None, low=None, close=None, **kw):
@@ -1969,14 +1949,10 @@ class TechnicalIndicators:
         return self._post_process(natr(h, lo, c, **kw), **kw)
 
     def pdist(self, open_=None, high=None, low=None, close=None, **kw):
-        kw.setdefault("open", "open")
-        kw.setdefault("high", "high")
-        kw.setdefault("low", "low")
-        kw.setdefault("close", "close")
-        o = self._col(open_ or kw.pop("open"))
-        h = self._col(high or kw.pop("high"))
-        lo = self._col(low or kw.pop("low"))
-        c = self._col(close or kw.pop("close"))
+        o = self._col(open_ or kw.pop("open", "open"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
         return self._post_process(pdist(o, h, lo, c, **kw), **kw)
 
     def rvi(self, open_=None, high=None, low=None, close=None, **kw):
