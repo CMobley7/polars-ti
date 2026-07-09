@@ -35,19 +35,23 @@ df.ti.study(ti.AllStudy, talib=False)   # native everywhere
 
 When an indicator can be computed two ways, Polars-TI follows a deliberate rule:
 
-- **`talib=True`** reproduces **TA-Lib** output (e.g. TA-Lib's SMA-seeded EMA,
-  population-std `STDDEV`).
-- **`talib=False`** reproduces **pandas-ta's native** semantics (e.g.
-  `ewm(adjust=False)`-style EMA seeded from the first valid value).
+- **`talib=True`** reproduces **TA-Lib** output.
+- **`talib=False`** reproduces **pandas-ta's native** semantics.
 
-This is why some indicators differ slightly between the two modes — each mode is
-faithful to a different reference. See
+For most indicators the two modes now agree — the native paths were aligned to
+TA-Lib wherever pandas-ta's own native path was buggy (e.g. the EMA/RMA warm-up is
+SMA-seeded on both paths, `STDDEV`/`VAR` use population `ddof=0`, DM/ADX/CMO use
+Wilder sum-smoothing). A few still differ by design because pandas-ta's native
+reference genuinely differs from TA-Lib — most notably **`KAMA`**: pandas-ta had
+*only* a native KAMA, so `talib=False` reproduces it while `talib=True` returns
+TA-Lib's KAMA (different internal fast/slow constants). The full list is in
 [Differences §4c](differences-from-pandas-ta.md#4c-native-vs-ta-lib-paths-talib-flag).
 
 ## What TA-Lib affects
 
-- **Candlestick patterns:** ~60 of the `cdl_pattern` patterns require TA-Lib and
-  are omitted from the native study (a few have native implementations).
+- **Candlestick patterns:** all ~60 `cdl_*` patterns now have **native**
+  implementations, so they are included in the native study too; `talib=True`
+  still uses TA-Lib's C implementation (~19× faster) as the fast path.
 - **Indicators with a TA-Lib equivalent:** RSI, ATR, EMA, SMA, MACD, ADX, MFI,
   STDDEV, CMO, TRIX, LINEARREG, etc. — used under `talib=True`.
 

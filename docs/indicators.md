@@ -1,11 +1,11 @@
 # Indicators
 
-Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 categories. Each is available as a Polars expression (`from polars_ti.<category> import <name>`) and via the `df.ti.<name>()` accessor. The **TA-Lib** column marks indicators that accept a `talib=` flag to select the TA-Lib path (default) or the native Polars/Numba path; see [TA-Lib & native paths](talib.md).
+Polars-TI provides **267 indicators and candlestick-pattern groups** across 10 categories. Each is available as a Polars expression (`from polars_ti.<category> import <name>`) and via the `df.ti.<name>()` accessor. The **TA-Lib** column marks indicators that accept a `talib=` flag to select the TA-Lib path (default) or the native Polars/Numba path; see [TA-Lib & native paths](talib.md).
 
 > **Outputs** is the number of result columns. Multi-output indicators return a Polars struct (via the accessor) or a list of expressions; see [Getting started](getting-started.md#multi-output-indicators).
 
 
-## Candles (63)
+## Candles (65)
 
 | Function | Outputs | TA-Lib | Description |
 | :--- | :---: | :---: | :--- |
@@ -24,6 +24,7 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `cdl_concealbabyswall` | 1 | ✓ | Candle Pattern - Concealing Baby Swallow. |
 | `cdl_counterattack` | 1 | ✓ | Candle Pattern - Counterattack. |
 | `cdl_darkcloudcover` | 1 | ✓ | Candle Pattern - Dark Cloud Cover. |
+| `cdl_doji` | 1 | ✓ | Candle Pattern - Doji. |
 | `cdl_dojistar` | 1 | ✓ | Candle Pattern - Doji Star. |
 | `cdl_dragonflydoji` | 1 | ✓ | Candle Pattern - Dragonfly Doji. |
 | `cdl_engulfing` | 1 | ✓ | Candle Pattern - Engulfing. |
@@ -41,6 +42,7 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `cdl_homingpigeon` | 1 | ✓ | Candle Pattern - Homing Pigeon. |
 | `cdl_identical3crows` | 1 | ✓ | Candle Pattern - Identical Three Crows. |
 | `cdl_inneck` | 1 | ✓ | Candle Pattern - In-Neck. |
+| `cdl_inside` | 1 | — | Candle Pattern - Inside Bar (no TA-Lib equivalent). |
 | `cdl_invertedhammer` | 1 | ✓ | Candle Pattern - Inverted Hammer. |
 | `cdl_kicking` | 1 | ✓ | Candle Pattern - Kicking. |
 | `cdl_kickingbylength` | 1 | ✓ | Candle Pattern - Kicking By Length. |
@@ -147,7 +149,7 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `vwmacd` | 3 | — | Volume Weighted MACD (VWMACD) |
 | `willr` | 1 | ✓ | Williams %R (WILLR) |
 
-## Overlap (42)
+## Overlap (44)
 
 | Function | Outputs | TA-Lib | Description |
 | :--- | :---: | :---: | :--- |
@@ -158,7 +160,7 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `ema` | 1 | ✓ | Exponential Moving Average (EMA) |
 | `fwma` | 1 | — | Fibonacci's Weighted Moving Average (FWMA) |
 | `hilo` | 3 | ✓ | Gann HiLo Activator |
-| `hl2` | 1 | — | HL2 - Midpoint of High and Low |
+| `hl2` | 1 | ✓ | HL2 - Midpoint of High and Low |
 | `hlc3` | 1 | ✓ | HLC3 - Typical Price (Average of High, Low, Close) |
 | `hma` | 1 | — | Hull Moving Average (HMA) |
 | `hwma` | 1 | — | HWMA (Holt-Winter Moving Average) |
@@ -167,12 +169,13 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `kama` | 1 | ✓ | Kaufman's Adaptive Moving Average (KAMA) |
 | `linreg` | 1 | ✓ | Linear Regression Moving Average (LINREG) |
 | `mama` | 2 | ✓ | Ehler's MESA Adaptive Moving Average (MAMA) |
+| `mavp` | 1 | ✓ | Moving Average with Variable Period (MAVP) |
 | `mcgd` | 1 | — | McGinley Dynamic Indicator |
 | `medprice` | 1 | ✓ | Median Price (MEDPRICE) |
 | `midpoint` | 1 | ✓ | Midpoint |
 | `midprice` | 1 | ✓ | Midprice (average of rolling high and low) |
 | `mmar` | 6 | — | Madrid Moving Average Ribbon (MMAR) |
-| `ohlc4` | 1 | — | OHLC4 - Average of Open, High, Low, Close |
+| `ohlc4` | 1 | ✓ | OHLC4 - Average of Open, High, Low, Close |
 | `ott` | 3 | ✓ | Optimized Trend Tracker (OTT) |
 | `pivots` | 9 | — | Pivot Points (Pure Polars + Numba) |
 | `pwma` | 1 | — | Pascal's Weighted Moving Average (PWMA) |
@@ -188,6 +191,7 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `t3` | 1 | ✓ | Tim Tillson's T3 Moving Average (T3) |
 | `tema` | 1 | ✓ | Triple Exponential Moving Average (TEMA) |
 | `trima` | 1 | ✓ | Triangular Moving Average (TRIMA) |
+| `tsf` | 1 | ✓ | Time Series Forecast (TSF) |
 | `typprice` | 1 | ✓ | Typical Price (TYPPRICE) |
 | `vidya` | 1 | ✓ | Variable Index Dynamic Average (VIDYA) |
 | `wcp` | 1 | ✓ | Weighted Closing Price (WCP) |
@@ -229,14 +233,15 @@ Polars-TI provides **262 indicators and candlestick-pattern groups** across 10 c
 | `ifisher` | 2 | — | Inverse Fisher Transform |
 | `remap` | 1 | — | ReMap (Linear Normalization) |
 
-## Trend (26)
+## Trend (27)
 
 | Function | Outputs | TA-Lib | Description |
 | :--- | :---: | :---: | :--- |
 | `adx` | 4 | ✓ | Average Directional Index (ADX) |
+| `adxr` | 1 | ✓ | Average Directional Movement Index Rating (ADXR) |
 | `alphatrend` | 2 | ✓ | Alpha Trend |
 | `amat` | 2 | — | Archer Moving Averages Trends (AMAT) |
-| `aroon` | 3 | — | Aroon & Aroon Oscillator |
+| `aroon` | 3 | ✓ | Aroon & Aroon Oscillator |
 | `chop` | 1 | ✓ | Choppiness Index (CHOP) |
 | `cksp` | 2 | ✓ | Chande Kroll Stop (CKSP) |
 | `decay` | 1 | — | Decay |
