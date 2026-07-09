@@ -52,6 +52,7 @@ from polars_ti.utils._validate import v_expr
 def hwc(
     close: IntoExpr,
     scalar: float = 1.0,
+    channels: bool = False,
     na: float = 0.2,
     nb: float = 0.1,
     nc: float = 0.1,
@@ -71,6 +72,8 @@ def hwc(
     Args:
         close: Column name or pl.Expr for 'close'
         scalar: Width multiplier of the channel. Default: 1
+        channels: Also return channel width (HWW) and the close's percentage
+            position within the channel (HWPCT). Default: False
         na: Smoothed series (from 0 to 1). Default: 0.2
         nb: Trend value (from 0 to 1). Default: 0.1
         nc: Seasonality value (from 0 to 1). Default: 0.1
@@ -78,8 +81,11 @@ def hwc(
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        pl.Expr: Struct with HWM (Mid), HWU (Upper), HWL (Lower) columns
+        pl.Expr: Struct with HWM (Mid), HWU (Upper), HWL (Lower) columns; when
+            ``channels`` is True, also HWW (width) and HWPCT (position) columns
     """
+    from sys import float_info as sflt
+
     close_expr = v_expr(close)
 
     if close_expr is None:
@@ -90,30 +96,54 @@ def hwc(
     _nc = nc
     _nd = nd
     _scalar = scalar
+    _channels = channels
     _offset = offset
 
     def compute_hwc(s: pl.Series) -> pl.Series:
         np_close = s.to_numpy().astype(np.float64)
         result, upper, lower = nb_hwc(np_close, _na, _nb, _nc, _nd, _scalar)
 
+        width = pct = None
+        if _channels:
+            width = upper - lower
+            pct = (np_close - lower) / (width + sflt.epsilon)
+
         if _offset != 0:
             result = np.roll(result, _offset)
             upper = np.roll(upper, _offset)
             lower = np.roll(lower, _offset)
+            if _channels:
+                width = np.roll(width, _offset)
+                pct = np.roll(pct, _offset)
             if _offset > 0:
                 result[:_offset] = np.nan
                 upper[:_offset] = np.nan
                 lower[:_offset] = np.nan
+                if _channels:
+                    width[:_offset] = np.nan
+                    pct[:_offset] = np.nan
             else:
                 result[_offset:] = np.nan
                 upper[_offset:] = np.nan
                 lower[_offset:] = np.nan
+                if _channels:
+                    width[_offset:] = np.nan
+                    pct[_offset:] = np.nan
 
-        return pl.DataFrame({"hwm": result, "hwu": upper, "hwl": lower}).to_struct("hwc")
+        data = {"hwm": result, "hwu": upper, "hwl": lower}
+        if _channels:
+            data["hww"] = width
+            data["hwpct"] = pct
+        return pl.DataFrame(data).to_struct("hwc")
 
     _props = f"_{int(scalar)}"
 
+    fields = {"hwm": pl.Float64, "hwu": pl.Float64, "hwl": pl.Float64}
+    if channels:
+        fields["hww"] = pl.Float64
+        fields["hwpct"] = pl.Float64
+
     return close_expr.map_batches(
         compute_hwc,
-        return_dtype=pl.Struct({"hwm": pl.Float64, "hwu": pl.Float64, "hwl": pl.Float64}),
+        return_dtype=pl.Struct(fields),
     ).alias(f"HWC{_props}")
