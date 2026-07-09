@@ -78,7 +78,7 @@ def inertia(
                         mamode=_mamode,
                         talib=_talib,
                     )
-                )[df.columns[0]]
+                ).to_series()
             else:  # thirds
                 rvi_arr = df.select(
                     rvi(
@@ -91,7 +91,7 @@ def inertia(
                         mamode=_mamode,
                         talib=_talib,
                     )
-                )[df.columns[0]]
+                ).to_series()
 
             # Apply linreg
             rvi_df = pl.DataFrame({"rvi": rvi_arr})

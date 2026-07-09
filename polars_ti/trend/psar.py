@@ -81,7 +81,7 @@ def psar(
     high: IntoExpr,
     low: IntoExpr,
     close: IntoExpr | None = None,
-    af0: float = 0.02,
+    af0: float | None = None,
     af: float = 0.02,
     max_af: float = 0.2,
     talib: bool = False,
@@ -110,7 +110,11 @@ def psar(
     low_expr = v_expr(low)
     _has_close = close is not None
     close_expr = v_expr(close) if _has_close else low_expr
-    _af0 = af0 if af0 and af0 > 0 else af if af and af > 0 else 0.02
+    # Precedence (matches baseline v_pos_default chain): explicit af0 wins, else
+    # the af step, else 0.02. With af0 defaulting to None, `psar(af=X)` is now
+    # honored instead of being masked by a truthy af0 default.
+    _paf = af if af and af > 0 else 0.02
+    _af0 = af0 if af0 and af0 > 0 else _paf
     _use_talib = Imports["talib"] and v_talib(talib)
 
     def _compute(s: pl.Series) -> pl.Series:

@@ -84,3 +84,27 @@ def test_long_short_close_reclassification():
     short_mask = ~np.isnan(pss)
     assert np.all(psl[long_mask] < close[long_mask])
     assert np.all(pss[short_mask] >= close[short_mask])
+
+
+def test_af_parameter_is_honored():
+    """`psar(af=...)` must change output when af0 is left at its default.
+
+    Regression for the dead-`af` bug: with a truthy `af0` default the `af`
+    step could never take effect, so `psar(af=0.1)` == `psar()`.
+    """
+    df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(500)
+    default = df.select(psar("high", "low", "close"))
+    stepped = df.select(psar("high", "low", "close", af=0.1))
+    assert not default.equals(stepped)
+    # af feeds the column-name props (af0 precedence: af0 else af else 0.02).
+    assert stepped.columns[0] == "PSAR_0.1_0.2"
+
+
+def test_default_output_and_column_name_unchanged():
+    """Default psar() keeps its column name and af0=0.02 semantics."""
+    df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(500)
+    default = df.select(psar("high", "low", "close"))
+    assert default.columns[0] == "PSAR_0.02_0.2"
+    # af0=0.02 explicitly must equal the default (None -> af -> 0.02).
+    explicit = df.select(psar("high", "low", "close", af0=0.02))
+    assert default.equals(explicit)
