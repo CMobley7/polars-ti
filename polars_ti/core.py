@@ -176,6 +176,7 @@ from polars_ti.overlap.jma import jma
 from polars_ti.overlap.kama import kama
 from polars_ti.overlap.linreg import linreg
 from polars_ti.overlap.mama import mama
+from polars_ti.overlap.mavp import mavp
 from polars_ti.overlap.mcgd import mcgd
 from polars_ti.overlap.medprice import medprice
 from polars_ti.overlap.midpoint import midpoint
@@ -197,6 +198,7 @@ from polars_ti.overlap.swma import swma
 from polars_ti.overlap.t3 import t3
 from polars_ti.overlap.tema import tema
 from polars_ti.overlap.trima import trima
+from polars_ti.overlap.tsf import tsf
 from polars_ti.overlap.typprice import typprice
 from polars_ti.overlap.vidya import vidya
 from polars_ti.overlap.wcp import wcp
@@ -223,6 +225,7 @@ from polars_ti.transform.cube import cube
 from polars_ti.transform.ifisher import ifisher
 from polars_ti.transform.remap import remap
 from polars_ti.trend.adx import adx
+from polars_ti.trend.adxr import adxr
 from polars_ti.trend.alphatrend import alphatrend
 from polars_ti.trend.amat import amat
 from polars_ti.trend.aroon import aroon
@@ -1431,6 +1434,11 @@ class TechnicalIndicators:
     def mama(self, close=None, **kw):
         return self._post_process(mama(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
+    def mavp(self, close=None, periods=None, **kw):
+        c = self._col(close or kw.pop("close", "close"))
+        p = self._col(periods or kw.pop("periods", "periods"))
+        return self._post_process(mavp(c, p, **kw), **kw)
+
     def mcgd(self, close=None, **kw):
         return self._post_process(mcgd(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
@@ -1511,6 +1519,9 @@ class TechnicalIndicators:
 
     def trima(self, close=None, **kw):
         return self._post_process(trima(self._col(close or kw.pop("close", "close")), **kw), **kw)
+
+    def tsf(self, close=None, **kw):
+        return self._post_process(tsf(self._col(close or kw.pop("close", "close")), **kw), **kw)
 
     def typprice(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))
@@ -1618,6 +1629,12 @@ class TechnicalIndicators:
         lo = self._col(low or kw.pop("low", "low"))
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(adx(h, lo, c, **kw), **kw)
+
+    def adxr(self, high=None, low=None, close=None, **kw):
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        c = self._col(close or kw.pop("close", "close"))
+        return self._post_process(adxr(h, lo, c, **kw), **kw)
 
     def alphatrend(self, high=None, low=None, close=None, volume=None, **kw):
         # alphatrend() signature is alphatrend(high, low, close, ...); volume unused.
