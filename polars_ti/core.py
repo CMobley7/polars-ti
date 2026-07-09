@@ -507,6 +507,13 @@ class TechnicalIndicators:
         if errors not in ("warn", "raise", "ignore"):
             raise ValueError(f"errors must be one of 'warn'|'raise'|'ignore', got {errors!r}")
 
+        # Snapshot the input frame so this study computes from the ORIGINAL
+        # columns. study() accumulates its output onto self._df while running;
+        # without restoring afterward, a second study on the same accessor would
+        # see the first run's columns and skip recomputing them (line in _run
+        # that filters `new_cols`), leaking stale values across runs.
+        _saved_df = self._df
+
         # Collected (indicator, exception) pairs for the "warn" summary.
         failures: list[tuple[str, BaseException]] = []
 
@@ -558,7 +565,12 @@ class TechnicalIndicators:
                     RuntimeWarning,
                     stacklevel=2,
                 )
-            return self._df
+            # Hand back the accumulated study frame, but restore the accessor's
+            # working frame to the original input so repeat studies on the same
+            # accessor recompute from scratch instead of reusing stale columns.
+            result = self._df
+            self._df = _saved_df
+            return result
 
         # Accept a Study class/instance, a category string, or AllStudy sentinel
         if isinstance(study, type) and issubclass(study, Study):
@@ -1210,8 +1222,13 @@ class TechnicalIndicators:
         c = self._col(close or kw.pop("close", "close"))
         return self._post_process(imi(o, c, **kw), **kw)
 
-    def inertia(self, close=None, **kw):
-        return self._post_process(inertia(self._col(close or kw.pop("close", "close")), **kw), **kw)
+    def inertia(self, high=None, low=None, close=None, **kw):
+        # refined=True / thirds=True modes require high & low; resolve them so
+        # those modes don't raise ColumnNotFoundError.
+        c = self._col(close or kw.pop("close", "close"))
+        h = self._col(high or kw.pop("high", "high"))
+        lo = self._col(low or kw.pop("low", "low"))
+        return self._post_process(inertia(c, high=h, low=lo, **kw), **kw)
 
     def kdj(self, high=None, low=None, close=None, **kw):
         h = self._col(high or kw.pop("high", "high"))

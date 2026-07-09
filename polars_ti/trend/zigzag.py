@@ -6,9 +6,13 @@ from numba import njit
 @njit(cache=True)
 def nb_rolling_hl(np_high, np_low, window_size):
     m = np_high.size
-    idx = zeros(m)
-    swing = zeros(m)  # where a high = 1 and low = -1
-    value = zeros(m)
+    # Each iteration can append TWO entries (a bar that is simultaneously the
+    # window local-low and local-high, e.g. on flat runs where high == low), so
+    # the buffers must hold the worst case of 2 per bar to avoid OOB writes.
+    capacity = 2 * m
+    idx = zeros(capacity)
+    swing = zeros(capacity)  # where a high = 1 and low = -1
+    value = zeros(capacity)
 
     extremums = 0
     left = int(floor(window_size / 2))
