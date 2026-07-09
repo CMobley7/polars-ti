@@ -244,3 +244,19 @@ def test_stdev_variance_default_ddof_is_population():
     # ddof=1 still available and differs
     ns1 = df.select(stdev("close", length=30, ddof=1, talib=False)).to_series().to_numpy()
     assert np.nanmax(np.abs(ns - ns1)[40:]) > 1e-6
+
+
+# --- API consistency: aroon exposes talib and routes to talib.AROON -----------
+def test_aroon_talib_routes_and_native_matches():
+    import talib as _talib
+    from polars_ti.trend.aroon import aroon
+
+    c = 100 + np.cumsum(np.sin(np.arange(300.0) / 5))
+    hi = c + 1.0
+    lo = c - 1.0
+    df = pl.DataFrame({"high": hi, "low": lo})
+    tt = df.select(aroon("high", "low", length=14, talib=True).alias("a")).unnest("a")
+    nn = df.select(aroon("high", "low", length=14, talib=False).alias("a")).unnest("a")
+    d, u = _talib.AROON(hi, lo, 14)
+    assert np.nanmax(np.abs(tt["AROOND"].to_numpy() - d)[20:]) < 1e-9  # routes to talib
+    assert np.nanmax(np.abs(nn["AROOND"].to_numpy() - d)[20:]) < 1e-9  # native matches too
