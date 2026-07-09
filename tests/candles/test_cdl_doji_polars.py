@@ -126,6 +126,39 @@ class TestPlCdlDoji:
         assert mask.sum() > 1000
         assert np.array_equal(got[mask], ref[mask].astype(float))
 
+    def test_talib_routes_to_cdldoji(self):
+        """talib=True routes to talib.CDLDOJI exactly (scaled to `scalar`).
+
+        length/factor are ignored on the TA-Lib path (documented downgrade),
+        so the default (length=10, factor=10, talib=True) IS talib.CDLDOJI."""
+        talib = pytest.importorskip("talib")
+        df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+        o = df["open"].to_numpy().astype(float)
+        h = df["high"].to_numpy().astype(float)
+        low_ = df["low"].to_numpy().astype(float)
+        c = df["close"].to_numpy().astype(float)
+        ref = talib.CDLDOJI(o, h, low_, c).astype(float)  # 0 / 100
+        got = df.select(cdl_doji("open", "high", "low", "close", talib=True)).to_series().to_numpy()
+        assert np.array_equal(got.astype(float), ref)
+
+    def test_talib_scalar_and_bool(self):
+        """talib path honours `scalar` (non-zero -> scalar) and `asint=False`."""
+        talib = pytest.importorskip("talib")
+        df = pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+        ref = talib.CDLDOJI(
+            df["open"].to_numpy().astype(float),
+            df["high"].to_numpy().astype(float),
+            df["low"].to_numpy().astype(float),
+            df["close"].to_numpy().astype(float),
+        )
+        hit = ref != 0
+        scaled = df.select(cdl_doji("open", "high", "low", "close", talib=True, scalar=50.0)).to_series().to_numpy()
+        assert set(np.unique(scaled)).issubset({0, 50})
+        assert np.array_equal(scaled == 50, hit)
+        as_bool = df.select(cdl_doji("open", "high", "low", "close", talib=True, asint=False)).to_series()
+        assert as_bool.dtype == pl.Boolean
+        assert np.array_equal(as_bool.to_numpy(), hit)
+
     def test_offset_parameter(self):
         """Offset parameter shifts results."""
         df = pl.DataFrame(
