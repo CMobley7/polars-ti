@@ -179,6 +179,7 @@ from polars_ti.overlap import (
     kama,
     linreg,
     mama,
+    mavp,
     mcgd,
     medprice,
     midpoint,
@@ -200,6 +201,7 @@ from polars_ti.overlap import (
     t3,
     tema,
     trima,
+    tsf,
     typprice,
     vidya,
     wcp,
@@ -230,6 +232,7 @@ from polars_ti.transform import cube, ifisher, remap
 from polars_ti.trend import __all__ as trend_all
 from polars_ti.trend import (
     adx,
+    adxr,
     alphatrend,
     amat,
     aroon,
