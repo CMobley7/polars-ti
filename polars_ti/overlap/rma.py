@@ -31,24 +31,31 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
 
     alpha = 1.0 / length
 
-    if presma and n >= length:
-        # Build the seeded series like OLD pandas-ta (NaN-skipping SMA seed at
-        # index length-1) then run ewm(adjust=False). A leading null/NaN in the
-        # input (e.g. true_range[0]) must NOT poison the whole column; if the
-        # leading-NaN run exceeds ``length`` the SMA seed is dropped and the
-        # recursion re-seeds from the first finite raw value (pandas semantics).
+    # First finite index (leading NaNs — e.g. true_range[0] or a diff series —
+    # must never poison the whole column).
+    fv = -1
+    for i in range(n):
+        if not np.isnan(close[i]):
+            fv = i
+            break
+
+    if presma and fv >= 0 and fv + length <= n:
+        # SMA seed over the first ``length`` FINITE values (contiguous from the
+        # first finite index), placed at ``fv+length-1`` — exactly matching
+        # TA-Lib's Wilder warmup (e.g. ATR seeds the SMA of TR[1..length] at
+        # index ``length`` because TR[0] is undefined). For a fully finite input
+        # (fv=0) this is the mean of close[0:length] at index length-1, identical
+        # to before; on a leading-NaN input it seeds one bar later than the old
+        # NaN-skipping window (which jumped the gun by a bar). Mirrors _ema_numba.
         seeded = np.empty(n, dtype=np.float64)
         for i in range(n):
             seeded[i] = close[i]
         sma_sum = 0.0
-        valid_count = 0
-        for i in range(length):
-            if not np.isnan(close[i]):
-                sma_sum += close[i]
-                valid_count += 1
-        for i in range(length - 1):
+        for i in range(fv, fv + length):
+            sma_sum += close[i]
+        for i in range(fv + length - 1):
             seeded[i] = np.nan
-        seeded[length - 1] = (sma_sum / valid_count) if valid_count > 0 else np.nan
+        seeded[fv + length - 1] = sma_sum / length
         close = seeded
 
     # ewm(alpha, adjust=False): seed from first finite value, carry forward on NaN.

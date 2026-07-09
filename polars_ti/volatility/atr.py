@@ -92,9 +92,15 @@ def atr(
         )
     else:
         # Simple composition: TR → MA (just like Pandas!)
-        # Native path must use the native (NaN-skipping) true_range, NOT TA-Lib's
-        # TRANGE (which nulls index 0) — otherwise the leading null poisons the MA.
+        # TA-Lib's ATR excludes the first bar's true range (no prior close), then
+        # seeds the Wilder average over TR[1..length] at index ``length``. The
+        # native RMA seed is now leading-NaN-tolerant (mirrors _ema_numba), so we
+        # null the first TR bar to reproduce that warmup exactly — native ATR then
+        # equals talib.ATR to float noise post-warmup. (The null no longer poisons
+        # the MA: the seed re-anchors at the first finite TR.)
         tr_expr = true_range(high_expr, low_expr, close_expr, talib=False)
+        if _mamode == "rma":
+            tr_expr = pl.when(close_expr.shift(1).is_null()).then(None).otherwise(tr_expr)
         atr_expr = ma(name=_mamode, source=tr_expr, length=length, talib=False, presma=True)
 
         if offset != 0:
