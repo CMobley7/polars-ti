@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -121,7 +122,7 @@ def rsx(
     if close_expr is None:
         return None
 
-    _length = length
+    _length = v_pos_int(length, "length")
 
     def compute_rsx(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)

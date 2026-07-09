@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -88,6 +89,8 @@ def cmo(
     from polars_ti.utils import v_talib
 
     close_expr = v_expr(close)
+    length = v_pos_int(length, "length")
+    drift = v_pos_int(drift, "drift")
     # TA-Lib CMO hardcodes drift=1; the native _nb_cmo kernel honors drift, so
     # fall through to it for a non-default drift (scalar is already rescaled below).
     _use_talib = Imports["talib"] and v_talib(talib) and drift == 1

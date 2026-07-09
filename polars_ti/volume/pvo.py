@@ -5,6 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -38,6 +39,10 @@ def pvo(
 
     if volume_expr is None:
         return None
+
+    fast = v_pos_int(fast, "fast")
+    slow = v_pos_int(slow, "slow")
+    signal = v_pos_int(signal, "signal")
 
     if slow < fast:
         fast, slow = slow, fast

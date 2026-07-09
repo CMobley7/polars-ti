@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -61,6 +62,7 @@ def mad(
     if close_expr is None:
         return None
 
+    length = v_pos_int(length, "length")
     _length = length
 
     def compute_mad(s: pl.Series) -> pl.Series:

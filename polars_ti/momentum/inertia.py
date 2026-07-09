@@ -5,6 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -46,8 +47,8 @@ def inertia(
     import numpy as np
 
     close_expr = v_expr(close)
-    _length = length
-    _rvi_length = rvi_length
+    _length = v_pos_int(length, "length")
+    _rvi_length = v_pos_int(rvi_length, "rvi_length")
     _scalar = scalar
     _refined = refined
     _thirds = thirds

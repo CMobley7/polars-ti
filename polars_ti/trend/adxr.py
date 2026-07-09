@@ -44,7 +44,7 @@ def adxr(
     """
     from polars_ti.maps import Imports
     from polars_ti.trend.adx import adx
-    from polars_ti.utils import v_talib
+    from polars_ti.utils import v_pos_int, v_talib
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -52,11 +52,14 @@ def adxr(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
+    length = v_pos_int(length, "length")
+
     # TA-Lib's ADXR exposes only a single ``timeperiod``, so its fast path is
     # valid only when the ADX smoothing period equals ``length``. lensig defaults
     # to length when omitted (matching pandas-ta), keeping the fast path active
     # for the common case; an explicit lensig != length routes to native.
     _lensig = lensig if lensig is not None else length
+    _lensig = v_pos_int(_lensig, "lensig")
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and _lensig == length
     _length = length
 

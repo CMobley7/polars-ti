@@ -26,7 +26,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 # Reuse existing Numba kernel nb_pvi from above
@@ -64,6 +64,7 @@ def pvi(
     if close_expr is None or volume_expr is None:
         return None
 
+    length = v_pos_int(length, "length")
     _length = length
     _initial = initial
     _mode = mamode.lower()[0] if len(mamode) else ""

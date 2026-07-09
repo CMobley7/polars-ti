@@ -6,7 +6,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 from polars_ti.overlap.ema import _ema_numba
 
 
@@ -45,7 +45,7 @@ def tema(
     # TA-Lib TEMA always SMA-seeds its internal EMA warmup (presma=True); only route
     # there for presma=True so presma=False falls back to native (which honors it).
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and presma
-    _length = length
+    _length = v_pos_int(length, "length")
     _presma = presma
 
     def compute_tema(s: pl.Series) -> pl.Series:
