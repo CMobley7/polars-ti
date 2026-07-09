@@ -19,6 +19,7 @@ def ichimoku(
     include_chikou: bool = True,
     lookahead: bool = True,
     offset: int = 0,
+    forward: bool = False,
 ) -> pl.Expr:
     """Polars: Ichimoku Kinkō Hyō
 
@@ -37,9 +38,17 @@ def ichimoku(
         include_chikou: Whether to include chikou span. Default: True
         lookahead: If False, excludes chikou span to prevent data leakage. Default: True
         offset: Shift result by N periods. Default: 0
+        forward: If True, also emit the forward-projected ("future cloud") Senkou
+            Span A/B as ``ISA_<tenkan>_F`` / ``ISB_<kijun>_F``. These carry the
+            un-shifted span values that OLD pandas-ta returned as its separate
+            forward DataFrame; the future cloud is obtained by projecting them
+            ``kijun`` bars ahead (e.g. ``col.tail(kijun).shift(-1)``). Since a
+            Polars expression cannot append future rows, the projection is
+            exposed as row-aligned columns instead. Default: False
 
     Returns:
-        pl.Expr: Struct expression with ISA, ISB, ITS, IKS, and optionally ICS
+        pl.Expr: Struct expression with ISA, ISB, ITS, IKS, optionally ICS, and
+            optionally the forward-projection columns when ``forward=True``.
     """
     if not lookahead:
         include_chikou = False
@@ -63,12 +72,19 @@ def ichimoku(
     # Chikou span = close shifted backward
     chikou_span = close_expr.shift(-kijun + 1)
 
+    # Forward-projection ("future cloud") spans: the un-shifted Span A/B that
+    # OLD pandas-ta returned in its separate forward DataFrame.
+    span_a_forward = span_a
+    span_b_forward = senkou_b
+
     if offset != 0:
         tenkan_sen = tenkan_sen.shift(offset)
         kijun_sen = kijun_sen.shift(offset)
         span_a_shifted = span_a_shifted.shift(offset)
         span_b_shifted = span_b_shifted.shift(offset)
         chikou_span = chikou_span.shift(offset)
+        span_a_forward = span_a_forward.shift(offset)
+        span_b_forward = span_b_forward.shift(offset)
 
     isa_name = f"ISA_{tenkan}"
     isb_name = f"ISB_{kijun}"
@@ -84,5 +100,8 @@ def ichimoku(
     ]
     if include_chikou:
         struct_fields.append(chikou_span.alias(ics_name))
+    if forward:
+        struct_fields.append(span_a_forward.alias(f"{isa_name}_F"))
+        struct_fields.append(span_b_forward.alias(f"{isb_name}_F"))
 
     return pl.struct(struct_fields).alias(f"ICHIMOKU_{tenkan}_{kijun}_{senkou}")

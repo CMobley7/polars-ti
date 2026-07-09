@@ -103,6 +103,9 @@ def alphatrend(
     mamode: str = "sma",
     talib: bool = True,
     offset: int = 0,
+    volume: IntoExpr | None = None,
+    src: str = "close",
+    open_: IntoExpr | None = None,
 ) -> PlExpr:
     """Polars: Alpha Trend
 
@@ -119,23 +122,46 @@ def alphatrend(
         mamode: MA used by the internal ATR/RSI. Default: 'sma' (matches OLD)
         talib: Use TA-Lib for the internal ATR/RSI when available. Default: True
         offset: Shift result. Default: 0
+        volume: Column name or pl.Expr for 'volume'. When provided, momentum is
+            measured with MFI instead of RSI (OLD pandas-ta behavior).
+            Default: None
+        src: Source series for the RSI momentum path, one of 'open', 'high',
+            'low', 'close'. Ignored when ``volume`` is provided (MFI path).
+            Default: 'close'
+        open_: Column name or pl.Expr for 'open' prices, required only when
+            ``src='open'``. Default: None
 
     Returns:
         pl.Expr: Struct with ALPHAT and ALPHATl columns
     """
     from polars_ti.volatility.atr import atr
     from polars_ti.momentum.rsi import rsi
+    from polars_ti.volume.mfi import mfi
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
+    volume_expr = v_expr(volume) if volume is not None else None
 
-    # ATR bands and RSI momentum via the library's own (talib-aware) indicators,
-    # matching OLD alphatrend (mamode='sma'). Momentum uses RSI (no-volume mode).
+    # OLD alphatrend selects the RSI source from open/high/low/close, falling
+    # back to close when the requested source is unavailable.
+    _src_map = {"high": high_expr, "low": low_expr, "close": close_expr}
+    if open_ is not None:
+        _src_map["open"] = v_expr(open_)
+    src = src if isinstance(src, str) and src in _src_map else "close"
+    src_expr = _src_map[src]
+
+    # ATR bands via the library's own (talib-aware) indicator, matching OLD
+    # alphatrend (mamode='sma').
     atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
     lower_atr = low_expr - atr_expr * multiplier
     upper_atr = high_expr + atr_expr * multiplier
-    momo = rsi(close_expr, length=length, mamode=mamode, talib=talib)
+
+    # Momentum: MFI when volume is provided (OLD volume path), else RSI(src).
+    if volume_expr is not None:
+        momo = mfi(high_expr, low_expr, close_expr, volume_expr, length=length, talib=talib)
+    else:
+        momo = rsi(src_expr, length=length, mamode=mamode, talib=talib)
 
     _props = f"_{length}_{multiplier}_{threshold}"
     at_name = f"ALPHAT{_props}"

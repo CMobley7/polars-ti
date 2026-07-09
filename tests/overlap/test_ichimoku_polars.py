@@ -76,3 +76,35 @@ class TestPlIchimoku:
         )
         result = _ichimoku(df)
         assert result.height == 80
+
+    def test_forward_span_restored(self, sample_df):
+        """Regression: restored OLD forward-projection ("future cloud") spans.
+
+        Default (forward=False) is unchanged, while forward=True adds the
+        forward-projected Span A/B columns without altering the existing ones.
+        """
+        default = _ichimoku(sample_df)
+        assert "ISA_9_F" not in default.columns
+        assert "ISB_26_F" not in default.columns
+
+        fwd = _ichimoku(sample_df, forward=True)
+        assert "ISA_9_F" in fwd.columns
+        assert "ISB_26_F" in fwd.columns
+
+        # Existing columns are byte-identical between the two calls.
+        for col in ("ISA_9", "ISB_26", "ITS_9", "IKS_26", "ICS_26"):
+            a = default[col].to_numpy()
+            b = fwd[col].to_numpy()
+            np.testing.assert_array_equal(np.isnan(a), np.isnan(b))
+            m = ~np.isnan(a)
+            assert np.array_equal(a[m], b[m])
+
+        # The forward span carries the un-shifted Senkou values: projecting the
+        # visible Span A back by (kijun - 1) reproduces the forward Span A.
+        kijun = 26
+        visible_a = fwd["ISA_9"].to_numpy()
+        forward_a = fwd["ISA_9_F"].to_numpy()
+        reconstructed = np.concatenate([visible_a[kijun - 1 :], np.full(kijun - 1, np.nan)])
+        m = ~np.isnan(reconstructed) & ~np.isnan(forward_a)
+        assert m.sum() > 0
+        np.testing.assert_allclose(reconstructed[m], forward_a[m], rtol=1e-9)

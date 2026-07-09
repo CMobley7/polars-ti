@@ -86,3 +86,30 @@ class TestPlSupertrend:
         lazy_df = sample_df.lazy()
         result = lazy_df.select(supertrend("high", "low", "close")).collect()
         assert result.height == 100
+
+    def test_atr_length_and_mamode_restored(self, sample_df):
+        """Regression: restored OLD pandas-ta atr_length / atr_mamode params.
+
+        Passing the defaults explicitly must reproduce the default output
+        byte-for-byte, while non-default values must change the result.
+        """
+
+        def _trend(**kw):
+            r = sample_df.select(supertrend("high", "low", "close", **kw))
+            return r.unnest(r.columns[0])["SUPERT_7_3.0"].to_numpy()
+
+        default = _trend()
+        # Explicit defaults (atr_length=length, atr_mamode=mamode) unchanged.
+        passthrough = _trend(atr_length=7, atr_mamode="rma")
+        np.testing.assert_array_equal(np.isnan(default), np.isnan(passthrough))
+        m = ~np.isnan(default)
+        assert np.array_equal(default[m], passthrough[m])
+
+        # Non-default ATR period changes output (talib ATR honours the period).
+        assert not np.allclose(default, _trend(atr_length=14), equal_nan=True)
+
+        # Non-default ATR MA changes output on the native (non-talib) path,
+        # where the MA type is actually honoured.
+        native_default = _trend(talib=False)
+        native_ema = _trend(talib=False, atr_mamode="ema")
+        assert not np.allclose(native_default, native_ema, equal_nan=True)

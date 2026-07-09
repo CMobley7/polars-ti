@@ -62,6 +62,8 @@ def supertrend(
     mamode: str = "rma",
     talib: bool = True,
     offset: int = 0,
+    atr_length: int | None = None,
+    atr_mamode: str | None = None,
 ) -> pl.Expr:
     """Polars: Supertrend - uses HL2 and ATR composition.
 
@@ -75,6 +77,10 @@ def supertrend(
         multiplier: Band distance multiplier. Default: 3.0
         mamode: MA type for ATR ('rma', 'sma', 'ema'). Default: 'rma'
         offset: Shift result by N periods. Default: 0
+        atr_length: ATR period override (OLD pandas-ta ``atr_length``). When
+            None, defaults to ``length``. Default: None
+        atr_mamode: MA type for the internal ATR (OLD pandas-ta ``atr_mamode``).
+            When None, defaults to ``mamode`` (i.e. 'rma'). Default: None
 
     Returns:
         pl.Expr: Struct with SUPERT, SUPERTd, SUPERTl, SUPERTs
@@ -83,6 +89,8 @@ def supertrend(
     _length = length
     _multiplier = multiplier
     _offset = offset
+    _atr_length = atr_length if atr_length is not None else length
+    _atr_mamode = atr_mamode if atr_mamode is not None else mamode
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -90,7 +98,7 @@ def supertrend(
 
     # Use pl_hl2 and pl_atr composition!
     hl2_expr = hl2(high_expr, low_expr)
-    atr_expr = atr(high_expr, low_expr, close_expr, length=length, mamode=mamode, talib=talib)
+    atr_expr = atr(high_expr, low_expr, close_expr, length=_atr_length, mamode=_atr_mamode, talib=talib)
 
     def compute_supertrend(struct: pl.Series) -> pl.Series:
         df = struct.struct.unnest()

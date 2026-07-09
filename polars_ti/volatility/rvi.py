@@ -20,6 +20,27 @@ def _rolling_std(arr: np.ndarray, length: int, ddof: int) -> np.ndarray:
     return out
 
 
+def _dispatch_ma(arr: np.ndarray, mamode: str, length: int, talib: bool) -> np.ndarray:
+    """Smooth *arr* with the requested MA via the shared ``ma()`` dispatcher.
+
+    The MA is applied from the first valid (non-NaN) index onward, mirroring the
+    stoch/trama native-mamode handling, so every MA type supported by ``ma()``
+    works for RVI's averaging step.
+    """
+    from polars_ti.ma import ma
+
+    n = len(arr)
+    out = np.full(n, np.nan, dtype=np.float64)
+    valid = np.flatnonzero(~np.isnan(arr))
+    if valid.size == 0:
+        return out
+    start = int(valid[0])
+    sub = arr[start:]
+    smoothed = pl.DataFrame({"_c": sub}).select(ma(mamode, "_c", length=length, talib=talib)).to_series().to_numpy()
+    out[start:] = smoothed
+    return out
+
+
 def _pl_rvi_single(
     arr: np.ndarray,
     length: int,
@@ -68,22 +89,32 @@ def _pl_rvi_single(
     neg_std = neg * std_arr
 
     _mamode = (mamode or "ema").lower()
-    if use_talib:
-        from talib import EMA, SMA
+    if _mamode in ("sma", "ema"):
+        # Fast paths preserved byte-for-byte so the default (ema) output is
+        # unchanged versus the pre-dispatch implementation.
+        if use_talib:
+            from talib import EMA, SMA
 
-        if _mamode == "sma":
-            pos_avg, neg_avg = SMA(pos_std, length), SMA(neg_std, length)
+            if _mamode == "sma":
+                pos_avg, neg_avg = SMA(pos_std, length), SMA(neg_std, length)
+            else:
+                pos_avg, neg_avg = EMA(pos_std, length), EMA(neg_std, length)
+        elif _mamode == "sma":
+            from polars_ti.momentum.ppo import _sma_numba_ppo
+
+            pos_avg = _sma_numba_ppo(pos_std, length)
+            neg_avg = _sma_numba_ppo(neg_std, length)
         else:
-            pos_avg, neg_avg = EMA(pos_std, length), EMA(neg_std, length)
-    elif _mamode == "sma":
-        from polars_ti.momentum.ppo import _sma_numba_ppo
-
-        pos_avg = _sma_numba_ppo(pos_std, length)
-        neg_avg = _sma_numba_ppo(neg_std, length)
+            # Native EMA seeded from the first valid value (pandas ewm).
+            pos_avg = _ema_numba(pos_std, length, False, False)
+            neg_avg = _ema_numba(neg_std, length, False, False)
     else:
-        # Native EMA seeded from the first valid value (pandas ewm).
-        pos_avg = _ema_numba(pos_std, length, False, False)
-        neg_avg = _ema_numba(neg_std, length, False, False)
+        # All other MA types route through the shared ``ma()`` dispatcher,
+        # mirroring OLD pandas-ta ``ma(mode, pos_std, length=length)`` (and the
+        # trama/stoch native-mamode fixes). Without this branch non-sma/ema
+        # modes silently fell back to EMA.
+        pos_avg = _dispatch_ma(pos_std, _mamode, length, use_talib)
+        neg_avg = _dispatch_ma(neg_std, _mamode, length, use_talib)
 
     denom = pos_avg + neg_avg
     with np.errstate(divide="ignore", invalid="ignore"):

@@ -96,6 +96,30 @@ class TestPlVwap:
         valid = ~np.isnan(vwap_vals)
         assert np.abs(np.mean(vwap_vals[valid]) - np.mean(close_vals)) < 10.0
 
+    def test_anchor_segments_by_period(self, sample_df_with_datetime):
+        """Regression: anchor resets the cumulative VWAP by period (with datetime).
+
+        The default anchor ('1d') is unchanged, while a non-default anchor ('1w')
+        that spans a different period boundary changes the result.
+        """
+        df = sample_df_with_datetime
+        daily = df.select(vwap_indicator("high", "low", "close", "volume", datetime_col="datetime", anchor="1d"))[
+            "VWAP_1D"
+        ].to_numpy()
+        # Default (no explicit anchor) equals the explicit daily anchor.
+        default = df.select(vwap_indicator("high", "low", "close", "volume", datetime_col="datetime"))[
+            "VWAP_1D"
+        ].to_numpy()
+        np.testing.assert_array_equal(np.isnan(default), np.isnan(daily))
+        m = ~np.isnan(default)
+        assert np.array_equal(default[m], daily[m])
+
+        # A weekly anchor does not reset intra-week, so it diverges from daily.
+        weekly = df.select(vwap_indicator("high", "low", "close", "volume", datetime_col="datetime", anchor="1w"))[
+            "VWAP_1W"
+        ].to_numpy()
+        assert not np.allclose(daily, weekly, equal_nan=True)
+
     def test_bands_are_symmetric(self, sample_df):
         """Verify upper and lower bands are symmetric around VWAP."""
         result = sample_df.select(vwap_indicator("high", "low", "close", "volume", bands=[1]))
