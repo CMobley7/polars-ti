@@ -426,3 +426,35 @@ def test_psar_none_input_returns_none():
 
     assert ti.psar(None, "low", "close") is None
     assert ti.psar("high", None, "close") is None
+
+
+# --- H-mem: nb_idiff negative-period heap OOB (SIGSEGV) ------------------------
+def test_nb_idiff_negative_period_is_safe():
+    """A negative shift must not read past the array end (was heap OOB/SIGSEGV).
+
+    Negative k is an invalid difference period, so the kernel returns all NaN
+    rather than indexing x[i + |k|] out of bounds. Non-negative k is unchanged.
+    """
+    from polars_ti.utils._numba import nb_idiff
+
+    x = np.arange(5, dtype=np.float64)
+    assert np.all(np.isnan(nb_idiff(x, -10)))
+    assert np.all(np.isnan(nb_idiff(x, -1)))
+    # k == 0 -> all zeros (x[i] - x[i]); k in [1, n) -> standard diff with k NaNs.
+    assert np.array_equal(nb_idiff(x, 0), np.zeros(5))
+    d2 = nb_idiff(x, 2)
+    assert np.all(np.isnan(d2[:2])) and np.array_equal(d2[2:], np.full(3, 2.0))
+    # k >= n -> all NaN (empty diff), still in-bounds.
+    assert np.all(np.isnan(nb_idiff(x, 5)))
+
+
+@pytest.mark.parametrize("indicator", ["exhc", "mom"])
+@pytest.mark.parametrize("n", [1, 3, 5, 8])
+def test_idiff_indicators_no_crash_on_negative_length(indicator, n):
+    """exhc/mom (nb_idiff callers) must not SIGSEGV on a negative length."""
+    import polars_ti as ti  # noqa: F401 — registers 'ti'
+
+    df = pl.DataFrame({"high": [2.0] * n, "low": [1.0] * n, "close": [1.5] * n})
+    # Must return without crashing the interpreter (result content is degenerate).
+    result = getattr(df.ti, indicator)(length=-10)
+    assert result is not None
