@@ -77,6 +77,12 @@ _INTENTIONAL = {
     "high_Z_30_1": "NEW ddof=0 vs OLD ddof=1 (§7)",
     "low_Z_30_1": "NEW ddof=0 vs OLD ddof=1 (§7)",
     "ZS_30": "NEW ddof=0 vs OLD ddof=1 (§7)",
+    # stdev/variance now default ddof=0 (population, TA-Lib/TradingView/Bollinger
+    # convention) instead of ddof=1 (which pandas-ta only used to mirror pandas'
+    # .std() default). Native now equals talib.STDDEV/VAR; the OLD native golden
+    # baked in ddof=1. Consistent with the z-score ddof=0 choice above.
+    "STDEV_30": "NEW ddof=0 (population, TA-Lib style) default vs OLD ddof=1 (§7)",
+    "VAR_30": "NEW ddof=0 (population, TA-Lib style) default vs OLD ddof=1 (§7)",
     "PVI": "NEW seeds initial=100 (StockCharts canonical) vs OLD first-close (§7)",
     "PVIe_255": "NEW seeds initial=100 vs OLD first-close (§7)",
     "MASSI_9_25": "NEW NaN-skipping cascaded EMA vs OLD nested TA-Lib EMA (§7)",

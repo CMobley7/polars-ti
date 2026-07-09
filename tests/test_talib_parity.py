@@ -92,8 +92,10 @@ def test_full_talib_parity_has_broad_coverage(report):
     # The EMA-seed alignment reclassified DEMA_10 (match_talib) plus the
     # ZL_EMA/TSI/TMO/EFI/KVO family (intentional) out of pandas-golden grading:
     # their native output now matches TA-Lib and is pinned native==talib by
-    # tests/overlap/test_native_talib_alignment.py, so the floor is 340.
-    assert len(_graded_cols(report)) >= 340
+    # tests/overlap/test_native_talib_alignment.py. STDEV_30/VAR_30 also moved to
+    # intentional (ddof=0 population default), pinned by the ddof regression test.
+    # So the floor is 338.
+    assert len(_graded_cols(report)) >= 338
 
 
 def test_full_talib_parity(report):

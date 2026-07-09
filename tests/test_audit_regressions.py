@@ -225,3 +225,22 @@ def test_kvo_flat_bar_does_not_truncate_series():
     arr = df.select(kvo("high", "low", "close", "volume")).to_series(0).to_numpy()
     valid = ~np.isnan(arr)
     assert int(np.max(np.where(valid)[0])) >= 190  # not truncated at the flat bar
+
+
+# --- ddof: stdev/variance default is ddof=0 (population, TA-Lib convention) ----
+def test_stdev_variance_default_ddof_is_population():
+    """Default stdev/variance now use ddof=0 (population) matching talib.STDDEV/VAR,
+    not pandas-ta's inherited ddof=1. Callers can still pass ddof=1."""
+    import talib as _talib
+    from polars_ti.statistics.stdev import stdev
+    from polars_ti.statistics.variance import variance
+
+    c = 100 + np.sin(np.arange(200.0) / 7) + 0.05 * np.arange(200.0)
+    df = pl.DataFrame({"close": c})
+    ns = df.select(stdev("close", length=30, talib=False)).to_series().to_numpy()
+    nv = df.select(variance("close", length=30, talib=False)).to_series().to_numpy()
+    assert np.nanmax(np.abs(ns - _talib.STDDEV(c, 30))[40:]) < 1e-9
+    assert np.nanmax(np.abs(nv - _talib.VAR(c, 30))[40:]) < 1e-8
+    # ddof=1 still available and differs
+    ns1 = df.select(stdev("close", length=30, ddof=1, talib=False)).to_series().to_numpy()
+    assert np.nanmax(np.abs(ns - ns1)[40:]) > 1e-6
