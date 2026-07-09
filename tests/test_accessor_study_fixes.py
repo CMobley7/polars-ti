@@ -215,3 +215,31 @@ def test_study_open_alias_does_not_regress_kwarg_filtering(df):
         warnings.simplefilter("error")
         out = df.ti.study("momentum", length=10)
     assert isinstance(out, pl.DataFrame)
+
+
+# --------------------------------------------------------------------------- E
+def test_study_unknown_kind_honors_errors_contract(df):
+    """A custom Study referencing an unresolvable indicator kind must honor the
+    errors= policy instead of vanishing silently (was a bare ``return`` in _run).
+    """
+    from polars_ti.utils._study import Study
+
+    bad = ti.Study(name="Bad", ti=[{"kind": "sma", "length": 5}, {"kind": "totally_bogus_xyz"}])
+
+    # raise -> surfaces the unknown kind
+    with pytest.raises(AttributeError, match="totally_bogus_xyz"):
+        df.ti.study(bad, errors="raise")
+
+    # warn -> emits a warning naming the failure, but still computes the good spec
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        out = df.ti.study(bad, errors="warn")
+    assert len(caught) >= 1
+    assert "SMA_5" in out.columns
+
+    # ignore -> silent skip, good spec still computed
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        out2 = df.ti.study(bad, errors="ignore")
+    assert len(caught) == 0
+    assert "SMA_5" in out2.columns

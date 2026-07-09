@@ -588,6 +588,10 @@ class TechnicalIndicators:
             """
             fn = getattr(self, kind.lower(), None)
             if fn is None:
+                # An unresolvable kind (e.g. a misspelled name in a custom Study)
+                # must honor the errors= contract, not vanish silently: raise under
+                # "raise", surface in the summary under "warn", skip under "ignore".
+                _handle_failure(kind, AttributeError(f"Unknown indicator: '{kind}'"))
                 return
             accepted = _accepted_kwargs(kind.lower(), fn)
             if accepted is None:
