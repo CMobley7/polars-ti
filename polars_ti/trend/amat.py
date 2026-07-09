@@ -34,8 +34,12 @@ def amat(
     from polars_ti.ma import ma
     from polars_ti.trend.long_run import long_run
     from polars_ti.trend.short_run import short_run
+    from polars_ti.utils import v_pos_int
 
     close_expr = v_expr(close)
+
+    fast = v_pos_int(fast, "fast")
+    slow = v_pos_int(slow, "slow")
 
     fast_ma = ma(mamode, close_expr, length=fast, talib=False)
     slow_ma = ma(mamode, close_expr, length=slow, talib=False)

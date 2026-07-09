@@ -5,6 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -50,6 +51,8 @@ def kc(
 
     if high_expr is None or low_expr is None or close_expr is None:
         return None
+
+    length = v_pos_int(length, "length")
 
     # Range: True Range or High-Low (matches Pandas: true_range() if tr else high_low_range())
     if tr:

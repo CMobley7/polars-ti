@@ -5,7 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 def aobv(
@@ -50,6 +50,9 @@ def aobv(
 
     if close_expr is None or volume_expr is None:
         return None
+
+    fast = v_pos_int(fast, "fast")
+    slow = v_pos_int(slow, "slow")
 
     if slow < fast:
         fast, slow = slow, fast

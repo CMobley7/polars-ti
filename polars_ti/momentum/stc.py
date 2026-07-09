@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -116,6 +117,9 @@ def stc(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
+    tclength = v_pos_int(tclength, "tclength")
+    fast = v_pos_int(fast, "fast")
+    slow = v_pos_int(slow, "slow")
 
     if slow < fast:
         fast, slow = slow, fast

@@ -8,7 +8,7 @@ from numpy import empty, float64, nan, isnan
 
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 @njit(cache=True)
@@ -101,7 +101,7 @@ def ema(
     if close_expr is None:
         return None
 
-    _length = length
+    _length = v_pos_int(length, "length")
     _presma = presma
     _adjust = adjust
     # TA-Lib EMA always SMA-seeds its warmup (presma=True); only route there for

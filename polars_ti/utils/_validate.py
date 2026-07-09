@@ -121,6 +121,32 @@ def v_pos_default(var: IntFloat, default: IntFloat = 0, strict: bool = True, com
     return partial(v_lowerbound, bound=0)(var=var, default=default, strict=strict, complement=complement)
 
 
+def v_pos_int(var: Int, name: str = "length", minimum: int = 1) -> int:
+    """Validate a positive-integer period/window parameter.
+
+    Period parameters flow into Numba kernels that index and allocate with them;
+    a non-positive or non-integer value causes out-of-bounds access (SIGSEGV/
+    SIGABRT). Fail fast with a clear error instead of crashing the interpreter.
+
+    Args:
+        var: The value to validate.
+        name: Parameter name, used in the error message.
+        minimum: Smallest allowed value (inclusive). Default: 1
+
+    Returns:
+        The value as a plain int.
+
+    Raises:
+        ValueError: If var is not an integer >= minimum (bools are rejected).
+    """
+    if isinstance(var, bool) or not isinstance(var, (int, np_integer)):
+        raise ValueError(f"{name} must be an integer >= {minimum}, got {var!r}")
+    ivar = int(var)
+    if ivar < minimum:
+        raise ValueError(f"{name} must be an integer >= {minimum}, got {ivar}")
+    return ivar
+
+
 def v_scalar(var: IntFloat, default: Optional[IntFloat] = 1) -> Float:
     """Returns the default if var is not a float."""
     if isinstance(var, (float, int, np_floating, np_integer)):

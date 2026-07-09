@@ -74,11 +74,14 @@ def pmax(
         pl.Expr: Struct with PMAX, PMAXd, PMAXl, PMAXs columns
     """
     from polars_ti.ma import ma
+    from polars_ti.utils import v_pos_int
     from polars_ti.volatility.atr import atr
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
     close_expr = v_expr(close)
+
+    length = v_pos_int(length, "length")
 
     # Composition: shared ATR + MA (native seeding matches pandas-ta in WS3)
     atr_expr = atr(high_expr, low_expr, close_expr, length=length, talib=talib)

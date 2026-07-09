@@ -48,6 +48,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -77,7 +78,7 @@ def exhc(
         list[pl.Expr]: [EXHC_DN, EXHC_UP] expressions
     """
     close_expr = v_expr(close)
-    _length = length
+    _length = v_pos_int(length, "length")
     _cap = cap
     _show_all = show_all
 

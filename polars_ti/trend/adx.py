@@ -143,14 +143,18 @@ def adx(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
+    from polars_ti.maps import Imports
+    from polars_ti.utils import v_pos_int, v_talib
+
+    length = v_pos_int(length, "length")
+    adxr_length = v_pos_int(adxr_length, "adxr_length")
+
     # TA-Lib's ADX/ADXR expose only a single ``timeperiod``; the fast path is
     # therefore valid solely when the ADX smoothing period equals ``length``.
     # When the caller omits lensig it defaults to length (matching pandas-ta),
     # keeping the fast path active for the common case.
     _lensig = lensig if lensig is not None else length
-
-    from polars_ti.maps import Imports
-    from polars_ti.utils import v_talib
+    _lensig = v_pos_int(_lensig, "lensig")
 
     def _compute(s: pl.Series) -> pl.Series:
         data = s.struct.unnest()

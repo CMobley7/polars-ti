@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -57,7 +58,7 @@ def cg(
         pl.Expr: CG expression
     """
     close_expr = v_expr(close)
-    _length = length
+    _length = v_pos_int(length, "length")
     _offset = offset
 
     def compute_cg(s: pl.Series) -> pl.Series:

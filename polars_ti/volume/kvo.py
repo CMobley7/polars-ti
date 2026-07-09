@@ -6,7 +6,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 def kvo(
@@ -49,6 +49,10 @@ def kvo(
 
     if any(e is None for e in [high_expr, low_expr, close_expr, volume_expr]):
         return None
+
+    fast = v_pos_int(fast, "fast")
+    slow = v_pos_int(slow, "slow")
+    signal = v_pos_int(signal, "signal")
 
     _props = f"_{fast}_{slow}_{signal}"
 

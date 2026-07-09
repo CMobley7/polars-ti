@@ -5,6 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -52,6 +53,8 @@ def natr(
 
     if high_expr is None or low_expr is None or close_expr is None:
         return None
+
+    length = v_pos_int(length, "length")
 
     if Imports["talib"] and v_talib(talib) and scalar == 100.0 and mamode == "rma":
         # Fast path: TA-Lib's dedicated NATR is a single C call (NATR is a fixed

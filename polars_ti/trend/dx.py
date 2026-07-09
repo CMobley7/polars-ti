@@ -6,7 +6,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 def dx(
@@ -57,7 +57,7 @@ def dx(
     # move and emits a 0-100 index; only route there when those match so a
     # non-default mamode/drift falls back to the native path (which honors them).
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and _mamode == "rma" and drift == 1
-    _length = length
+    _length = v_pos_int(length, "length")
     _scalar = scalar
 
     if _use_talib:
