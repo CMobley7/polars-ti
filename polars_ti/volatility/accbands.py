@@ -51,11 +51,14 @@ def accbands(
     if high_expr is None or low_expr is None or close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib)
     _length = length
     _c = c
     _mamode = mamode.lower() if isinstance(mamode, str) else "sma"
     _offset = offset
+    # TA-Lib ACCBANDS is fixed at multiplier c=4.0 and an SMA; `c` sits inside
+    # low*(1 - hl_ratio) (non-linear, no clean rescale), so honor non-default c or
+    # mamode by falling through to the native path (which applies both).
+    _use_talib = Imports["talib"] and v_talib(talib) and _c == 4.0 and _mamode == "sma"
 
     if _use_talib:
         # TA-Lib path: use map_batches for direct TA-Lib ACCBANDS call

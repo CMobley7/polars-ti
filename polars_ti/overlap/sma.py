@@ -52,7 +52,9 @@ def sma(
         return None
 
     min_periods = min_periods if min_periods is not None else length
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    # TA-Lib SMA is fixed at min_periods == length (full window); honor a smaller
+    # min_periods by falling through to the native rolling_mean (which applies it).
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and min_periods == length
     _length = length
 
     if _use_talib:

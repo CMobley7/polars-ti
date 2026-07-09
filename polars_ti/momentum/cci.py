@@ -59,6 +59,11 @@ def cci(
             l = df["_low"].to_numpy().astype(np.float64)
             cl = df["_close"].to_numpy().astype(np.float64)
             result = TALIB_CCI(h, l, cl, timeperiod=_length)
+            # TA-Lib CCI is fixed at Lambert's constant c=0.015; honor a non-default
+            # c with a linear rescale (CCI = (TP - SMA) / (c * MAD), so scaling the
+            # denominator constant scales the result by 0.015 / c).
+            if c != 0.015:
+                result = result * (0.015 / c)
             return pl.Series(result)
 
         cci_expr = pl.struct(
