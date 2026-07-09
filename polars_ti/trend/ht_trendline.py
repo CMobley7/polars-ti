@@ -114,7 +114,11 @@ def ht_trendline(
             result = HT_TRENDLINE(arr)
         else:
             result = nb_ht_trendline(arr)
-        if prenan > 0 and not (Imports["talib"] and v_talib(talib)):
+        # prenan is a leading-NaN mask ("prenans to apply"), so honor it on the
+        # TA-Lib path too: masking only ever adds NaNs (TA-Lib's own 63-bar
+        # lookback is already NaN, so the default prenan=63 is a no-op) and never
+        # swaps a computed value the way a native-fallback would.
+        if prenan > 0:
             result[:prenan] = np.nan
         return pl.Series(values=result, name=s.name)
 

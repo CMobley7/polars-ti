@@ -83,7 +83,10 @@ def dm(
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
-    _use_talib = Imports["talib"] and v_talib(talib)
+    # TA-Lib PLUS_DM/MINUS_DM hardcode drift=1; the native _nb_dm kernel honors
+    # drift, so fall through to it for a non-default drift. (mamode remains
+    # deferred: neither path varies it — both are Wilder sum-smoothing.)
+    _use_talib = Imports["talib"] and v_talib(talib) and drift == 1
 
     if _use_talib:
         _length = length
