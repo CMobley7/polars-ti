@@ -69,3 +69,44 @@ class TestPlDm:
 
         assert np.array_equal(a_def, a_one, equal_nan=True)
         assert np.nanmax(np.abs(a_two - a_def)) > 0.0
+
+
+class TestDmTalibParity:
+    """Native (talib=False) +DM/-DM must equal TA-Lib PLUS_DM/MINUS_DM.
+
+    The OLD native path smoothed on the average scale via ``ma('rma')`` and
+    diverged from TA-Lib by tens of points; the classic port switches the native
+    path to Wilder sum-smoothing so it matches TA-Lib exactly.
+    """
+
+    @pytest.fixture
+    def spy(self):
+        return pl.read_csv("data/SPY_D.csv", try_parse_dates=True).head(1500)
+
+    def test_native_dmp_matches_talib_plus_dm(self, spy):
+        pytest.importorskip("talib")
+        import talib
+
+        native = spy.select(dm("high", "low", talib=False))["DMP_14"].to_numpy()
+        ref = talib.PLUS_DM(
+            spy["high"].to_numpy().astype("float64"),
+            spy["low"].to_numpy().astype("float64"),
+            timeperiod=14,
+        )
+        m = ~np.isnan(native) & ~np.isnan(ref)
+        assert m.sum() > 1000
+        assert np.max(np.abs(native[m] - ref[m])) < 1e-6
+
+    def test_native_dmn_matches_talib_minus_dm(self, spy):
+        pytest.importorskip("talib")
+        import talib
+
+        native = spy.select(dm("high", "low", talib=False))["DMN_14"].to_numpy()
+        ref = talib.MINUS_DM(
+            spy["high"].to_numpy().astype("float64"),
+            spy["low"].to_numpy().astype("float64"),
+            timeperiod=14,
+        )
+        m = ~np.isnan(native) & ~np.isnan(ref)
+        assert m.sum() > 1000
+        assert np.max(np.abs(native[m] - ref[m])) < 1e-6

@@ -33,6 +33,16 @@ _MATCH_TALIB = {
     "WCP": "old native WCLPRICE off by ~1337; NEW ~exact vs TA-Lib (§4)",
     "MFI_14": "old native MFI off by ~8.94; NEW ~3e-13 vs TA-Lib (§4)",
     "ADX_14": "old native ADX off by ~6.96; NEW ~0.19, much closer to TA-Lib (§4)",
+    # classic port: native +DM/-DM now use Wilder sum-smoothing (== TA-Lib
+    # PLUS_DM/MINUS_DM) instead of OLD's average-scale ma('rma'), which diverged
+    # by tens of points. Both dm() and adx() emit these; native == talib to ~1e-13
+    # (pinned by tests/momentum/test_dm_polars.py + tests/trend/test_adx_polars.py).
+    "DMP_14": "classic port: native Wilder sum-smoothing == talib.PLUS_DM (OLD ma('rma') diverged ~44)",
+    "DMN_14": "classic port: native Wilder sum-smoothing == talib.MINUS_DM (OLD ma('rma') diverged ~68)",
+    # classic port: native CMO now Wilder-smooths gains/losses (CMO == 2*RSI-100,
+    # == TA-Lib CMO to ~1e-13) instead of OLD's flat rolling sum, which diverged
+    # by ~63 (pinned by tests/momentum/test_cmo_polars.py).
+    "CMO_14": "classic port: native Wilder smoothing == talib.CMO (OLD rolling-sum diverged ~63)",
     "RSI_14": "old native RSI off by ~18; NEW ~8.3, closer to TA-Lib (§4)",
     "TRIX_30_9": "old native TRIX off by ~1.8e-3; NEW ~3e-13 vs TA-Lib (§4)",
     # 3 candlestick patterns: OLD native was wrong by 100, NEW matches TA-Lib.
