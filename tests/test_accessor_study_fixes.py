@@ -243,3 +243,21 @@ def test_study_unknown_kind_honors_errors_contract(df):
         out2 = df.ti.study(bad, errors="ignore")
     assert len(caught) == 0
     assert "SMA_5" in out2.columns
+
+
+# --------------------------------------------------------------------------- F
+@pytest.mark.parametrize("bad", [None, [1, 2, 3], {}, 3.14, object()])
+def test_study_rejects_invalid_argument(df, bad):
+    """A non-str, non-Study argument must raise TypeError, not silently run the
+    full AllStudy (the guard used to conflate 'not a Study' with the AllStudy
+    sentinel `.ti is None`)."""
+    with pytest.raises(TypeError):
+        df.ti.study(bad)
+
+
+def test_study_valid_dispatch_still_works(df):
+    """AllStudy, category string, and custom Study dispatch are unaffected."""
+    assert df.ti.study(ti.AllStudy, errors="ignore").width > df.width
+    assert df.ti.study("momentum", errors="ignore").width > df.width
+    custom = ti.Study(name="c", ti=[{"kind": "sma", "length": 5}])
+    assert "SMA_5" in df.ti.study(custom, errors="ignore").columns

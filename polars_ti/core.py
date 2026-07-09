@@ -670,8 +670,15 @@ class TechnicalIndicators:
                     _run(kind, {}, studywide)
                 return _finalize()
 
+            # Reject anything that is neither a category string nor a Study, rather
+            # than silently falling through to a full AllStudy run on e.g. None or a
+            # typo'd/garbage value (which masks caller bugs and is an unexpected
+            # 268-indicator compute).
+            if not isinstance(study, Study):
+                raise TypeError(f"study must be a Study instance or a category string, got {type(study).__name__!r}")
+
             # AllStudy (ti is None) -> run every indicator in every category
-            if not isinstance(study, Study) or study.ti is None:
+            if study.ti is None:
                 for category_inds in Category.values():
                     for kind in category_inds:
                         studywide = dict(kwargs)
