@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 @njit(cache=True)
@@ -132,7 +132,7 @@ def linreg(
         return None
 
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1
-    _length = length
+    _length = v_pos_int(length, "length")
 
     # LINREG is complex with multiple modes - use map_batches
     def compute_linreg(s: pl.Series) -> pl.Series:

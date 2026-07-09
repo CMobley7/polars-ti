@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -70,6 +71,7 @@ def quantile(
         return None
 
     _q = float(q) if isinstance(q, (int, float)) and 0 < q < 1 else 0.5
+    length = v_pos_int(length, "length")
     _length = length
 
     def compute_quantile(s: pl.Series) -> pl.Series:

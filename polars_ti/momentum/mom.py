@@ -15,6 +15,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -44,6 +45,7 @@ def mom(
     close_expr = v_expr(close)
     if close_expr is None:
         return None
+    length = v_pos_int(length, "length")
 
     _use_talib = Imports["talib"] and v_talib(talib) and length > 1
     _length = length

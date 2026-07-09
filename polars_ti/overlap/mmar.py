@@ -6,7 +6,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 from polars_ti.overlap.ema import ema
 
 
@@ -31,10 +31,12 @@ def mmar(
     Returns:
         pl.Expr: Struct with MMAR_period fields
     """
+    _length = v_pos_int(length, "length")
+
     # Build list of EMA expressions with incrementing periods
     ema_exprs = []
     for i in range(num_ribbons):
-        period = length + (i * step)
+        period = _length + (i * step)
         ema_expr = ema(close, length=period, offset=offset, talib=False).alias(f"MMAR_{period}")
         ema_exprs.append(ema_expr)
 

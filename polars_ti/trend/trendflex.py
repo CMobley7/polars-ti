@@ -37,6 +37,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -66,6 +67,8 @@ def trendflex(
         pl.Expr: TrendFlex expression
     """
     close_expr = v_expr(close)
+    length = v_pos_int(length, "length")
+    smooth = v_pos_int(smooth, "smooth")
 
     def _compute(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)

@@ -6,7 +6,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 def efi(
@@ -42,6 +42,8 @@ def efi(
 
     if close_expr is None or volume_expr is None:
         return None
+
+    length = v_pos_int(length, "length")
 
     # EFI = MA(close.diff(drift) * volume, length)
     # Honor the requested talib mode so the native path uses the native EMA

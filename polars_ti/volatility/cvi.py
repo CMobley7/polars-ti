@@ -5,7 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 def cvi(
@@ -44,7 +44,7 @@ def cvi(
     if high_expr is None or low_expr is None:
         return None
 
-    _length = length
+    _length = v_pos_int(length, "length")
     _offset = offset
 
     hl_expr = high_expr - low_expr

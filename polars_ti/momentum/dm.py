@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 @njit(cache=True)
@@ -83,6 +83,8 @@ def dm(
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
+    length = v_pos_int(length, "length")
+    drift = v_pos_int(drift, "drift")
     # TA-Lib PLUS_DM/MINUS_DM hardcode drift=1; the native _nb_dm kernel honors
     # drift, so fall through to it for a non-default drift. (mamode remains
     # deferred: neither path varies it — both are Wilder sum-smoothing.)

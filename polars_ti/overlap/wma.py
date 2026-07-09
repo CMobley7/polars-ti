@@ -29,7 +29,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
+from polars_ti.utils._validate import v_expr, v_pos_int
 
 
 def wma(
@@ -64,8 +64,8 @@ def wma(
     if close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and asc
-    _length = length
+    _length = v_pos_int(length, "length")
+    _use_talib = Imports["talib"] and v_talib(talib) and _length > 1 and asc
     _asc = asc
 
     def compute_wma(s: pl.Series) -> pl.Series:

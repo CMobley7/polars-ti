@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._math import non_zero_range
 from polars_ti.utils._validate import v_expr
 
@@ -101,6 +102,9 @@ def massi(
 
     if high_expr is None or low_expr is None:
         return None
+
+    fast = v_pos_int(fast, "fast")
+    slow = v_pos_int(slow, "slow")
 
     # Swap if slow < fast (matches Pandas behavior)
     _fast = min(fast, slow)

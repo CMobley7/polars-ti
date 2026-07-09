@@ -5,6 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -49,6 +50,8 @@ def thermo(
 
     if high_expr is None or low_expr is None:
         return None
+
+    length = v_pos_int(length, "length")
 
     # Calculate thermoL and thermoH
     thermo_l = (low_expr.shift(drift) - low_expr).abs()

@@ -450,11 +450,12 @@ def test_nb_idiff_negative_period_is_safe():
 
 @pytest.mark.parametrize("indicator", ["exhc", "mom"])
 @pytest.mark.parametrize("n", [1, 3, 5, 8])
-def test_idiff_indicators_no_crash_on_negative_length(indicator, n):
-    """exhc/mom (nb_idiff callers) must not SIGSEGV on a negative length."""
+def test_idiff_indicators_raise_on_negative_length(indicator, n):
+    """exhc/mom (nb_idiff callers) must raise ValueError, never SIGSEGV, on a
+    negative length. v_pos_int fails fast before the kernel; the nb_idiff NaN
+    guard remains as defense-in-depth for any direct kernel caller."""
     import polars_ti as ti  # noqa: F401 — registers 'ti'
 
     df = pl.DataFrame({"high": [2.0] * n, "low": [1.0] * n, "close": [1.5] * n})
-    # Must return without crashing the interpreter (result content is degenerate).
-    result = getattr(df.ti, indicator)(length=-10)
-    assert result is not None
+    with pytest.raises(ValueError):
+        getattr(df.ti, indicator)(length=-10)

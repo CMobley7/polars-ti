@@ -39,6 +39,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -75,6 +76,8 @@ def reflex(
     if close_expr is None:
         return None
 
+    length = v_pos_int(length, "length")
+    smooth = v_pos_int(smooth, "smooth")
     _length, _smooth, _alpha = length, smooth, alpha
     _pi, _sqrt2, _offset = pi, sqrt2, offset
 

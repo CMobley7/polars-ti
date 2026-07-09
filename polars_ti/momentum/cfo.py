@@ -5,6 +5,7 @@
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils import v_pos_int
 from polars_ti.utils._validate import v_expr
 
 
@@ -37,6 +38,7 @@ def cfo(
     from polars_ti.overlap.linreg import linreg
 
     close_expr = v_expr(close)
+    length = v_pos_int(length, "length")
 
     # TSF = Time Series Forecast from linear regression
     tsf = linreg(close_expr, length=length, talib=talib, tsf=True, offset=0)
