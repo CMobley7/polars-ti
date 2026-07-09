@@ -69,7 +69,9 @@ def vidya(
 
     _length = length
     _drift = drift
-    _use_talib = Imports["talib"] and v_talib(talib)
+    # TA-Lib CMO hardcodes drift=1; the native path computes the CMO momentum with
+    # `.diff(_drift)`, so honor a non-default drift by falling through to native.
+    _use_talib = Imports["talib"] and v_talib(talib) and drift == 1
 
     def compute_vidya(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)

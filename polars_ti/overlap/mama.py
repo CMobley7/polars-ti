@@ -143,6 +143,14 @@ def mama(
         else:
             mama_arr, fama_arr = nb_mama(np_close, _fastlimit, _slowlimit, _prenan)
 
+        # Honor prenan on both paths: it is a leading-NaN mask, so applying it to
+        # the TA-Lib output only ever adds NaNs (TA-Lib's own ~32-bar warmup is
+        # already NaN, so the default prenan=3 is a no-op). This never swaps a
+        # computed value the way a native-fallback would. Idempotent on the native
+        # path (nb_mama already masks [:prenan]).
+        mama_arr[:_prenan] = np.nan
+        fama_arr[:_prenan] = np.nan
+
         if _offset != 0:
             mama_arr = np.roll(mama_arr, _offset)
             fama_arr = np.roll(fama_arr, _offset)

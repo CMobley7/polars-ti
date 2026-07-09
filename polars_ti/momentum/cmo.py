@@ -88,7 +88,9 @@ def cmo(
     from polars_ti.utils import v_talib
 
     close_expr = v_expr(close)
-    _use_talib = Imports["talib"] and v_talib(talib)
+    # TA-Lib CMO hardcodes drift=1; the native _nb_cmo kernel honors drift, so
+    # fall through to it for a non-default drift (scalar is already rescaled below).
+    _use_talib = Imports["talib"] and v_talib(talib) and drift == 1
 
     if _use_talib:
         _length = length
