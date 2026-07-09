@@ -41,6 +41,13 @@ NATIVE_DIVERGENCE = {
     "ALPHAT_14_1_50",
     "ALPHATl_14_1_50_2",
     "CFO_9",
+    # Wilder/RMA seed alignment: chandelier_exit's internal ATR (rma) now uses
+    # the TA-Lib warmup seed, so native == talib-mode (pinned by
+    # test_fixed_indicators_parity in TA-Lib mode + test_native_talib_alignment).
+    # The OLD native golden baked in the 1-bar-early seed.
+    "CHDLREXTd_22_22_14_2.0",
+    "CHDLREXTl_22_22_14_2.0",
+    "CHDLREXTs_22_22_14_2.0",
     "CKSPl_10_3_20",
     "CKSPs_10_3_20",
     "CRSI_3_2_100",
@@ -68,6 +75,11 @@ NATIVE_DIVERGENCE = {
     "QQEl_14_5_4.236",
     "QQEs_14_5_4.236",
     "RVI_14",
+    # Wilder/RMA seed alignment: RWI's internal ATR (rma) now uses the TA-Lib
+    # warmup seed, so native == talib-mode (pinned by test_fixed_indicators_parity
+    # in TA-Lib mode + test_native_talib_alignment). OLD golden was 1-bar-early.
+    "RWIh_14",
+    "RWIl_14",
     "SMI_5_20_5_1.0",
     "SMIo_5_20_5_1.0",
     "SMIs_5_20_5_1.0",
@@ -78,6 +90,12 @@ NATIVE_DIVERGENCE = {
     "SUPERT_7_3.0",
     "SUPERTl_7_3.0",
     "SUPERTs_7_3.0",
+    # EMA-seed alignment: thermo's internal EMA (THERMOma) now uses the TA-Lib
+    # warmup seed, so native == talib-mode (pinned by test_fixed_indicators_parity
+    # in TA-Lib mode). The OLD native golden baked in the 1-bar-early seed, so the
+    # ema-smoothed column and the long-flag it drives diverge from it in native.
+    "THERMOma_20_2_0.5",
+    "THERMOl_20_2_0.5",
     "TRIMA_10",  # classic 41c91db: native TRIMA uses ceil/floor windows now
     "TRIX_18_9",
     "TRIXh_18_9",

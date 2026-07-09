@@ -35,21 +35,32 @@ SLICE_ROWS = 1500
 # rma (Wilder), so it now intentionally diverges from the OLD native golden
 # (which baked in the buggy ema default). It is graded against talib.NATR
 # instead in test_natr_default_mamode_matches_talib.
-NATIVE_CLUSTER = ["ATRr_14", "DEMA_10", "ZL_EMA_10", "ABER_ZG_5_15"]
+#
+# DEMA_10 and ZL_EMA_10 were also here, but the native EMA warmup seed was later
+# corrected to match TA-Lib on leading-NaN/cascaded inputs (was 1 bar early), so
+# their native output now MATCHES TA-Lib and diverges from the OLD native golden.
+# DEMA_10 is graded vs the TA-Lib reference (match_talib); ZL_EMA_10 (no TA-Lib
+# equiv) is intentional. Both are pinned native==talib by
+# tests/overlap/test_native_talib_alignment.py.
+#
+# ATRr_14 was also here, but the native Wilder/RMA seed was later aligned to
+# TA-Lib's ATR warmup (SMA of TR[1..length] at index length), so native ATR now
+# MATCHES talib.ATR and diverges from the OLD native golden. ATRr_14 is graded
+# vs the TA-Lib reference (match_talib) and pinned native==talib by
+# tests/overlap/test_native_talib_alignment.py.
+NATIVE_CLUSTER = ["ABER_ZG_5_15"]
 # Still validated for the leading-NaN seed (not-all-NaN), just not vs the OLD
-# golden. ATRr_14 covers the same EMA/RMA seed path; NATR_14's seed is exercised
-# by the dedicated talib comparison below.
+# golden. NATR_14's seed is exercised by the dedicated talib comparison below.
 
 # Value-drift indicators (§7): align to the OLD native golden.
+# NB: TSI/TSIs/TMO/TMOs/EFI were here, but the native EMA seed correction (see
+# above) moved their native output onto the SAME indicator's talib=True output.
+# They have no TA-Lib reference column, so they are registered "intentional" in
+# parity_exceptions and pinned native==talib by test_native_talib_alignment.py.
 VALUE_DRIFT = [
     "K_9_3",
     "D_9_3",
     "J_9_3",
-    "TSI_13_25_13",
-    "TSIs_13_25_13",
-    "TMO_14_5_3",
-    "TMOs_14_5_3",
-    "EFI_13",
 ]
 
 
@@ -142,28 +153,48 @@ def test_aberration_atr_bands_match_talib_reference():
 
 
 def test_native_ema_seed_tolerant_of_leading_nan():
-    """Unit guard: a leading NaN must not poison the native EMA recursion."""
+    """Unit guard: a leading NaN must not poison the native EMA/RMA recursion,
+    AND the native EMA must now match ``talib.EMA`` on a leading-NaN input.
+
+    The seed was corrected to average the first ``length`` FINITE values and land
+    at ``first_finite + length - 1`` (== TA-Lib's warmup), one bar later than the
+    old NaN-skipping window that jumped the gun by a bar.
+    """
+    talib = pytest.importorskip("talib")
     from polars_ti.overlap.ema import _ema_numba
     from polars_ti.overlap.rma import _rma_numba
 
-    x = np.concatenate([[np.nan], np.arange(1.0, 31.0)])
+    x = np.concatenate([[np.nan], np.arange(1.0, 31.0)])  # first finite at index 1
     ema_out = _ema_numba(x, 14, True, False)
     rma_out = _rma_numba(x, 14, True)
+    # Anti-poison: a single leading NaN must not wipe out the whole column.
     assert not np.all(np.isnan(ema_out)), "EMA poisoned by leading NaN"
     assert not np.all(np.isnan(rma_out)), "RMA poisoned by leading NaN"
-    # Seed lands at index length-1 (13) when the first window has finite values.
-    assert not np.isnan(ema_out[13])
-    assert not np.isnan(rma_out[13])
+    # Seed lands at first_finite + length - 1 == 14 (TA-Lib warmup), not earlier.
+    assert np.isnan(ema_out[13])
+    assert not np.isnan(ema_out[14])
+    # Native EMA now matches talib.EMA on the same leading-NaN input.
+    ref = talib.EMA(x, 14)
+    mask = ~np.isnan(ema_out) & ~np.isnan(ref)
+    assert mask.sum() > 10
+    assert np.max(np.abs(ema_out[mask] - ref[mask])) < 1e-9, "native EMA != talib.EMA on leading-NaN input"
 
 
 def test_native_ema_survives_long_leading_nan_run():
     """A leading-NaN run longer than ``length`` (cascaded-EMA warmup) must still
-    re-seed from the first finite value (pandas ewm semantics), not all-NaN."""
+    re-seed (not go all-NaN) and land at ``first_finite + length - 1``, matching
+    TA-Lib's warmup on the finite tail."""
+    talib = pytest.importorskip("talib")
     from polars_ti.overlap.ema import _ema_numba
 
-    x = np.concatenate([[np.nan] * 25, np.arange(25.0, 60.0)])
+    x = np.concatenate([[np.nan] * 25, np.arange(25.0, 60.0)])  # first finite at index 25
     out = _ema_numba(x, 13, True, False)
     finite = np.where(~np.isnan(out))[0]
     assert finite.size > 0, "cascaded EMA all-NaN — leading-NaN run poisoned it"
-    # Re-seeds at the first finite raw value (index 25), not before.
-    assert finite[0] == 25
+    # Seed averages the first 13 finite values, landing at 25 + 13 - 1 == 37.
+    assert finite[0] == 37
+    # And the recursion matches talib.EMA over the finite tail.
+    ref = talib.EMA(x, 13)
+    mask = ~np.isnan(out) & ~np.isnan(ref)
+    assert mask.sum() > 5
+    assert np.max(np.abs(out[mask] - ref[mask])) < 1e-9

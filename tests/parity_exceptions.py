@@ -45,6 +45,21 @@ _MATCH_TALIB = {
     "CMO_14": "classic port: native Wilder smoothing == talib.CMO (OLD rolling-sum diverged ~63)",
     "RSI_14": "old native RSI off by ~18; NEW ~8.3, closer to TA-Lib (§4)",
     "TRIX_30_9": "old native TRIX off by ~1.8e-3; NEW ~3e-13 vs TA-Lib (§4)",
+    # EMA-seed alignment: the native EMA warmup seed was corrected to match
+    # TA-Lib on leading-NaN/cascaded inputs (was 1 bar early). DEMA is a pure
+    # triple-of-EMA transform, so native DEMA now equals talib.DEMA; the OLD
+    # native golden baked in the 1-bar-early seed, so DEMA_10 is graded against
+    # the TA-Lib reference (native == talib to ~1e-9, pinned by
+    # tests/overlap/test_native_talib_alignment.py).
+    "DEMA_10": "native EMA seed now matches TA-Lib (was 1-bar-early); native == talib.DEMA (§4)",
+    # Wilder/RMA seed alignment: the native RMA warmup seed was corrected to
+    # average the first ``length`` FINITE true-range values at index ``length``,
+    # matching TA-Lib's ATR warmup (TR[0] is excluded). Native ATR/NATR now equal
+    # talib.ATR/NATR to float noise; the OLD native golden baked in the 1-bar-early
+    # seed, so they are graded vs the TA-Lib reference (native == talib to ~1e-9,
+    # pinned by tests/overlap/test_native_talib_alignment.py).
+    "ATRr_14": "native Wilder/RMA seed now matches TA-Lib ATR warmup; native == talib.ATR (§4)",
+    "NATR_14": "native Wilder/RMA seed now matches TA-Lib ATR warmup; native == talib.NATR (§4)",
     # 3 candlestick patterns: OLD native was wrong by 100, NEW matches TA-Lib.
     "CDL_HIGHWAVE": "OLD wrong by 100; NEW == TA-Lib exactly (§4)",
     "CDL_RICKSHAWMAN": "OLD wrong by 100; NEW == TA-Lib exactly (§4)",
@@ -100,6 +115,20 @@ _INTENTIONAL = {
     "PSARs_0.02_0.2": "classic 9258bf6: guarded reversal + 2-bar guard + close reclassify; combined SAR == talib.SAR (pinned by test)",
     "PSARaf_0.02_0.2": "classic 9258bf6: acceleration factor follows the TA-Lib-aligned reversal logic; no TA-Lib equivalent column",
     "PSARr_0.02_0.2": "classic 9258bf6: reversal flag follows the TA-Lib-aligned guarded reversal; no TA-Lib equivalent column",
+    # EMA-seed alignment: the native EMA warmup seed was corrected to match
+    # TA-Lib on leading-NaN/cascaded inputs (was 1 bar early). These indicators
+    # feed a leading-NaN diff/signed series into the native EMA, so their native
+    # output shifted to match the SAME indicator's talib=True output. There is no
+    # TA-Lib reference column for them, so they are excluded from OLD-golden
+    # grading and pinned native==talib by tests/overlap/test_native_talib_alignment.py.
+    "ZL_EMA_10": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "TSI_13_25_13": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "TSIs_13_25_13": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "TMO_14_5_3": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "TMOs_14_5_3": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "EFI_13": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "KVO_34_55_13": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
+    "KVOs_34_55_13": "native EMA seed now matches TA-Lib (was 1-bar-early); no TA-Lib equiv; pinned native==talib",
 }
 
 # --- WS2-WS4 FIXED: now match the OLD golden within float tol -----------------

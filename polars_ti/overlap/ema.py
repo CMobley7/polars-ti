@@ -20,29 +20,30 @@ def _ema_numba(close, length, presma=True, adjust=False):
 
     alpha = 2.0 / (length + 1)
 
-    if presma and n >= length:
-        # Build the seeded series exactly like OLD pandas-ta:
-        #   seeded[:length-1] = NaN
-        #   seeded[length-1]  = close[0:length].mean()  (NaN-skipping)
-        #   seeded[length:]   = close[length:]
-        # then run ewm(adjust=False) over it. Crucially, pandas ewm seeds from
-        # the FIRST finite value of this seeded series: if the leading-NaN run is
-        # longer than ``length`` (e.g. a cascaded EMA whose warmup exceeds the
-        # window), the SMA seed window is all-NaN, the seed is dropped, and the
-        # recursion re-seeds from the first finite raw value — a leading null
-        # must never poison the whole column.
+    # First finite index (leading NaNs — e.g. a diff series or a cascaded EMA
+    # whose warmup exceeds the window — must never poison the whole column).
+    fv = -1
+    for i in range(n):
+        if not isnan(close[i]):
+            fv = i
+            break
+
+    if presma and fv >= 0 and fv + length <= n:
+        # SMA seed over the first ``length`` FINITE values (contiguous from the
+        # first finite index), placed at ``fv+length-1`` — exactly matching
+        # TA-Lib's EMA warmup, including on leading-NaN inputs. For a fully finite
+        # input (fv=0) this is the mean of close[0:length] at index length-1,
+        # identical to before; on a leading-NaN input it seeds one bar later than
+        # the old NaN-skipping window (which jumped the gun by a bar).
         seeded = empty(n)
         for i in range(n):
             seeded[i] = close[i]
         sma_sum = 0.0
-        valid_count = 0
-        for i in range(length):
-            if not isnan(close[i]):
-                sma_sum += close[i]
-                valid_count += 1
-        for i in range(length - 1):
+        for i in range(fv, fv + length):
+            sma_sum += close[i]
+        for i in range(fv + length - 1):
             seeded[i] = nan
-        seeded[length - 1] = (sma_sum / valid_count) if valid_count > 0 else nan
+        seeded[fv + length - 1] = sma_sum / length
         close = seeded
 
     # ewm(adjust=False): seed from the first finite value, recurse, carrying the
