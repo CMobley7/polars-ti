@@ -139,3 +139,24 @@ def test_weighted_ma_huge_length_returns_null_not_hang(indicator):
     col = result.get_column("x")
     # length >> n: no full window exists, so every value is null/NaN (no hang).
     assert col.is_null().all() or col.is_nan().all()
+
+
+# cg and msw also eagerly allocated an O(length)/O(period) weight/basis array
+# before a window loop that is empty when the window exceeds the data. Guarded to
+# return all-null (cg) / all-NaN (msw) without the allocation.
+def test_cg_huge_length_returns_null_not_hang():
+    df = pl.DataFrame({"close": [1.0 + i * 0.1 for i in range(40)]})
+    col = df.select(ti.cg("close", length=10**9).alias("x")).get_column("x")
+    assert col.is_null().all() or col.is_nan().all()
+
+
+def test_msw_huge_period_returns_nan_not_hang():
+    df = pl.DataFrame({"close": [1.0 + i * 0.1 for i in range(40)]})
+    out = df.select(ti.msw("close", period=10**9).alias("s")).unnest("s")
+    assert out["sine"].is_nan().all() or out["sine"].is_null().all()
+
+
+def test_msw_negative_period_raises():
+    df = pl.DataFrame({"close": [1.0 + i * 0.1 for i in range(40)]})
+    with pytest.raises(ValueError):
+        df.ti.msw(period=-10)
