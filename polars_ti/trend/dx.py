@@ -53,8 +53,12 @@ def dx(
         return None
 
     _mamode = v_mamode(mamode, "rma")
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    # TA-Lib's DX is fixed to Wilder (rma) smoothing over a drift=1 directional
+    # move and emits a 0-100 index; only route there when those match so a
+    # non-default mamode/drift falls back to the native path (which honors them).
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and _mamode == "rma" and drift == 1
     _length = length
+    _scalar = scalar
 
     if _use_talib:
 
@@ -65,7 +69,11 @@ def dx(
             c = df["_c"].to_numpy().astype(np.float64)
             from talib import DX as TALIB_DX
 
-            return pl.Series(TALIB_DX(h, l_, c, timeperiod=_length))
+            result = TALIB_DX(h, l_, c, timeperiod=_length)
+            if _scalar != 100.0:
+                # TA-Lib DX is 0-100; rescale so the user's scalar is honored.
+                result = result * (_scalar / 100.0)
+            return pl.Series(result)
 
         struct_expr = pl.struct(high_expr.alias("_h"), low_expr.alias("_l"), close_expr.alias("_c"))
         dx_expr = struct_expr.map_batches(compute_dx, return_dtype=pl.Float64)

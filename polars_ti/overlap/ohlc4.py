@@ -43,6 +43,10 @@ def ohlc4(
     low_expr = v_expr(low)
     close_expr = v_expr(close)
 
+    # Consistency with hl2: a None input expr yields None rather than raising.
+    if any(e is None for e in [open_expr, high_expr, low_expr, close_expr]):
+        return None
+
     if Imports["talib"] and v_talib(talib):
 
         def _compute(s: pl.Series) -> pl.Series:

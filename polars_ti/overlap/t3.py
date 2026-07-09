@@ -48,7 +48,9 @@ def t3(
     if not (0 < a < 1):
         a = 0.7
 
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    # TA-Lib T3 always SMA-seeds its internal EMA warmup (presma=True); only route
+    # there for presma=True so presma=False falls back to native (which honors it).
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and presma
     _length = length
     _a = a
     _presma = presma

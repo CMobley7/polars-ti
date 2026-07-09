@@ -329,3 +329,100 @@ def test_cksp_atrts_talib_equals_native_after_honoring_mamode():
         nn = n.struct.unnest() if n.dtype == pl.Struct else pl.DataFrame({"x": n})
         c0 = tt.columns[0]
         assert np.nanmax(np.abs(tt[c0].to_numpy() - nn[c0].to_numpy())[40:]) < 1e-9
+
+
+# --- honor-params (round 2): dx/bbands/ema/t3/tema/rsi honor their param on talib
+def _first_col(expr, df):
+    s = df.select(expr.alias("x")).to_series(0)
+    if s.dtype == pl.Struct:
+        u = s.struct.unnest()
+        return u[u.columns[0]].to_numpy()
+    return s.to_numpy()
+
+
+@requires_talib
+def test_dx_talib_honors_scalar_mamode_drift():
+    import polars_ti as ti
+
+    df = _ohlcv(500)
+    # scalar: linear rescale, exact 2x on the TA-Lib path (was ignored before).
+    d100 = _first_col(ti.dx("high", "low", "close", scalar=100.0, talib=True), df)
+    d50 = _first_col(ti.dx("high", "low", "close", scalar=50.0, talib=True), df)
+    assert np.nanmax(np.abs(d100 - d50)[40:]) > 1e-6
+    assert abs(np.nanmedian((d100 / d50)[60:]) - 2.0) < 1e-9
+    # mamode/drift: non-default falls back to native, so talib==native exactly.
+    for kw in ({"mamode": "sma"}, {"drift": 2}):
+        t = _first_col(ti.dx("high", "low", "close", talib=True, **kw), df)
+        n = _first_col(ti.dx("high", "low", "close", talib=False, **kw), df)
+        # non-default now changes the output vs the default talib path
+        base = _first_col(ti.dx("high", "low", "close", talib=True), df)
+        assert np.nanmax(np.abs(t - base)[40:]) > 1e-6
+        # and equals the native path (talib route guarded off for non-default)
+        assert np.nanmax(np.abs(t - n)[40:]) < 1e-9
+
+
+@requires_talib
+def test_bbands_talib_honors_ddof():
+    import polars_ti as ti
+
+    df = _ohlcv(500)
+    b0 = _first_col(ti.bbands("close", length=14, ddof=0, talib=True), df)
+    b1 = _first_col(ti.bbands("close", length=14, ddof=1, talib=True), df)
+    assert np.nanmax(np.abs(b0 - b1)[40:]) > 1e-6  # ddof was ignored before
+    # ddof=1 falls back to native (TA-Lib BBANDS is population-only) -> equal
+    n1 = _first_col(ti.bbands("close", length=14, ddof=1, talib=False), df)
+    assert np.nanmax(np.abs(b1 - n1)[40:]) < 1e-9
+
+
+@requires_talib
+@pytest.mark.parametrize("fn", ["ema", "t3", "tema"])
+def test_ema_family_talib_honors_presma(fn):
+    import polars_ti as ti
+
+    df = _ohlcv(500)
+    f = getattr(ti, fn)
+    on = _first_col(f("close", presma=True, talib=True), df)
+    off = _first_col(f("close", presma=False, talib=True), df)
+    assert np.nanmax(np.abs(on - off)[40:]) > 1e-6  # presma was ignored before
+    # presma=False falls back to native, so talib==native exactly
+    nat = _first_col(f("close", presma=False, talib=False), df)
+    assert np.nanmax(np.abs(off - nat)[40:]) < 1e-9
+
+
+@requires_talib
+def test_rsi_talib_honors_scalar_and_mamode():
+    import polars_ti as ti
+
+    df = _ohlcv(500)
+    # scalar: linear rescale, exact 2x on the TA-Lib path (was ignored before).
+    r100 = _first_col(ti.rsi("close", scalar=100.0, talib=True), df)
+    r50 = _first_col(ti.rsi("close", scalar=50.0, talib=True), df)
+    assert np.nanmax(np.abs(r100 - r50)[40:]) > 1e-6
+    assert abs(np.nanmedian((r100 / r50)[60:]) - 2.0) < 1e-9
+    # mamode: non-default falls back to native (TA-Lib RSI is Wilder-only) -> equal
+    t = _first_col(ti.rsi("close", mamode="sma", talib=True), df)
+    n = _first_col(ti.rsi("close", mamode="sma", talib=False), df)
+    assert np.nanmax(np.abs(t - r100)[40:]) > 1e-6  # changed vs default talib path
+    assert np.nanmax(np.abs(t - n)[40:]) < 1e-9
+
+
+# --- None-input guards: return None (like hl2) instead of raising AttributeError
+def test_ohlc4_none_input_returns_none():
+    import polars_ti as ti
+
+    assert ti.ohlc4(None, "high", "low", "close") is None
+    assert ti.ohlc4("open", "high", "low", None) is None
+
+
+def test_cdl_doji_none_input_returns_none():
+    import polars_ti as ti
+
+    assert ti.cdl_doji(None, "high", "low", "close") is None
+    assert ti.cdl_doji("open", None, "low", "close") is None
+
+
+def test_psar_none_input_returns_none():
+    import polars_ti as ti
+
+    assert ti.psar(None, "low", "close") is None
+    assert ti.psar("high", None, "close") is None

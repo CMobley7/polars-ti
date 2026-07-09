@@ -42,7 +42,9 @@ def tema(
     if close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib) and length > 1
+    # TA-Lib TEMA always SMA-seeds its internal EMA warmup (presma=True); only route
+    # there for presma=True so presma=False falls back to native (which honors it).
+    _use_talib = Imports["talib"] and v_talib(talib) and length > 1 and presma
     _length = length
     _presma = presma
 

@@ -44,7 +44,11 @@ def rsi(
     if close_expr is None:
         return None
 
-    _use_talib = Imports["talib"] and v_talib(talib)
+    _mamode = mamode.lower() if isinstance(mamode, str) else "rma"
+    # TA-Lib's RSI is fixed to Wilder (rma) smoothing and emits a 0-100 index;
+    # only route there for mamode="rma" so a non-default mamode falls back to the
+    # native path (which honors it). The scalar is honored via a linear rescale.
+    _use_talib = Imports["talib"] and v_talib(talib) and _mamode == "rma"
     _length = length
     _scalar = scalar
 
@@ -55,6 +59,9 @@ def rsi(
 
             arr = s.to_numpy().astype(np.float64)
             result = TALIB_RSI(arr, timeperiod=_length)
+            if _scalar != 100.0:
+                # TA-Lib RSI is 0-100; rescale so the user's scalar is honored.
+                result = result * (_scalar / 100.0)
             return pl.Series(f"RSI_{_length}", result)
 
         rsi_expr = close_expr.map_batches(compute_rsi, return_dtype=pl.Float64)
