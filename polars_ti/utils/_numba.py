@@ -40,6 +40,14 @@ def nb_idiff(x, k):
     n, k = x.size, int(k)
     result = zeros_like(x, dtype=float64)
 
+    # A negative shift would index x[i - k] = x[i + |k|] past the end of the array
+    # (heap out-of-bounds read -> SIGSEGV). A negative difference period is invalid,
+    # so return all NaN. Non-negative k (including k >= n, which yields an empty
+    # loop and a full NaN prefix) is always in-bounds and unchanged.
+    if k < 0:
+        result[:] = nan
+        return result
+
     for i in range(k, n):
         result[i] = x[i] - x[i - k]
     result[:k] = nan
