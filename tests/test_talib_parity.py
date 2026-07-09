@@ -95,7 +95,9 @@ def test_full_talib_parity_has_broad_coverage(report):
     # tests/overlap/test_native_talib_alignment.py. STDEV_30/VAR_30 also moved to
     # intentional (ddof=0 population default), pinned by the ddof regression test.
     # So the floor is 338.
-    assert len(_graded_cols(report)) >= 338
+    # -5 more: CKSP/ATRTS/ALPHAT reclassified to intentional (talib now honors the
+    # internal ATR mamode -> talib mode == native mode; OLD talib golden was Wilder).
+    assert len(_graded_cols(report)) >= 333
 
 
 def test_full_talib_parity(report):

@@ -37,7 +37,7 @@ def stdev(
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
 
-    if Imports["talib"] and v_talib(talib):
+    if Imports["talib"] and v_talib(talib) and ddof == 0:
 
         def compute_stdev(s: pl.Series) -> pl.Series:
             from talib import STDDEV

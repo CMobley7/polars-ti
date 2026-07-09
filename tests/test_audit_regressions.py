@@ -295,3 +295,37 @@ def test_psar_talib_routes_sar_line_keeps_af():
     combined = np.where(~np.isnan(p[long_c].to_numpy()), p[long_c].to_numpy(), p[short_c].to_numpy())
     assert np.nanmax(np.abs(combined - _talib.SAR(h, lo, 0.02, 0.2))[40:]) == 0.0  # SAR line == talib.SAR
     assert np.isfinite(p[af_c].to_numpy()).any()  # PSARaf populated (not all-null)
+
+
+# --- honor-params: atr/natr/adx/adxr/stdev/variance honor their param on talib -
+def test_talib_path_honors_params():
+    import talib as _talib
+    import polars_ti as ti
+
+    df = _ohlcv(500)
+    # atr/natr honor mamode (talib path falls back to native for non-rma)
+    a_rma = df.select(ti.atr("high", "low", "close", mamode="rma", talib=True)).to_series().to_numpy()
+    a_sma = df.select(ti.atr("high", "low", "close", mamode="sma", talib=True)).to_series().to_numpy()
+    assert np.nanmax(np.abs(a_rma - a_sma)[40:]) > 1e-6
+    # stdev/variance honor ddof on the talib path
+    s0 = df.select(ti.stdev("close", length=14, ddof=0, talib=True)).to_series().to_numpy()
+    s1 = df.select(ti.stdev("close", length=14, ddof=1, talib=True)).to_series().to_numpy()
+    assert np.nanmax(np.abs(s0 - s1)[40:]) > 1e-6
+    # adx/adxr honor scalar on the talib path (linear rescale; exact 2x)
+    a1 = df.select(ti.adx("high", "low", "close", scalar=100.0, talib=True).alias("a")).unnest("a")
+    a2 = df.select(ti.adx("high", "low", "close", scalar=50.0, talib=True).alias("a")).unnest("a")
+    ac = [c for c in a1.columns if c.startswith("ADX_")][0]
+    assert abs(np.nanmedian((a1[ac].to_numpy() / a2[ac].to_numpy())[60:]) - 2.0) < 1e-6
+
+
+def test_cksp_atrts_talib_equals_native_after_honoring_mamode():
+    import polars_ti as ti
+
+    df = _ohlcv(500)
+    for fn, args in [(ti.cksp, ("high", "low", "close")), (ti.atrts, ("high", "low", "close"))]:
+        t = df.select(fn(*args, talib=True).alias("x")).to_series(0)
+        n = df.select(fn(*args, talib=False).alias("x")).to_series(0)
+        tt = t.struct.unnest() if t.dtype == pl.Struct else pl.DataFrame({"x": t})
+        nn = n.struct.unnest() if n.dtype == pl.Struct else pl.DataFrame({"x": n})
+        c0 = tt.columns[0]
+        assert np.nanmax(np.abs(tt[c0].to_numpy() - nn[c0].to_numpy())[40:]) < 1e-9

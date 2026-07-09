@@ -69,7 +69,10 @@ def adxr(
             c = df["_c"].to_numpy().astype(np.float64)
             from talib import ADXR as TALIB_ADXR
 
-            return pl.Series(TALIB_ADXR(h, l_, c, timeperiod=_length))
+            _adxr = TALIB_ADXR(h, l_, c, timeperiod=_length)
+            if scalar != 100.0:
+                _adxr = _adxr * (scalar / 100.0)
+            return pl.Series(_adxr)
 
         struct_expr = pl.struct(high_expr.alias("_h"), low_expr.alias("_l"), close_expr.alias("_c"))
         adxr_expr = struct_expr.map_batches(compute_adxr, return_dtype=pl.Float64)
