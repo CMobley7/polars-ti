@@ -278,3 +278,20 @@ def test_trix_natr_route_to_dedicated_talib_fn():
     h, lo = df["high"].to_numpy(), df["low"].to_numpy()
     nt = df.select(natr("high", "low", "close", length=14, talib=True)).to_series().to_numpy()
     assert np.nanmax(np.abs(nt - _talib.NATR(h, lo, c, 14))[40:]) == 0.0  # dedicated talib.NATR
+
+
+# --- psar routes its SAR line to talib.SAR without an all-null PSARaf ----------
+def test_psar_talib_routes_sar_line_keeps_af():
+    import talib as _talib
+    from polars_ti.trend.psar import psar
+
+    df = _ohlcv(400)
+    h, lo = df["high"].to_numpy(), df["low"].to_numpy()
+    p = df.select(psar("high", "low", "close", talib=True).alias("p")).unnest("p")
+    cols = p.columns
+    long_c = [x for x in cols if x.startswith("PSARl")][0]
+    short_c = [x for x in cols if x.startswith("PSARs")][0]
+    af_c = [x for x in cols if x.startswith("PSARaf")][0]
+    combined = np.where(~np.isnan(p[long_c].to_numpy()), p[long_c].to_numpy(), p[short_c].to_numpy())
+    assert np.nanmax(np.abs(combined - _talib.SAR(h, lo, 0.02, 0.2))[40:]) == 0.0  # SAR line == talib.SAR
+    assert np.isfinite(p[af_c].to_numpy()).any()  # PSARaf populated (not all-null)
