@@ -467,8 +467,15 @@ class TechnicalIndicators:
         print(f"Polars TI v{self.version} — Available indicators:\n  " + ", ".join(inds))
         return inds
 
-    def reverse(self) -> pl.DataFrame:
-        """Return the DataFrame in reverse row order."""
+    def reverse(self, **kwargs: DictLike) -> pl.DataFrame:
+        """Return the DataFrame in reverse row order.
+
+        ``reverse`` is a whole-frame utility, not an indicator: it is excluded
+        from the ``_support_append`` wrapper (which would otherwise treat every
+        column as pre-existing and return the frame unchanged). ``append`` and
+        other wrapper kwargs are accepted and ignored so ``reverse(append=True)``
+        still yields the reversed frame instead of raising ``TypeError``.
+        """
         return self._df.reverse()
 
     def study(self, study, cores: int = 0, talib: bool = False, errors: str = "warn", **kwargs) -> pl.DataFrame:
@@ -499,6 +506,7 @@ class TechnicalIndicators:
         Returns:
             The DataFrame with all study columns appended.
         """
+        import inspect
         import warnings
 
         from polars_ti.utils._study import Study
@@ -525,11 +533,56 @@ class TechnicalIndicators:
                 failures.append((kind, exc))
             # "ignore" -> do nothing
 
-        def _run(kind: str, kw: dict) -> None:
-            """Dispatch one indicator and hstack new columns onto self._df."""
+        # Kwargs handled by the ``_support_append`` wrapper (never by the native
+        # indicator fn) — these always pass through to the accessor untouched.
+        _wrapper_kwargs = ("append", "prefix", "suffix", "col_names", "col_numbers")
+
+        def _accepted_kwargs(kind: str, accessor_fn) -> set[str] | None:
+            """Names a study-wide kwarg may take for *kind*, or None to allow all.
+
+            The native indicator fn carries the strict signature (our native fns
+            have no ``**kwargs`` sink, unlike the pandas-ti baseline). If the
+            native fn cannot be resolved or absorbs arbitrary kwargs, return
+            None so every study-wide kwarg is forwarded (baseline behaviour).
+            """
+            native = globals().get(kind)
+            if native is None:
+                return None
+            try:
+                native_params = inspect.signature(native).parameters
+            except (TypeError, ValueError):
+                return None
+            if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in native_params.values()):
+                return None
+            accepted = set(_wrapper_kwargs)
+            accepted.update(native_params)
+            try:
+                acc_params = inspect.signature(accessor_fn).parameters
+            except (TypeError, ValueError):
+                return accepted
+            accepted.update(name for name, p in acc_params.items() if p.kind is not inspect.Parameter.VAR_KEYWORD)
+            return accepted
+
+        def _run(kind: str, spec_kw: dict, studywide_kw: dict) -> None:
+            """Dispatch one indicator and hstack new columns onto self._df.
+
+            ``spec_kw`` (explicit per-indicator kwargs from a Study spec) is
+            always forwarded. ``studywide_kw`` (kwargs shared across the study)
+            is filtered to the target's accepted parameters so a category-wide
+            kwarg (e.g. ``length``) is only applied where the indicator accepts
+            it, instead of raising TypeError on strict signatures.
+            """
             fn = getattr(self, kind.lower(), None)
             if fn is None:
                 return
+            accepted = _accepted_kwargs(kind.lower(), fn)
+            if accepted is None:
+                filtered = dict(studywide_kw)
+            else:
+                filtered = {k: v for k, v in studywide_kw.items() if k in accepted}
+            # Study-wide values win over spec on key collisions (historical
+            # precedence); spec keys the filter dropped are still forwarded.
+            kw = {**spec_kw, **filtered}
             try:
                 result = fn(**kw)
             except TypeError as exc:
@@ -565,48 +618,53 @@ class TechnicalIndicators:
                     RuntimeWarning,
                     stacklevel=2,
                 )
-            # Hand back the accumulated study frame, but restore the accessor's
-            # working frame to the original input so repeat studies on the same
-            # accessor recompute from scratch instead of reusing stale columns.
-            result = self._df
-            self._df = _saved_df
-            return result
+            # Hand back the accumulated study frame (the caller's restore of the
+            # accessor's working frame happens in the enclosing ``finally``).
+            return self._df
 
         # Accept a Study class/instance, a category string, or AllStudy sentinel
         if isinstance(study, type) and issubclass(study, Study):
             study = study()  # instantiate if a class was passed
 
-        if isinstance(study, str):
-            # Category shorthand: "momentum", "overlap", etc.
-            category = study.lower()
-            if category not in Category:
-                raise ValueError(f"Unknown category '{category}'. Valid: {list(Category.keys())}")
-            for kind in Category[category]:
-                kw = dict(kwargs)
-                kw["talib"] = talib
-                _run(kind, kw)
+        # Restore the accessor's working frame to the original input no matter
+        # how the dispatch exits — including errors="raise", which propagates an
+        # exception straight past _finalize. Without this, a raised study would
+        # leave partially-accumulated columns on the cached accessor and corrupt
+        # every later call on the same DataFrame.
+        try:
+            if isinstance(study, str):
+                # Category shorthand: "momentum", "overlap", etc.
+                category = study.lower()
+                if category not in Category:
+                    raise ValueError(f"Unknown category '{category}'. Valid: {list(Category.keys())}")
+                for kind in Category[category]:
+                    studywide = dict(kwargs)
+                    studywide["talib"] = talib
+                    _run(kind, {}, studywide)
+                return _finalize()
+
+            # AllStudy (ti is None) -> run every indicator in every category
+            if not isinstance(study, Study) or study.ti is None:
+                for category_inds in Category.values():
+                    for kind in category_inds:
+                        studywide = dict(kwargs)
+                        studywide["talib"] = talib
+                        _run(kind, {}, studywide)
+                return _finalize()
+
+            # Custom Study: study.ti is a list of indicator dicts
+            for ind_spec in study.ti:
+                if not isinstance(ind_spec, dict) or "kind" not in ind_spec:
+                    continue
+                # Shallow-copy so we never mutate the Study definition
+                spec_kw = {k: v for k, v in ind_spec.items() if k != "kind"}
+                studywide = dict(kwargs)
+                studywide["talib"] = talib
+                _run(ind_spec["kind"], spec_kw, studywide)
+
             return _finalize()
-
-        # AllStudy (ti is None) -> run every indicator in every category
-        if not isinstance(study, Study) or study.ti is None:
-            for category_inds in Category.values():
-                for kind in category_inds:
-                    kw = dict(kwargs)
-                    kw["talib"] = talib
-                    _run(kind, kw)
-            return _finalize()
-
-        # Custom Study: study.ti is a list of indicator dicts
-        for ind_spec in study.ti:
-            if not isinstance(ind_spec, dict) or "kind" not in ind_spec:
-                continue
-            # Shallow-copy so we never mutate the Study definition
-            kw = {k: v for k, v in ind_spec.items() if k != "kind"}
-            kw.update(kwargs)
-            kw["talib"] = talib
-            _run(ind_spec["kind"], kw)
-
-        return _finalize()
+        finally:
+            self._df = _saved_df
 
     # Alias for backwards-compatibility with the original pandas-ti API
     strategy = study
@@ -2097,7 +2155,11 @@ class TechnicalIndicators:
 # ---------------------------------------------------------------------------
 import functools as _functools
 
-_NON_INDICATOR_METHODS = {"categories", "study", "strategy"}
+# Pure DataFrame-returning utilities that must NOT go through the append/rename
+# machinery: their output IS the frame (all columns pre-exist on self._df), so
+# the append path's ``new_cols`` filter would be empty and silently hand back the
+# unmodified original (e.g. ``reverse(append=True)`` returning un-reversed rows).
+_NON_INDICATOR_METHODS = {"categories", "study", "strategy", "reverse"}
 
 
 def _support_append(method):
@@ -2110,11 +2172,48 @@ def _support_append(method):
         # direct calls, append=True, and study() dispatch alike.
         prefix = kwargs.pop("prefix", None)
         suffix = kwargs.pop("suffix", None)
+        # Baseline (pandas-ti) output-column controls, also usable in Study specs.
+        col_names = kwargs.pop("col_names", None)
+        col_numbers = kwargs.pop("col_numbers", None)
         result = method(self, *args, **kwargs)
-        if (prefix or suffix) and isinstance(result, pl.DataFrame):
-            pre = f"{prefix}_" if prefix else ""
-            suf = f"_{suffix}" if suffix else ""
-            result = result.rename({c: f"{pre}{c}{suf}" for c in result.columns})
+
+        if isinstance(result, pl.DataFrame):
+            # col_names / col_numbers operate on the *flat* output columns, as
+            # in the pandas-ti baseline. Multi-output indicators here pack their
+            # outputs into a single Struct column, so unnest those first when
+            # either control is requested.
+            if col_names is not None or col_numbers is not None:
+                struct_cols = [c for c, dt in zip(result.columns, result.dtypes) if isinstance(dt, pl.Struct)]
+                if struct_cols:
+                    result = result.unnest(struct_cols)
+
+            # 1. col_numbers: keep only the produced columns at these positions.
+            if col_numbers is not None:
+                numbers = (col_numbers,) if isinstance(col_numbers, int) else tuple(col_numbers)
+                try:
+                    selected = [result.columns[int(n)] for n in numbers]
+                except (IndexError, ValueError, TypeError) as exc:
+                    raise ValueError(
+                        f"col_numbers {col_numbers!r} is out of range for a result with "
+                        f"{result.width} column(s): {result.columns}"
+                    ) from exc
+                result = result.select(selected)
+
+            # 2. col_names: positionally rename the produced columns.
+            if col_names is not None:
+                names = (col_names,) if isinstance(col_names, str) else tuple(col_names)
+                if len(names) < result.width:
+                    raise ValueError(
+                        f"Not enough col_names: got {len(names)}, expected {result.width} for columns {result.columns}."
+                    )
+                result = result.rename({c: n for c, n in zip(result.columns, names)})
+
+            # 3. prefix/suffix: wrap the (possibly renamed) produced columns.
+            if prefix or suffix:
+                pre = f"{prefix}_" if prefix else ""
+                suf = f"_{suffix}" if suffix else ""
+                result = result.rename({c: f"{pre}{c}{suf}" for c in result.columns})
+
         if append and isinstance(result, pl.DataFrame):
             new_cols = [c for c in result.columns if c not in self._df.columns]
             return self._df.hstack(result.select(new_cols))

@@ -22,6 +22,15 @@ def _nb_mavp(
     Matches TA-Lib ``MAVP`` (matype=0): the per-bar period is the truncated,
     clamped value from ``periods``, and every output before ``max_period - 1``
     is NaN regardless of that bar's own (possibly small) period.
+
+    NaN period handling mirrors TA-Lib: casting a NaN period to ``int`` yields a
+    value below ``min_period``, which the clamp then pins to ``min_period``.
+
+    Known divergence (deferred): TA-Lib evaluates each distinct period via a
+    running-sum SMA, so a NaN in ``close`` poisons every later output that shares
+    that period bucket. This kernel uses a fresh per-bar window instead, so a
+    close-NaN only affects the windows that actually span it. The two agree on
+    realistic (NaN-free) data; the divergence is a degenerate-input edge.
     """
     n = len(close)
     out = np.full(n, np.nan)
@@ -30,14 +39,16 @@ def _nb_mavp(
 
     for i in range(max_period - 1, n):
         p = periods[i]
+        # TA-Lib truncates the fractional period, then clamps to [min, max]. A
+        # NaN period casts to a value below min_period, so it clamps to min.
         if np.isnan(p):
-            continue
-        # TA-Lib truncates the fractional period, then clamps to [min, max].
-        period = int(p)
-        if period < min_period:
             period = min_period
-        elif period > max_period:
-            period = max_period
+        else:
+            period = int(p)
+            if period < min_period:
+                period = min_period
+            elif period > max_period:
+                period = max_period
 
         total = 0.0
         for j in range(i - period + 1, i + 1):

@@ -17,6 +17,7 @@ def ohlc4(
     low: IntoExpr,
     close: IntoExpr,
     talib: bool = True,
+    offset: int = 0,
 ) -> PlExpr:
     """Polars: OHLC4 - Average of Open, High, Low, Close
 
@@ -32,6 +33,7 @@ def ohlc4(
         close: Column name or pl.Expr for 'close' prices
         talib: If True and TA-Lib is installed, route via talib.AVGPRICE.
             Default: True
+        offset: Shift the result by N periods. Default: 0
 
     Returns:
         pl.Expr: OHLC4 expression
@@ -56,15 +58,16 @@ def ohlc4(
                 )
             )
 
-        return (
-            pl.struct(
-                open_expr.alias("_open"),
-                high_expr.alias("_high"),
-                low_expr.alias("_low"),
-                close_expr.alias("_close"),
-            )
-            .map_batches(_compute, return_dtype=pl.Float64)
-            .alias("OHLC4")
-        )
+        ohlc4_expr = pl.struct(
+            open_expr.alias("_open"),
+            high_expr.alias("_high"),
+            low_expr.alias("_low"),
+            close_expr.alias("_close"),
+        ).map_batches(_compute, return_dtype=pl.Float64)
+    else:
+        ohlc4_expr = (open_expr + high_expr + low_expr + close_expr) / 4
 
-    return ((open_expr + high_expr + low_expr + close_expr) / 4).alias("OHLC4")
+    if offset != 0:
+        ohlc4_expr = ohlc4_expr.shift(offset)
+
+    return ohlc4_expr.alias("OHLC4")
