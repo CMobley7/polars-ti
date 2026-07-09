@@ -33,20 +33,22 @@ def sinwma(
     if close_expr is None:
         return None
 
-    # Calculate sine weights
     import numpy as np
 
-    sine_weights = np.array([np.sin((i + 1) * np.pi / (length + 1)) for i in range(length)])
-    weights_sum = sine_weights.sum()
-    weights_list = (sine_weights / weights_sum).tolist()
-
     _length = length
-    _weights = weights_list
+    _weights: list[float] | None = None
 
     def sine_weighted_mean(s: pl.Series) -> float:
+        nonlocal _weights
         vals = s.to_numpy()
         if len(vals) < _length:
             return float("nan")
+        if _weights is None:
+            # Build the length-sized weight vector lazily — only once a full window
+            # exists — so an absurd length (>> data) returns all-null instead of
+            # eagerly allocating an O(length) array (a hang/OOM on e.g. length=1e9).
+            sine_weights = np.array([np.sin((i + 1) * np.pi / (_length + 1)) for i in range(_length)])
+            _weights = (sine_weights / sine_weights.sum()).tolist()
         return (vals * _weights[-len(vals) :]).sum()
 
     sinwma_expr = close_expr.rolling_map(function=sine_weighted_mean, window_size=length, min_samples=length)
