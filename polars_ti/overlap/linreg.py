@@ -37,6 +37,8 @@ def nb_linreg(
         return result
     _, _, covariance = rolling_linear(close, length)
     mean, variance, _, _ = rolling_moments(close, length)
+    # Native coordinates are x=1..length. LINREG evaluates at length; TSF
+    # projects one step farther at length+1, so their intercepts share this mean.
     x_mean = (length + 1) / 2.0
     x_variation = length * (length * length - 1) / 12.0
     magnitude = rolling_extreme(np.abs(close), length, True)[0]

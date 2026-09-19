@@ -42,6 +42,8 @@ def nb_percent_rank(close: np.ndarray, lookback: int) -> np.ndarray:
     for i in range(1, n):
         returns[i] = (close[i] - close[i - 1]) / close[i - 1]
 
+    # Preserve the fixed lookback denominator: missing historical returns add
+    # no comparisons but still occupy a window position in both implementations.
     # LLVM vectorizes the bounded scan; measured tree overhead dominates below
     # this crossover. Larger windows use logarithmic order statistics.
     if lookback <= 1024:

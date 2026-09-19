@@ -1,5 +1,9 @@
 # Rolling kernel audit and reproduction
 
+The recorded benchmark checkpoint is `cf108754f40b49010723cfce85e1c6c7dbd29abd`,
+using Python 3.14.7 and the versions in `REPORT.md`. Current supported versions
+are documented in [compatibility](../../docs/compatibility.md).
+
 Run from the `polars-ti` repository on Python 3.14.7:
 
 ```bash

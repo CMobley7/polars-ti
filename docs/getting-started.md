@@ -2,23 +2,18 @@
 
 ## Install
 
-```bash
-uv pip install "polars-ti[full]"
-```
-
-Or for local development:
+The current checkout is installed from source:
 
 ```bash
-uv sync --extra test --dev
+git clone https://github.com/CMobley7/polars-ti.git
+cd polars-ti
+uv sync --locked
 ```
 
-TA-Lib is optional — used for speed (it accelerates the candlestick patterns
-~19×) and independent parity checks; every indicator, including all candlestick
-patterns, also has a native implementation:
-
-```bash
-uv pip install TA-Lib
-```
+Run examples with `uv run python`. Add optional TA-Lib with
+`uv sync --locked --extra talib`, or all optional integrations with
+`uv sync --locked --extra full`. Every indicator also has a native implementation.
+See [supported versions](compatibility.md) for Python and Polars requirements.
 
 ## Two ways to call indicators
 
@@ -117,14 +112,16 @@ Keep rows aligned when chaining indicators. A leading run of null/NaN values is
 warmup: the recursive indicators covered by the
 [September release follow-up](upstream/2026-09-release-review.md) initialize from
 the first valid input and return their original row count. Their lookback starts
-there, and offsets apply after the missing prefix is restored. Candle patterns
-retain zero signals during their prefix/lookback.
+there, and offsets apply after the missing prefix is restored. Integer candle signals retain zeros during their prefix/lookback; native
+`cdl_doji(asint=False)` instead returns nulls for its undefined Boolean warmup.
 
 An interior gap is different. Hilbert recurrences return missing values from the
 first gap onward; `ht_trendmode` uses nulls in its Int32 output for undefined
-states, rather than classifying them as cycle mode. Rolling indicators require a
-complete valid window and recover when the gap leaves it. Other recurrences keep
-their documented gap rules; do not assume every indicator recovers identically.
+states, rather than classifying them as cycle mode. Native full-window paths such as SMA and rolling extrema require a complete
+valid window and recover when the gap leaves it. Partial-window options and
+TA-Lib paths have their own rules: for example, TA-Lib SMA remains NaN after an
+interior gap. Other recurrences keep their documented gap rules; do not assume
+every indicator recovers identically.
 
 Resampling a weekday-only feed onto calendar days can insert missing weekend
 rows. Decide whether those rows represent observations before computing an

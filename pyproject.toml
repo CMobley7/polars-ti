@@ -14,9 +14,11 @@ authors = [
 description = "Polars Technical Indicators (Polars-TI) is a free, open-source technical analysis library built on a pure Polars/Numba/NumPy architecture. It provides 200+ indicators and candlestick patterns as native Polars expressions, with zero runtime pandas dependency."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.14"
+requires-python = ">=3.12,<3.15"
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: MIT License",
@@ -33,10 +35,11 @@ keywords = [
 dependencies = [
     "numba==0.67.0",
     "numpy==2.5.3",
-    "polars==1.44.2",
-    # Hard runtime dependency: Numba's BLAS / np.convolve in nb_sma (and other
-    # kernels) aborts the interpreter with "Specified LAPACK function could not
-    # be found" when SciPy's LAPACK is absent. See tests/test_numba_blas.py.
+    # Test the oldest non-yanked 1.41 release and the exact version in uv.lock.
+    # Keep 1.x compatible installs possible without claiming support for 2.x.
+    "polars>=1.41.1,<2",
+    # FIR convolution and the shared regression utility import SciPy directly;
+    # native-only installations need it even when TA-Lib is absent.
     "scipy==1.18.1",
 ]
 
@@ -81,7 +84,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py314"
+target-version = "py312"
 extend-exclude = [
     "dist",
     "docs",
@@ -104,7 +107,7 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 strict = true
 explicit_package_bases = true
 exclude = [

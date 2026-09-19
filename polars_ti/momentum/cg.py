@@ -15,7 +15,11 @@ from polars_ti.utils._validate import v_expr
 
 @njit(cache=True)
 def nb_cg(close: np.ndarray, length: int) -> np.ndarray:
-    """Compute center of gravity from compensated linear weighted sums."""
+    """Compute center of gravity from compensated linear weighted sums.
+
+    Weights increase from 1 for the oldest value to length for the newest;
+    reversing that orientation changes the oscillator rather than its rounding.
+    """
     total, weighted, _ = rolling_linear(close, length)
     result = np.full(len(close), np.nan)
     for i in range(length - 1, len(close)):

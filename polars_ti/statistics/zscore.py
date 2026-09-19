@@ -14,7 +14,7 @@ from polars_ti.utils._validate import v_expr
 
 @njit(cache=True)
 def nb_zscore(close: np.ndarray, length: int, std_mult: float) -> np.ndarray:
-    """Compute Z scores from stable centered moments."""
+    """Use population deviation (ddof=0) for Z scores; constant windows are undefined."""
     mean, variance, _, _ = rolling_moments(close, length)
     result = np.full(len(close), np.nan)
     magnitude = rolling_extreme(np.abs(close), length, True)[0]

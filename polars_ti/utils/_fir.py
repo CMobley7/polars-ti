@@ -10,9 +10,10 @@ from polars_ti.utils._rolling import FloatArray, rolling_extreme, rolling_sum
 def rolling_fir(values: FloatArray, weights: FloatArray) -> FloatArray:
     """Apply oldest-first weights with extended-precision overlap-add convolution.
 
-    The normal path is O(n log w). Small windows and cancellation-dominated
-    outputs use direct extended-precision products to protect accuracy. On
-    platforms without extended long double, the direct path is required.
+    The normal path is O(n log w). Small windows, platforms without extended
+    long double, and windows whose convolution error estimate exceeds the local
+    direct-sum budget use direct products. Cancellation alone does not trigger
+    fallback; exceptional inputs can require O(n*w) work to protect accuracy.
     """
     window = len(weights)
     if window < 1:

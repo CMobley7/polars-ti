@@ -33,8 +33,7 @@ and why* reference.
   pandas output within floating-point tolerance. Every remaining difference is
   documented and falls into one of: Polars-TI matching TA-Lib/canonical where
   pandas-ta was buggy, a deliberate convention change, or offering a TA-Lib path
-  pandas-ta lacked. None are Polars-TI being wrong, and **every shared column is
-  parity-tested per-column** (see [§4](#4-output-differences-with-reasons)).
+  pandas-ta lacked. **Every shared column is parity-tested per-column** (see [§4](#4-output-differences-with-reasons)).
 
 ---
 
@@ -124,7 +123,8 @@ here on purpose.
 
 | Column(s) | Change & reason |
 | :--- | :--- |
-| `*_Z_30_1`, `ZS_30` (z-scores) | use population std (`ddof=0`, TA-Lib style) instead of sample std (`ddof=1`) |
+| `ZS_30` (`zscore`) | uses population std (`ddof=0`) instead of sample std (`ddof=1`) |
+| `*_Z_30_1` (`cdl_z`) | defaults to sample std (`ddof=1`); honors the selected `ddof` in rolling and `full=True` modes |
 | `PVI`, `PVIe_255` | seed at `initial=100` (StockCharts canonical) instead of the first close |
 | `MASSI_9_25` | NaN-skipping cascaded EMA (more canonical than the old nested TA-Lib EMA) |
 | `OBVe_4`, `OBVe_12` | canonical `OBV[0]=0` seed (old `signed_series` ignored its `initial` arg) |

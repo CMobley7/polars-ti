@@ -162,9 +162,11 @@ def rolling_mad(values: FloatArray, window: int) -> FloatArray:
                 below = _range_sum(sums, corrections, 0, split, capacity)
                 above = _range_sum(sums, corrections, split, len(ordered), capacity)
                 below_count = _range_sum(counts, count_corrections, 0, split, capacity)
+                # Split at the mean: sum |x-mean| = count_below*mean-sum_below
+                # + sum_above-count_above*mean. Anchored sums remove price offsets.
                 centered_mean = mean - anchor
                 deviation = (below_count * centered_mean - below) + (above - (window - below_count) * centered_mean)
-                # An old extreme can make even centered prefix differences ill-conditioned.
+                # An old extreme can make even centered range sums ill-conditioned.
                 if deviation <= extent * window * 1e-3:
                     total = correction = 0.0
                     for j in range(i - window + 1, i + 1):

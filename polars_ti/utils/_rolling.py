@@ -106,10 +106,12 @@ def rolling_moments(
 ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
     """Compute mean and centered moments with compensated, periodically rebased sums.
 
-    Values are shifted before powers are formed. Rebuilding once per window
-    bounds drift while retaining linear total work; no large raw squares enter
-    the variance calculation. The final center is the rounded float64 mean,
-    matching a two-pass reference.
+    Values are shifted before powers are formed, avoiding large raw squares.
+    Scheduled rebuilding once per window bounds drift in linear total work;
+    condition-triggered rebuilds and extreme-scale fallbacks can cost O(n*w).
+    The normal path centers on the rounded float64 mean, matching a two-pass
+    reference. Extreme-scale windows keep the anchor and center separate so
+    fractional-ULP spreads are not lost when reconstructing a large mean.
     """
     if window < 1:
         raise ValueError("window must be positive")
@@ -127,6 +129,8 @@ def rolling_moments(
     max_delta = 0.0
     invalid = 0
     for i in range(size):
+        # Discard stale large-scale state when the level or spread changes;
+        # compensating updates alone cannot recover digits already lost.
         reanchor = (
             i >= window - 1
             and np.isfinite(exact_means[i])
@@ -246,6 +250,9 @@ def rolling_quantile(values: FloatArray, window: int, quantile: float) -> FloatA
     for block in range(window - 1, size, window):
         end = min(size, block + window)
         start = block - window + 1
+        # Sorting this block plus its preceding window supplies a rank vocabulary.
+        # Only active-window observations enter the Fenwick tree: future block
+        # values cannot affect a query. Reuse bounds sorting work and memory.
         ordered = np.sort(values[start:end])
         tree = np.zeros(len(ordered) + 1, dtype=np.int64)
         invalid = 0
@@ -285,6 +292,8 @@ def rolling_ranks(history: FloatArray, queries: FloatArray, window: int) -> tupl
     for block in range(window, size, window):
         end = min(size, block + window)
         start = block - window
+        # The block-wide vocabulary only assigns ranks; tree counts contain the
+        # preceding window, so this compression cannot leak future observations.
         ordered = np.sort(history[start:end])
         tree = np.zeros(len(ordered) + 1, dtype=np.int64)
         count = 0
@@ -339,6 +348,8 @@ def _rolling_linear(values: FloatArray, window: int, centered: bool) -> tuple[Fl
             invalid = 0
         else:
             start = i
+            # Advancing ascending weights gives W_new = W_old - S_old + w*incoming.
+            # Subtract both compensated sum components before removing outgoing.
             weight_sum, weight_correction = compensated_add(weight_sum, weight_correction, -total)
             weight_sum, weight_correction = compensated_add(weight_sum, weight_correction, -correction)
             if i >= window:

@@ -18,7 +18,12 @@ def _nb_mavp(
     min_period: int,
     max_period: int,
 ) -> np.ndarray:
-    """Return variable-window means using a compensated range-sum tree."""
+    """Compute variable-window SMA with TA-Lib's max_period-1 warmup.
+
+    Fractional periods truncate before clamping; NaN periods use min_period.
+    Native missing-price windows recover locally, unlike TA-Lib's period-specific
+    running sums. A compensated range-sum tree avoids rescanning each window.
+    """
     return variable_mean(close, periods, min_period, max_period)
 
 

@@ -2,7 +2,7 @@ import numpy as np
 
 # -*- coding: utf-8 -*-
 # =============================================================================
-# Polars ALMA Implementation (Pure rolling_map)
+# Polars ALMA Implementation (Shared FIR kernel)
 # =============================================================================
 import polars as pl
 
@@ -21,7 +21,7 @@ def alma(
     """Polars: Arnaud Legoux Moving Average (ALMA)
 
     Uses Gaussian distribution weighting for smoothing.
-    Pure Polars implementation using rolling_map.
+    Uses the shared FIR kernel with an accuracy-checked convolution path.
 
     Args:
         close: Column name or pl.Expr for 'close' prices
@@ -39,6 +39,8 @@ def alma(
 
     def compute(series: pl.Series) -> pl.Series:
         """Apply the filter once per batch, preserving missing-window semantics."""
+        # Reject undersized batches before allocating length-sized weights;
+        # an oversized requested window must not allocate proportional memory.
         if len(series) < length:
             return pl.Series([None] * len(series), dtype=pl.Float64)
         x = np.arange(length, dtype=np.float64)

@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-uv sync --extra test --dev
+uv sync --locked --extra test --dev
 ```
 
 ## Quality gates
@@ -28,17 +28,44 @@ uv run pytest tests/ -q --tb=short
 
 ## CI matrix
 
-CI runs the test job on **Python 3.14.7 and the locked Polars release**, with
-**TA-Lib installed and absent**. The no-TA-Lib leg is a hard gate
-that exercises the native (Numba) code paths. Reproduce it locally with:
+The required test matrix has **12 environments**: Python **3.12 / 3.13 / 3.14**,
+Polars **1.41.1 / the exact version in uv.lock**, and **TA-Lib installed / absent**.
+The separate full-extras workflow tests all optional dependencies on each of the
+three Python versions with locked Polars. Both workflows run on development and
+main. Development must pass before merging into main.
+
+`UV_PYTHON` overrides the developer default in `.python-version`. The native jobs
+install locked test dependencies with TA-Lib excluded, then assert it is absent.
+The floor jobs replace locked Polars with exactly 1.41.1. Tests use
+`uv run --no-sync` so uv does not silently restore the locked version or TA-Lib.
+Each job verifies its actual Python, Polars and TA-Lib selection before testing.
+
+To test the compatibility floor locally in a separate environment:
+
+```bash
+export UV_PROJECT_ENVIRONMENT=.venv-312
+export UV_PYTHON=3.12
+uv sync --locked --extra test --dev
+uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" "polars==1.41.1"
+uv run --no-sync pytest tests/ -q --tb=short
+# Also exercise a genuinely TA-Lib-free environment:
+uv pip uninstall --python "$UV_PROJECT_ENVIRONMENT/bin/python" TA-Lib
+uv run --no-sync pytest tests/ -q --tb=short
+unset UV_PROJECT_ENVIRONMENT UV_PYTHON
+```
+
+For a quick native-path check in your usual environment:
 
 ```bash
 POLARS_TI_SIMULATE_NO_TALIB=1 uv run pytest tests/ -q
 ```
 
-This forces the native paths even when TA-Lib is installed (and blocks
-`import talib`), so parity tests that grade against the TA-Lib golden skip just
-as they would in a real TA-Lib-absent environment.
+This forces native paths and blocks `import talib`; parity tests requiring the
+TA-Lib oracle skip. CI additionally verifies actual package absence.
+See [compatibility](compatibility.md) for the support policy. Ruff targets
+Python 3.12 syntax so formatting cannot introduce Python 3.14-only syntax.
+The existing mypy configuration invokes strict mode but suppresses errors in
+the runtime and audit packages; a passing gate does not establish full type safety.
 
 ## The parity oracle
 

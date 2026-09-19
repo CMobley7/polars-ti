@@ -97,8 +97,8 @@ See [Studies](studies.md) for custom study definitions.
 
 A small set of indicators produce different numbers than pandas-ta because
 pandas-ta's native path was buggy (Polars-TI matches TA-Lib/canonical) or
-because of a documented convention change. None are Polars-TI being wrong — the
-full list with magnitudes and reasons is in
+because of a documented convention change. These documented differences are covered by regression tests; the
+list with magnitudes and reasons is in
 [Differences §4](differences-from-pandas-ta.md#4-output-differences-with-reasons).
 
 One case worth calling out for porters: with `talib=True`, Polars-TI **honors**

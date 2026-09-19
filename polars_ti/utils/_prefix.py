@@ -35,7 +35,7 @@ def run_after_prefix(
     outputs: int = 1,
     valid_inputs: int | None = None,
 ) -> tuple[FloatArray, ...]:
-    """Run a recurrence on its finite suffix and restore leading missing rows.
+    """Run from the first jointly finite primary-input row, restoring the prefix.
 
     Only the leading run is removed; interior missing values retain the kernel's
     existing semantics. Derived inputs may have their own warmup, so valid_inputs

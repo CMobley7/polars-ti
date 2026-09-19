@@ -31,7 +31,7 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
 
     alpha = 1.0 / length
 
-    # First finite index (leading NaNs — e.g. true_range[0] or a diff series —
+    # First non-NaN index (leading NaNs — e.g. true_range[0] or a diff series —
     # must never poison the whole column).
     fv = -1
     for i in range(n):
@@ -43,13 +43,9 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
         return result
 
     if presma:
-        # SMA seed over the first ``length`` FINITE values (contiguous from the
-        # first finite index), placed at ``fv+length-1`` — exactly matching
-        # TA-Lib's Wilder warmup (e.g. ATR seeds the SMA of TR[1..length] at
-        # index ``length`` because TR[0] is undefined). For a fully finite input
-        # (fv=0) this is the mean of close[0:length] at index length-1, identical
-        # to before; on a leading-NaN input it seeds one bar later than the old
-        # NaN-skipping window (which jumped the gun by a bar). Mirrors _ema_numba.
+        # Seed from length consecutive rows after the leading NaN run; do not
+        # skip interior NaNs and accidentally average a shorter or later window.
+        # ATR therefore seeds TR[1..length] at length, since TR[0] is undefined.
         seeded = np.empty(n, dtype=np.float64)
         for i in range(n):
             seeded[i] = close[i]
@@ -61,7 +57,7 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
         seeded[fv + length - 1] = sma_sum / length
         close = seeded
 
-    # ewm(alpha, adjust=False): seed from first finite value, carry forward on NaN.
+    # ewm(alpha, adjust=False): seed from first non-NaN value, carry on NaN.
     first_valid = -1
     for i in range(n):
         if not np.isnan(close[i]):

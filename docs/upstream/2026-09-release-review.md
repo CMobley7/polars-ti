@@ -144,7 +144,11 @@ push, the user explicitly authorized merging the session changes into
 `development`, pushing, then merging `development` into `main` and pushing.
 
 
-## Integration CI
+## Integration CI at this checkpoint
+
+This records the integration of `ea15bcb4eda83ff4e0a5f81ce76dc0d6e937af02`.
+The later [compatibility policy](../compatibility.md) expands testing to Python
+3.12–3.14 and the supported Polars floor.
 
 The existing workflow is `.github/workflows/ci.yml`. Ticket 1 already upgraded
 its Python matrix to **3.14.7**. This follow-up enables its push and pull-request

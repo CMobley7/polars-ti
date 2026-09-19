@@ -21,17 +21,23 @@ study helpers, and optional TA-Lib acceleration/parity.
 - **[Differences from pandas-ta](differences-from-pandas-ta.md)** — the
   authoritative catalog of behavioral/output differences (and why), plus the new
   indicators and their credits.
+- **[Compatibility](compatibility.md)** — supported Python/Polars versions and why.
 - **[Development](development.md)** — quality gates, CI, and the parity oracle.
 
 ## Install
 
+The current checkout is installed from source:
+
 ```bash
-uv pip install "polars-ti[full]"
+git clone https://github.com/CMobley7/polars-ti.git
+cd polars-ti
+uv sync --locked
 ```
 
-TA-Lib is optional (used for speed and parity checks — every indicator,
-including all candlestick patterns, also has a native implementation):
-`uv pip install TA-Lib`.
+Run examples with `uv run python`. Add optional TA-Lib with
+`uv sync --locked --extra talib`, or all optional integrations with
+`uv sync --locked --extra full`. Every indicator also has a native implementation.
+See [supported versions](compatibility.md) for Python and Polars requirements.
 
 ## 30-second example
 

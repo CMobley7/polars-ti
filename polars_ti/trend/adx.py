@@ -67,10 +67,9 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
         pos_rma[i] = pos_rma[i - 1] - pos_rma[i - 1] / length + pos[i]
         neg_rma[i] = neg_rma[i - 1] - neg_rma[i - 1] / length + neg[i]
 
-    # DMP/DMN outputs are the Wilder sum-smoothed directional movement, matching
-    # TA-Lib PLUS_DM/MINUS_DM. DX is derived from
-    # the directional indicators (+DI/-DI = scalar * smoothed_DM / smoothed_TR),
-    # which are scale-invariant to the sum-vs-average smoothing choice.
+    # DMP/DMN expose Wilder sums, matching TA-Lib PLUS_DM/MINUS_DM. Form the
+    # directional ratio without scalar and apply scalar only to DX, preserving
+    # negative and zero scaling instead of canceling its sign in the ratio.
     dx = np.full(n, np.nan)
     for i in range(length - 1, n):
         dmp_out[i] = pos_rma[i]

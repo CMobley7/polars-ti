@@ -14,7 +14,12 @@ from polars_ti.utils._validate import v_expr
 
 @njit(cache=True)
 def nb_entropy(close: np.ndarray, length: int, base: float) -> np.ndarray:
-    """Compute the two full-window entropy sums in linear time."""
+    """Preserve the two-stage pandas-ta entropy definition in linear time.
+
+    Each p[t] divides close[t] by its own trailing length-bar sum. A second
+    length-bar sum aggregates -p*log_base(p), giving a 2*length-2 lookback.
+    This is not the conventional entropy of one normalized window.
+    """
     total = rolling_sum(close, length)
     term = np.full(len(close), np.nan)
     for i in range(length - 1, len(close)):

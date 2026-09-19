@@ -36,18 +36,18 @@ all_features = df.ti.study(ti.AllStudy, talib=True)
 
 ## Install
 
-```bash
-uv pip install "polars-ti[full]"     # everything
-# or just the library:
-uv pip install polars-ti
-```
-
-TA-Lib is optional (used for speed and parity checks — every indicator,
-including all candlestick patterns, also has a native implementation):
+The current checkout is installed from source:
 
 ```bash
-uv pip install TA-Lib
+git clone https://github.com/CMobley7/polars-ti.git
+cd polars-ti
+uv sync --locked
 ```
+
+Run examples with `uv run python`. Add optional TA-Lib with
+`uv sync --locked --extra talib`, or all optional integrations with
+`uv sync --locked --extra full`. Every indicator also has a native implementation.
+See [supported versions](docs/compatibility.md) for Python and Polars requirements.
 
 ## Documentation
 
@@ -59,12 +59,13 @@ Full documentation lives in [`docs/`](docs/index.md):
 - [TA-Lib & native paths](docs/talib.md) — the `native = pandas-ta, talib = TA-Lib` design rule.
 - [Migrating from pandas-ta](docs/migrating-from-pandas-ta.md) — porting guide.
 - [Differences from pandas-ta](docs/differences-from-pandas-ta.md) — output differences (and why), new indicators and credits.
+- [Compatibility](docs/compatibility.md) — supported versions and dependency policy.
 - [Development](docs/development.md) — quality gates, CI, and the parity oracle.
 
 ## Development
 
 ```bash
-uv sync --extra test --dev
+uv sync --locked --extra test --dev
 ./scripts/check.sh --fast        # ruff, mypy, pytest+coverage, pandas-purge
 ```
 
@@ -76,5 +77,7 @@ indicators were integrated from community forks with attribution — see
 [Differences §6](docs/differences-from-pandas-ta.md#6-new-indicators--credits).
 See [LICENSE](LICENSE).
 
-Development and execution use Python 3.14.7 (`.python-version`). Runtime versions
-are pinned in `pyproject.toml` and reproduced by `uv sync --extra test --dev`.
+Python **3.12, 3.13 and 3.14** and Polars **>=1.41.1,<2** are supported.
+`.python-version` selects **3.14.7** for development; `uv.lock` reproduces the
+exact development dependencies, including Polars **1.44.2**. See the
+[compatibility policy](docs/compatibility.md) for the tested matrix and rationale.

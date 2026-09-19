@@ -14,7 +14,7 @@ from polars_ti.utils._validate import v_expr
 
 @njit(cache=True)
 def nb_kurtosis(close: np.ndarray, length: int) -> np.ndarray:
-    """Compute corrected sample moments using centered compensated rolling sums."""
+    """Compute bias-corrected Fisher excess kurtosis; constant windows remain undefined."""
     _, second, third, fourth = rolling_moments(close, length, 4)
     result = np.full(len(close), np.nan)
     magnitude = rolling_extreme(np.abs(close), length, True)[0]

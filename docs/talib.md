@@ -5,7 +5,7 @@ Polars/Numba implementation. TA-Lib is optional and used for speed/parity where
 it has an equivalent.
 
 ```bash
-uv pip install TA-Lib   # optional
+uv sync --locked --extra talib   # from the source checkout; optional
 ```
 
 ## The `talib=` flag
@@ -39,9 +39,10 @@ When an indicator can be computed two ways, Polars-TI follows a deliberate rule:
 - **`talib=False`** reproduces **pandas-ta's native** semantics.
 
 For most indicators the two modes now agree — the native paths were aligned to
-TA-Lib wherever pandas-ta's own native path was buggy (e.g. the EMA/RMA warm-up is
-SMA-seeded on both paths, `STDDEV`/`VAR` use population `ddof=0`, DM/ADX/CMO use
-Wilder sum-smoothing). A few still differ by design because pandas-ta's native
+TA-Lib wherever pandas-ta's own native path was buggy. Seeding still depends on
+the indicator and options: EMA defaults to an SMA seed, while RMA defaults to
+`presma=False` and uses an SMA seed only with `presma=True`. `STDDEV`/`VAR` use
+population `ddof=0`; DM/ADX/CMO use Wilder sum-smoothing. A few still differ by design because pandas-ta's native
 reference genuinely differs from TA-Lib — most notably **`KAMA`**: pandas-ta had
 *only* a native KAMA, so `talib=False` reproduces it while `talib=True` returns
 TA-Lib's KAMA (different internal fast/slow constants). The full list is in
@@ -57,8 +58,9 @@ TA-Lib's KAMA (different internal fast/slow constants). The full list is in
 
 ## CI coverage
 
-CI runs the full test-suite in a matrix of **{TA-Lib installed, TA-Lib absent}**
-× **{oldest-supported, latest Polars}**, so both code paths are always exercised.
+CI runs the full test suite on **Python 3.12, 3.13 and 3.14**, each with
+**Polars 1.41.1 and the locked release**, and **TA-Lib installed and absent**.
+See [compatibility](compatibility.md) and [development](development.md#ci-matrix).
 You can reproduce the no-TA-Lib path locally even with TA-Lib installed:
 
 ```bash

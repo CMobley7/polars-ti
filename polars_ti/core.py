@@ -557,7 +557,7 @@ class TechnicalIndicators:
                 return None
             try:
                 native_params = inspect.signature(native).parameters
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 return None
             if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in native_params.values()):
                 return None
@@ -571,7 +571,7 @@ class TechnicalIndicators:
                 accepted.add("open")
             try:
                 acc_params = inspect.signature(accessor_fn).parameters
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 return accepted
             accepted.update(name for name, p in acc_params.items() if p.kind is not inspect.Parameter.VAR_KEYWORD)
             return accepted

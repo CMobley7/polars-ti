@@ -38,6 +38,8 @@ def sinwma(
 
     def compute(series: pl.Series) -> pl.Series:
         """Apply the filter once per batch, preserving missing-window semantics."""
+        # Reject undersized batches before allocating length-sized weights;
+        # an oversized requested window must not allocate proportional memory.
         if len(series) < length:
             return pl.Series([None] * len(series), dtype=pl.Float64)
         weights = np.array([np.sin((i + 1) * np.pi / (length + 1)) for i in range(length)])

@@ -28,7 +28,7 @@ jobs:
           python-version: "3.14.7"
 
       - name: Install dependencies
-        run: uv sync --extra test --dev
+        run: uv sync --extra test --dev --locked
 
       - name: Ruff lint
         run: uv run ruff check polars_ti tests scripts
@@ -53,14 +53,20 @@ jobs:
           ! grep -R -n -E "import pandas|from pandas|\bpd\." tests/conftest.py
 
   test:
-    # Exercise both explicit TA-Lib dispatch and the native engine.
+    # Test the compatibility floor and locked release on every supported Python.
+    # Keep TA-Lib absent as a real environment so native-only defects cannot hide.
     name: Test (py${{ matrix.python-version }}, polars ${{ matrix.polars }}, talib=${{ matrix.talib }})
     runs-on: ubuntu-latest
+    env:
+      # Override the developer default in .python-version for each matrix row.
+      UV_PYTHON: ${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.14.7"]
-        polars: ["lock"]
+        python-version: ["3.12", "3.13", "3.14"]
+        # "lock" reproduces uv.lock; 1.41.1 is the exact supported floor.
+        # 1.41.0 is yanked on PyPI, so it is deliberately excluded.
+        polars: ["lock", "1.41.1"]
         talib: ["on", "off"]
 
     steps:
@@ -78,21 +84,52 @@ jobs:
 
       - name: Install dependencies (with TA-Lib)
         if: matrix.talib == 'on'
-        run: uv sync --extra test --dev
+        run: uv sync --extra test --dev --locked
 
       - name: Install dependencies (without TA-Lib)
         if: matrix.talib == 'off'
         # Sync only the runtime + test deps, omitting the TA-Lib extra, so the
-        # native (no-TA-Lib) code paths are exercised. scipy is a hard runtime
-        # dep and is installed here too (guards the Numba BLAS regression).
+        # native (no-TA-Lib) code paths are exercised. SciPy remains installed
+        # because native FIR convolution and regression use it directly.
         run: |
-          uv sync --dev --no-default-groups
-          uv pip install pytest pytest-cov pandas yfinance
+          uv sync --dev --no-default-groups --locked
+          # Reuse the locked test dependencies while omitting only TA-Lib.
+          uv export --extra test --locked --no-hashes --no-emit-project --no-emit-package ta-lib --output-file native-test-requirements.txt
+          uv pip install -r native-test-requirements.txt
 
+      - name: Install the supported Polars floor
+        if: matrix.polars != 'lock'
+        run: uv pip install "polars==${{ matrix.polars }}"
+
+      - name: Verify the selected environment
+        # Fail if interpreter selection or a later sync silently changed a matrix row.
+        env:
+          EXPECTED_POLARS: ${{ matrix.polars }}
+          EXPECTED_TALIB: ${{ matrix.talib }}
+        run: |
+          uv run --no-sync python - <<'PY'
+          import importlib.util
+          import os
+          import sys
+          import tomllib
+          from pathlib import Path
+          import polars
+          assert f"{sys.version_info.major}.{sys.version_info.minor}" == os.environ["UV_PYTHON"]
+          expected = os.environ["EXPECTED_POLARS"]
+          if expected == "lock":
+              lock = tomllib.loads(Path("uv.lock").read_text())
+              expected = next(package["version"] for package in lock["package"] if package["name"] == "polars")
+          assert polars.__version__ == expected
+          assert (importlib.util.find_spec("talib") is not None) == (os.environ["EXPECTED_TALIB"] == "on")
+          print(sys.version, "Polars", polars.__version__, "TA-Lib", os.environ["EXPECTED_TALIB"])
+          PY
+
+      # --no-sync preserves the selected floor and TA-Lib absence instead of
+      # restoring the default lock environment immediately before testing.
       # TA-Lib present: full suite with coverage gate.
       - name: Run tests (with TA-Lib)
         if: matrix.talib == 'on'
-        run: uv run pytest tests/ -q --tb=short --cov=polars_ti --cov-report=term-missing --cov-fail-under=90
+        run: uv run --no-sync pytest tests/ -q --tb=short --cov=polars_ti --cov-report=term-missing --cov-fail-under=90
 
       # TA-Lib absent: exercises the native (Numba) code paths. WS2-WS4 fixed
       # the native indicators; parity tests that grade against the TA-Lib golden
@@ -101,7 +138,7 @@ jobs:
       # tests/test_native_parity.py. This leg is now a hard gate.
       - name: Run tests (without TA-Lib)
         if: matrix.talib == 'off'
-        run: uv run pytest tests/ -q --tb=short
+        run: uv run --no-sync pytest tests/ -q --tb=short
 
   security:
     name: Runtime Dependency Audit
@@ -121,7 +158,7 @@ jobs:
           python-version: "3.14.7"
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --locked
 
       - name: pip-audit
         run: |

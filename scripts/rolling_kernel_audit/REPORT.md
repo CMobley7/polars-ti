@@ -1,8 +1,8 @@
 # PROMPT-1 rolling-kernel results
 
 Branch: `rolling-kernels`. Baseline: `dc8fb75b761df43db7bc1460da7bb2083efba8ac`.
-This report belongs to the final cohesive commit; use `git log -1 --format=%H`
-for its SHA. Independent signoffs are recorded in `REVIEWS.md`.
+Implementation checkpoint: `cf108754f40b49010723cfce85e1c6c7dbd29abd`.
+This is a historical measurement report; independent signoffs are in `REVIEWS.md`.
 
 ## Scope and five defects
 
@@ -35,9 +35,11 @@ weighted-filter callbacks, and Pascal-row construction. CRSI retains a bounded
 ## Runtime and gates
 
 Python 3.14.7; NumPy 2.5.3; Polars 1.44.2; Numba 0.67.0; SciPy 1.18.1;
-TA-Lib 0.8.0. The five requested dependencies are pinned exactly; the old lock
-was deleted and regenerated. Python requirement, CI and development docs now
-match 3.14. The existing Ruff 0.15.14 is pinned to preserve the repository's
+TA-Lib 0.8.0. At this checkpoint, the five requested dependencies were pinned
+exactly, the old lock was deleted and regenerated, and CI used Python 3.14.
+The later [compatibility correction](../../docs/compatibility.md) restores
+Python 3.12–3.14 and a tested Polars range; these benchmark measurements remain
+from the exact environment listed above. The existing Ruff 0.15.14 is pinned to preserve the repository's
 lint rule set rather than adopting unrelated new default lint rules.
 
 Pristine original environment: **2291 passed / 2 skipped**. New tests initially

@@ -14,7 +14,7 @@ from polars_ti.utils._validate import v_expr
 
 @njit(cache=True)
 def nb_skew(close: np.ndarray, length: int) -> np.ndarray:
-    """Compute corrected sample moments using centered compensated rolling sums."""
+    """Compute bias-corrected Fisher-Pearson sample skewness; constant windows remain undefined."""
     _, second, third, fourth = rolling_moments(close, length, 3)
     result = np.full(len(close), np.nan)
     magnitude = rolling_extreme(np.abs(close), length, True)[0]

@@ -11,7 +11,11 @@ from polars_ti.utils._validate import v_expr
 
 
 def _expanding_zscore(values: NDArray[np.float64], ddof: int) -> NDArray[np.float64]:
-    """Use anchored extended-precision moments without cumulative square sums."""
+    """Update Welford moments around the first finite value.
+
+    Anchoring preserves small spreads around large price offsets. Processing
+    only observations through the current row prevents future-data leakage.
+    """
     result = np.full(len(values), np.nan)
     count = 0
     origin = np.longdouble(0)
