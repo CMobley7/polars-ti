@@ -8,6 +8,7 @@ from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
+from polars_ti.utils._prefix import first_finite_index
 
 
 @njit(cache=True)
@@ -65,6 +66,7 @@ def tos_stdevall(
     stds: list | None = None,
     ddof: int = 1,
     offset: int = 0,
+    lookahead: bool = True,
 ) -> pl.Expr:
     """Polars: TOS Standard Deviation All
 
@@ -78,9 +80,17 @@ def tos_stdevall(
         ddof: Delta Degrees of Freedom. Default: 1
         offset: Shift result by N periods. Default: 0
 
+        lookahead: Allow a full-sample summary. False raises ValueError. Default: True
+
+    Raises:
+        ValueError: If lookahead=False, because this is a full-sample summary.
+
     Returns:
         pl.Expr: Struct with LR line and std deviation bands
     """
+    if not lookahead:
+        raise ValueError("lookahead=False is unavailable for this full-sample indicator")
+
     close_expr = v_expr(close)
     if close_expr is None:
         return None
@@ -107,8 +117,11 @@ def tos_stdevall(
             m = n
             start = 0
 
-        # Linear regression using Numba
-        slope, intercept = nb_linreg(arr)
+        prefix = first_finite_index((arr,))
+        arr = arr[prefix:]
+        start += prefix
+        m = len(arr)
+        slope, intercept = nb_linreg(arr) if m >= 2 else (np.nan, np.nan)
         lr = np.full(n, np.nan, dtype=np.float64)
         for i in range(m):
             lr[start + i] = slope * i + intercept

@@ -16,7 +16,7 @@ def xsignals(
     long: bool = True,
     asbool: bool = False,
     trade_offset: int = 0,
-    drift: int = 1,
+    drift: int | None = None,
     offset: int = 0,
 ) -> PlExpr:
     """Polars: Cross Signals (XSIGNALS)
@@ -31,7 +31,7 @@ def xsignals(
         long: Use long trend. Default: True
         asbool: Return bool instead of int. Default: False
         trade_offset: Shift trade signals. Default: 0
-        drift: Difference period. Default: 1
+        drift: Deprecated and ignored; transitions always compare consecutive rows.
         offset: Shift all results. Default: 0
 
     Returns:

@@ -5,6 +5,28 @@ Polars-TI provides **267 indicators and candlestick-pattern groups** across 10 c
 > **Outputs** is the number of result columns. Multi-output indicators return a Polars struct (via the accessor) or a list of expressions; see [Getting started](getting-started.md#multi-output-indicators).
 
 
+## Causality and full-sample summaries
+
+For a backtest, outputs at row `t` must depend only on data available through `t`.
+`dpo(lookahead=False)` and `ichimoku(lookahead=False)` provide causal options;
+negative offsets intentionally move future output into earlier rows.
+`tos_stdevall` fits a regression over the supplied sample (or trailing selected
+sample), and `vp` aggregates that sample into bins. They are descriptive summaries:
+both reject `lookahead=False` with `ValueError` because neither has a causal mode.
+
+`cdl_z(full=True)` uses an expanding window through the current row, skips missing
+observations, and honors `ddof`; it no longer normalizes earlier rows against the
+whole sample. Its first/constant observations with no defined deviation stay NaN.
+`mavp` requires explicit `periods`, so appending rows does not implicitly change
+historical window lengths.
+
+`tsignals` and `xsignals` always detect transitions between consecutive states.
+Their `drift` keyword is deprecated and ignored with a `DeprecationWarning` when
+explicitly supplied. `xa` and `xb` in `xsignals` use the scale of the supplied
+signal (for example RSI's 0–100 scale versus an unbounded z-score).
+`long_run`/`short_run` take already-computed fast/slow expressions, not period
+numbers. `beta`/`correl` require a second comparison input.
+
 ## Candles (65)
 
 | Function | Outputs | TA-Lib | Description |

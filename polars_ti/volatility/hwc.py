@@ -46,6 +46,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._validate import v_expr
 
 
@@ -101,7 +102,9 @@ def hwc(
 
     def compute_hwc(s: pl.Series) -> pl.Series:
         np_close = s.to_numpy().astype(np.float64)
-        result, upper, lower = nb_hwc(np_close, _na, _nb, _nc, _nd, _scalar)
+        result, upper, lower = run_after_prefix(
+            (np_close,), lambda arrays: nb_hwc(arrays[0], _na, _nb, _nc, _nd, _scalar), outputs=3
+        )
 
         width = pct = None
         if _channels:

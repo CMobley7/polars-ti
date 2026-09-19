@@ -99,6 +99,7 @@ import numpy as np
 from polars_ti._typing import IntoExpr
 from polars_ti.maps import Imports
 from polars_ti.utils._validate import v_expr
+from polars_ti.utils._prefix import run_after_prefix
 
 
 def mama(
@@ -139,9 +140,17 @@ def mama(
         if Imports["talib"] and _talib:
             from talib import MAMA as talib_mama
 
-            mama_arr, fama_arr = talib_mama(np_close, _fastlimit, _slowlimit)
+            def calculate(arrays):
+                mama_values, fama_values = talib_mama(arrays[0], _fastlimit, _slowlimit)
+                mama_values[:_prenan] = np.nan
+                fama_values[:_prenan] = np.nan
+                return mama_values, fama_values
+
+            mama_arr, fama_arr = run_after_prefix((np_close,), calculate, outputs=2)
         else:
-            mama_arr, fama_arr = nb_mama(np_close, _fastlimit, _slowlimit, _prenan)
+            mama_arr, fama_arr = run_after_prefix(
+                (np_close,), lambda arrays: nb_mama(arrays[0], _fastlimit, _slowlimit, _prenan), outputs=2
+            )
 
         # Honor prenan on both paths: it is a leading-NaN mask, so applying it to
         # the TA-Lib output only ever adds NaNs (TA-Lib's own ~32-bar warmup is

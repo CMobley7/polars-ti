@@ -77,6 +77,13 @@ def dx(
 
         struct_expr = pl.struct(high_expr.alias("_h"), low_expr.alias("_l"), close_expr.alias("_c"))
         dx_expr = struct_expr.map_batches(compute_dx, return_dtype=pl.Float64)
+    elif _mamode == "rma" and drift == 1:
+        from polars_ti.trend.adx import adx
+
+        # A one-period ADX signal is exactly DX, with the same Wilder seed.
+        dx_expr = adx(
+            high_expr, low_expr, close_expr, length=length, lensig=1, scalar=scalar, talib=False
+        ).struct.field("ADX_1")
     else:
         up = high_expr - high_expr.shift(drift)
         dn = low_expr.shift(drift) - low_expr

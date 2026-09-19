@@ -64,6 +64,8 @@ def _pl_rvi_single(
     from polars_ti.overlap.ema import _ema_numba
 
     n = len(arr)
+    if n == 0 or length < 2:
+        return np.full(n, np.nan)
     use_talib = bool(talib) and Imports["talib"]
 
     if use_talib:
@@ -74,8 +76,7 @@ def _pl_rvi_single(
         std_arr = _rolling_std(arr, length, ddof=1)
 
     # unsigned_differences: diff is NaN-filled to 0 at the first bar.
-    diff = np.empty(n, dtype=np.float64)
-    diff[0] = 0.0
+    diff = np.zeros(n, dtype=np.float64)
     if drift < n:
         diff[drift:] = arr[drift:] - arr[:-drift]
         diff[:drift] = 0.0

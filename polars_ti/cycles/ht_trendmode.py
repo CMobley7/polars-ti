@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.cycles._ht_utils import run_hilbert
 from polars_ti.utils._validate import v_expr
 
 
@@ -30,7 +31,7 @@ def ht_trendmode(
         offset: Shift result by N periods. Default: 0
 
     Returns:
-        pl.Expr: HT_TRENDMODE expression (Int32, values 0 or 1).
+        pl.Expr: HT_TRENDMODE expression (nullable Int32, values 0 or 1).
     """
     close_expr = v_expr(close)
     from polars_ti.maps import Imports
@@ -44,11 +45,11 @@ def ht_trendmode(
         if _use_talib:
             from talib import HT_TRENDMODE
 
-            result = HT_TRENDMODE(arr).astype(np.int32)
+            result = run_hilbert(arr, lambda inputs: (HT_TRENDMODE(inputs[0]),), 0)[0]
         else:
-            _, _, _, _, trendmode = nb_ht_pipeline(arr)
-            result = trendmode  # already int32
-        return pl.Series(values=result, name=s.name)
+            result = run_hilbert(arr, lambda inputs: (nb_ht_pipeline(inputs[0])[4],), 0)[0]
+
+        return pl.Series(values=result, name=s.name, nan_to_null=True).cast(pl.Int32)
 
     result = close_expr.map_batches(_compute, return_dtype=pl.Int32)
 

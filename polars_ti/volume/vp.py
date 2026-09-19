@@ -11,6 +11,7 @@ def vp(
     volume: str = "volume",
     width: int = 10,
     sort: bool = False,
+    lookahead: bool = True,
 ) -> pl.DataFrame:
     """Polars: Volume Profile (VP)
 
@@ -26,6 +27,11 @@ def vp(
         width: Number of price ranges/bins. Default: 10
         sort: If True, bin by price ranges. If False, split chronologically. Default: False
 
+        lookahead: Allow a full-sample summary. False raises ValueError. Default: True
+
+    Raises:
+        ValueError: If lookahead=False, because this is a full-sample summary.
+
     Returns:
         pl.DataFrame: Volume profile with columns:
             - low_close: Lower price bound of range
@@ -35,6 +41,9 @@ def vp(
             - neg_volume: Volume on down moves
             - total_volume: Total volume in range
     """
+    if not lookahead:
+        raise ValueError("lookahead=False is unavailable for this full-sample indicator")
+
     if df is None or df.height < width:
         return None
 

@@ -30,6 +30,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._validate import v_expr
 
 
@@ -56,7 +57,7 @@ def lrsi(
 
     def _compute(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        l0, l1, l2, l3 = nb_lrsi_filter(arr, gamma)
+        l0, l1, l2, l3 = run_after_prefix((arr,), lambda arrays: nb_lrsi_filter(arrays[0], gamma), outputs=4)
 
         cu = np.zeros(len(arr))
         cd = np.zeros(len(arr))

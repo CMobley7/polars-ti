@@ -79,6 +79,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.cycles._ht_utils import run_hilbert
 from polars_ti.utils._validate import v_expr
 
 
@@ -111,15 +112,9 @@ def ht_trendline(
         if Imports["talib"] and v_talib(talib):
             from talib import HT_TRENDLINE
 
-            result = HT_TRENDLINE(arr)
+            result = run_hilbert(arr, lambda inputs: (HT_TRENDLINE(inputs[0]),), prenan)[0]
         else:
-            result = nb_ht_trendline(arr)
-        # prenan is a leading-NaN mask ("prenans to apply"), so honor it on the
-        # TA-Lib path too: masking only ever adds NaNs (TA-Lib's own 63-bar
-        # lookback is already NaN, so the default prenan=63 is a no-op) and never
-        # swaps a computed value the way a native-fallback would.
-        if prenan > 0:
-            result[:prenan] = np.nan
+            result = run_hilbert(arr, lambda inputs: (nb_ht_trendline(inputs[0]),), prenan)[0]
         return pl.Series(values=result, name=s.name)
 
     result = close_expr.map_batches(_compute, return_dtype=pl.Float64)

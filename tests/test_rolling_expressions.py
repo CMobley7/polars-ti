@@ -19,7 +19,13 @@ def test_expression_parity(name, window, kind):
     elif kind == "interior_null":
         series = series.set(pl.Series(np.arange(len(values)) == 140), None)
     frame = pl.DataFrame({"close": series, "high": series + 2, "low": series - 2})
-    expected = evaluate(name, frame, window, True)
+    if kind == "nan_prefix" and name in {"kama", "fisher"}:
+        # Upstream warmup fix: retain the frozen finite-input oracle, but seed
+        # after the prefix rather than pinning the historical poisoned state.
+        suffix = evaluate(name, frame.slice(17), window, True)
+        expected = np.concatenate((np.full(17 * (2 if name == "fisher" else 1), np.nan), suffix))
+    else:
+        expected = evaluate(name, frame, window, True)
     actual = evaluate(name, frame, window, False)
     np.testing.assert_allclose(actual, expected, rtol=2e-12, atol=2e-12)
 

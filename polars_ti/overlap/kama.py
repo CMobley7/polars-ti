@@ -8,6 +8,7 @@ import polars as pl
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.maps import Imports
 from polars_ti.utils._rolling import rolling_sum
 from polars_ti.utils._validate import v_expr
@@ -101,7 +102,7 @@ def kama(
 
         def compute_kama(s: pl.Series) -> pl.Series:
             arr = s.to_numpy().astype(np.float64)
-            result = nb_kama(arr, length, fast, slow)
+            result = run_after_prefix((arr,), lambda arrays: (nb_kama(arrays[0], length, fast, slow),))[0]
             if offset != 0:
                 result = np.roll(result, offset)
                 if offset > 0:

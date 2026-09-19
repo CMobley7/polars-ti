@@ -109,14 +109,21 @@ def cdl_doji(
     # and matches TA-Lib's CDLDOJI).
     hl_range_avg = hl_range.rolling_mean(window_size=length, min_samples=length).shift(1)
 
+    # Range history before the first jointly valid candle is not warmup data.
+    valid_ohlc = open_expr.is_finite() & high_expr.is_finite() & low_expr.is_finite() & close_expr.is_finite()
+    started = valid_ohlc.fill_null(False).cum_max()
+    ready = started.cast(pl.Int64).cum_sum() > length
+    hl_range_avg = pl.when(ready).then(hl_range_avg).otherwise(None)
+
     # Doji: body <= 0.01 * factor * average HL range. The comparison is "<=" so
     # zero-body bars count as doji (matches TA-Lib).
     threshold = 0.01 * factor * hl_range_avg
 
+    is_doji = body.is_finite() & threshold.is_finite() & (body <= threshold)
     if asint:
-        doji = pl.when(body <= threshold).then(scalar).otherwise(0.0).cast(pl.Int64)
+        doji = pl.when(is_doji).then(scalar).otherwise(0.0).cast(pl.Int64)
     else:
-        doji = body <= threshold
+        doji = is_doji
 
     # Apply offset
     if offset != 0:

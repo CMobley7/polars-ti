@@ -72,7 +72,10 @@ def ad(
         # Pure Polars: AD = cumsum(volume * (2*close - high - low) / (high - low))
         hl_range_safe = non_zero_range(high_expr, low_expr)
         clv = (2 * close_expr - high_expr - low_expr) / hl_range_safe
-        ad_expr = (clv * volume_expr).cum_sum()
+        flow = clv * volume_expr
+        started = flow.is_finite().fill_null(False).cum_max()
+        accumulated = pl.when(started).then(flow).otherwise(0.0).cum_sum()
+        ad_expr = pl.when(started).then(accumulated).otherwise(float("nan"))
 
     if offset != 0:
         ad_expr = ad_expr.shift(offset)

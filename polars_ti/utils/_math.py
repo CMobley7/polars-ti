@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-from functools import reduce
+from __future__ import annotations
+
+from math import comb
 from math import floor as mfloor
-from operator import mul
 from sys import float_info as sflt
 
 from numba import njit
 from numpy import (
     all,
     array,
-    corrcoef,
     dot,
     exp,
     fabs,
@@ -16,7 +16,6 @@ from numpy import (
     nan,
     ndarray,
     ones,
-    seterr,
     sign,
     sqrt,
     sum,
@@ -25,25 +24,19 @@ from numpy import (
 )
 
 from polars_ti._typing import Array, DictLike, Float, Int, IntFloat, List, Optional
-from polars_ti.maps import Imports
-from polars_ti.utils._validate import v_series
 
 
 def combination(n: Int = 1, r: Int = 0, repetition: bool = False, multichoose: bool = False) -> Int:
-    """https://stackoverflow.com/questions/4941753/is-there-a-math-ncr-function-in-python"""
-    n, r = int(fabs(n)), int(fabs(r))
+    """Return an exact binomial coefficient, optionally allowing repetition.
 
+    Negative inputs retain the historical absolute-value convention.
+    """
+    n, r = abs(int(n)), abs(int(r))
     if repetition or multichoose:
-        n = n + r - 1
-
-    # if r < 0: return None
-    r = min(n, n - r)
-    if r == 0:
-        return 1
-
-    numerator = reduce(mul, range(n, n - r, -1), 1)
-    denominator = reduce(mul, range(1, r + 1), 1)
-    return numerator // denominator
+        if n == 0:
+            return int(r == 0)
+        n += r - 1
+    return comb(n, r)
 
 
 def erf(x: IntFloat) -> Float:
@@ -125,19 +118,46 @@ def hpoly(x: Array, v: IntFloat) -> Float:
     return y
 
 
-def linear_regression(x, y) -> DictLike:
-    """Classic Linear Regression in Numpy or Scikit-Learn"""
-    x, y = v_series(x), v_series(y)
-    m, n = x.size, y.size
+def linear_regression(x: Array | pl.Series, y: Array | pl.Series) -> DictLike:
+    """Fit a line and return intercept, slope, Pearson r, t statistic and values.
 
-    if m != n:
-        print(f"[X] X and y have unequal sizes: {m} != {n}")
-        return {}
+    The result is independent of optional scikit-learn installation.
 
-    if Imports["sklearn"]:
-        return _linear_regression_sklearn(x, y)
-    else:
-        return _linear_regression_np(x, y)
+    Raises:
+        ValueError: If inputs are not finite, equal-length one-dimensional arrays
+            with at least two observations and nonconstant x.
+    """
+    import numpy as np
+    from scipy.stats import linregress
+
+    x_values = np.asarray(x, dtype=np.float64)
+    y_values = np.asarray(y, dtype=np.float64)
+    if (
+        x_values.ndim != 1
+        or y_values.ndim != 1
+        or x_values.size != y_values.size
+        or x_values.size < 2
+        or not np.isfinite(x_values).all()
+        or not np.isfinite(y_values).all()
+    ):
+        raise ValueError("regression requires equal-length finite vectors with at least two observations")
+    if np.all(x_values == x_values[0]):
+        raise ValueError("regression requires nonconstant x")
+    fit = linregress(x_values, y_values)
+    correlation = float(fit.rvalue)
+    residual = max(0.0, 1.0 - correlation * correlation)
+    statistic = np.nan
+    if x_values.size > 2 and np.isfinite(correlation):
+        statistic = (
+            correlation * np.sqrt((x_values.size - 2) / residual) if residual else np.copysign(np.inf, correlation)
+        )
+    return {
+        "a": float(fit.intercept),
+        "b": float(fit.slope),
+        "r": correlation,
+        "t": float(statistic),
+        "line": fit.intercept + fit.slope * x_values,
+    }
 
 
 def log_geometric_mean(series) -> Float:
@@ -195,7 +215,7 @@ def strided_window(x: Array, length: Int) -> Array:
 
 
 def symmetric_triangle(n: Int = None, weighted: bool = False) -> Optional[List[int]]:
-    """Symmetric Triangle whenever n >= 2
+    """Symmetric Triangle whenever n >= 1
 
     Returns a numpy array of the nth row of Symmetric Triangle.
     n=4  => triangle: [1, 2, 2, 1]
@@ -203,7 +223,7 @@ def symmetric_triangle(n: Int = None, weighted: bool = False) -> Optional[List[i
     """
     n = int(fabs(n)) if n is not None else 2
 
-    triangle = None
+    triangle = [1] if n == 1 else None
     if n == 2:
         triangle = [1, 1]
 
@@ -265,60 +285,6 @@ def df_error_analysis(
     if triangular:
         return result.where(triu(ones(result.shape)).astype(bool))
 
-    return result
-
-
-# PRIVATE
-def _linear_regression_np(x, y) -> DictLike:
-    """Simple Linear Regression in Numpy
-    for two 1d arrays for environments without the sklearn package."""
-    result = {"a": nan, "b": nan, "r": nan, "t": nan, "line": nan}
-    x_sum = x.sum()
-    y_sum = y.sum()
-
-    if int(x_sum) != 0:
-        # 1st row, 2nd col value corr(x, y)
-        r = corrcoef(x, y)[0, 1]
-
-        m = x.size
-        r_mix = m * (x * y).sum() - x_sum * y_sum
-        b = r_mix // (m * (x * x).sum() - x_sum * x_sum)
-        a = y.mean() - b * x.mean()
-        line = a + b * x
-
-        _np_err = seterr()
-        seterr(divide="ignore", invalid="ignore")
-        result = {
-            "a": a,
-            "b": b,
-            "r": r,
-            "t": r / sqrt((1 - r * r) / (m - 2)),
-            "line": line,
-        }
-        seterr(divide=_np_err["divide"], invalid=_np_err["invalid"])
-
-    return result
-
-
-def _linear_regression_sklearn(x, y) -> DictLike:
-    """Simple Linear Regression in Scikit Learn for two 1d arrays for
-    environments with the sklearn package."""
-    import numpy as _np
-    from sklearn.linear_model import LinearRegression
-
-    X = _np.asarray(x).reshape(-1, 1)
-    y = _np.asarray(y)
-    lr = LinearRegression().fit(X, y=y)
-    r = lr.score(X, y=y)
-    a, b = lr.intercept_, lr.coef_[0]
-
-    result = {
-        "a": a,
-        "b": b,
-        "r": r,
-        "t": r / sqrt((1 - r * r) / (x.size - 2)),
-        "line": a + b * _np.asarray(x),
-    }
     return result
 
 

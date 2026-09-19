@@ -43,7 +43,9 @@ def candle_color(open_: IntoExpr, close: IntoExpr) -> PlExpr:
     """Polars: Candle Change - Returns 1 (bullish) or -1 (bearish)."""
     open_expr = v_expr(open_)
     close_expr = v_expr(close)
-    return pl.when(close_expr >= open_expr).then(1).otherwise(-1).alias("candle_color")
+    valid = open_expr.is_finite() & close_expr.is_finite()
+    color = pl.when(close_expr >= open_expr).then(1).otherwise(-1)
+    return pl.when(valid).then(color).otherwise(None).alias("candle_color")
 
 
 def high_low_range(high: IntoExpr, low: IntoExpr) -> PlExpr:

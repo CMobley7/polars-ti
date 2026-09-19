@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._validate import v_expr
 
 
@@ -53,7 +54,7 @@ def hwma(
 
     def compute_hwma(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        result = _hwma_numba(arr, na, nb, nc)
+        result = run_after_prefix((arr,), lambda arrays: (_hwma_numba(arrays[0], na, nb, nc),))[0]
         if offset != 0:
             result = np.roll(result, offset)
             if offset > 0:
@@ -62,4 +63,4 @@ def hwma(
                 result[offset:] = np.nan
         return pl.Series(result)
 
-    return close_expr.map_batches(compute_hwma).alias(f"HWMA_{na}_{nb}_{nc}")
+    return close_expr.map_batches(compute_hwma, return_dtype=pl.Float64).alias(f"HWMA_{na}_{nb}_{nc}")

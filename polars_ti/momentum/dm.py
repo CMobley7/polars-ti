@@ -8,6 +8,7 @@ from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr, v_pos_int
+from polars_ti.utils._prefix import run_after_prefix
 
 
 @njit(cache=True)
@@ -42,13 +43,20 @@ def _nb_dm(high, low, length, drift):
     for i in range(length):
         pos_sum += pos[i]
         neg_sum += neg[i]
-    dmp[length - 1] = pos_sum
-    dmn[length - 1] = neg_sum
+    if length > 1:
+        dmp[length - 1] = pos_sum
+        dmn[length - 1] = neg_sum
+    else:
+        dmp[0] = 0.0
+        dmn[0] = 0.0
 
     for i in range(length, n):
         dmp[i] = dmp[i - 1] - dmp[i - 1] / length + pos[i]
         dmn[i] = dmn[i - 1] - dmn[i - 1] / length + neg[i]
 
+    if length == 1:
+        dmp[:drift] = np.nan
+        dmn[:drift] = np.nan
     return dmp, dmn
 
 
@@ -125,7 +133,9 @@ def dm(
             df = s.struct.unnest()
             high_arr = df["high"].to_numpy().astype(np.float64)
             low_arr = df["low"].to_numpy().astype(np.float64)
-            dmp_arr, dmn_arr = _nb_dm(high_arr, low_arr, _length, _drift)
+            dmp_arr, dmn_arr = run_after_prefix(
+                (high_arr, low_arr), lambda arrays: _nb_dm(*arrays, _length, _drift), outputs=2
+            )
             return pl.Series([{"DMP": p, "DMN": n} for p, n in zip(dmp_arr, dmn_arr)])
 
         struct_expr = pl.struct(high=high_expr, low=low_expr)

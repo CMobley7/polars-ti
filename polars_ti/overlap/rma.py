@@ -39,7 +39,10 @@ def _rma_numba(close: np.ndarray, length: int, presma: bool = True) -> np.ndarra
             fv = i
             break
 
-    if presma and fv >= 0 and fv + length <= n:
+    if fv < 0 or (presma and fv + length > n):
+        return result
+
+    if presma:
         # SMA seed over the first ``length`` FINITE values (contiguous from the
         # first finite index), placed at ``fv+length-1`` — exactly matching
         # TA-Lib's Wilder warmup (e.g. ATR seeds the SMA of TR[1..length] at

@@ -37,6 +37,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._validate import v_expr
 
 
@@ -79,9 +80,9 @@ def ssf(
         arr = s.to_numpy().astype(np.float64)
         # Call Numba kernels directly - NO Pandas!
         if _everget:
-            result = nb_ssf_everget(arr, _length, _pi, _sqrt2)
+            result = run_after_prefix((arr,), lambda arrays: (nb_ssf_everget(arrays[0], _length, _pi, _sqrt2),))[0]
         else:
-            result = nb_ssf(arr, _length, _pi, _sqrt2)
+            result = run_after_prefix((arr,), lambda arrays: (nb_ssf(arrays[0], _length, _pi, _sqrt2),))[0]
         return pl.Series(result)
 
     result = close_expr.map_batches(compute_ssf, return_dtype=pl.Float64)

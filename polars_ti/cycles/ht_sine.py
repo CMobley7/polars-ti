@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.cycles._ht_utils import run_hilbert
 from polars_ti.utils._validate import v_expr
 
 
@@ -45,11 +46,9 @@ def ht_sine(
         if _use_talib:
             from talib import HT_SINE
 
-            sine_arr, leadsine_arr = HT_SINE(arr)
+            sine_arr, leadsine_arr = run_hilbert(arr, lambda inputs: HT_SINE(inputs[0]), 63, outputs=2)
         else:
-            _, dcphase, _, _, _ = nb_ht_pipeline(arr)
-            dcphase = dcphase.copy()
-            dcphase[:63] = np.nan
+            dcphase = run_hilbert(arr, lambda inputs: (nb_ht_pipeline(inputs[0])[1],), 63)[0]
             sine_arr = np.sin(dcphase * np.pi / 180.0)
             leadsine_arr = np.sin((dcphase + 45.0) * np.pi / 180.0)
 

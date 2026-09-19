@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.cycles._ht_utils import run_hilbert
 from polars_ti.utils._validate import v_expr
 
 
@@ -43,11 +44,10 @@ def ht_dcperiod(
         if _use_talib:
             from talib import HT_DCPERIOD
 
-            result = HT_DCPERIOD(arr)
+            result = run_hilbert(arr, lambda inputs: (HT_DCPERIOD(inputs[0]),), 32)[0]
         else:
-            dcperiod, _, _, _, _ = nb_ht_pipeline(arr)
-            result = dcperiod
-            result[:32] = np.nan
+            result = run_hilbert(arr, lambda inputs: (nb_ht_pipeline(inputs[0])[0],), 32)[0]
+
         return pl.Series(values=result, name=s.name)
 
     result = close_expr.map_batches(_compute, return_dtype=pl.Float64)

@@ -22,6 +22,7 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
+from polars_ti.utils._prefix import first_finite_index
 
 # ---------------------------------------------------------------------------
 # Enums (mirror TA-Lib ta_defs.h)
@@ -243,9 +244,11 @@ def run_pattern(
                 out = fn(o, h, lo, c)
             out = out.astype(np.float64)
         else:
-            ca = CandleArrays(o, h, lo, c)
+            start = first_finite_index((o, h, lo, c))
             out = np.zeros(c.shape[0], dtype=np.float64)
-            detect_fn(ca, out, **_kwargs)
+            if start < len(c):
+                ca = CandleArrays(o[start:], h[start:], lo[start:], c[start:])
+                detect_fn(ca, out[start:], **_kwargs)
 
         # Scale (TA-Lib emits ±100; scalar lets callers adjust).
         if _scalar != 100.0:

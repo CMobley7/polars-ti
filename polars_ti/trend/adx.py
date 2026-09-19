@@ -8,6 +8,7 @@ import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr
+from polars_ti.utils._prefix import run_after_prefix
 
 
 @njit(cache=True)
@@ -26,7 +27,7 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
 
     # True Range
     tr = np.zeros(n)
-    tr[0] = high[0] - low[0]
+    # The initial bar has no preceding close or directional movement.
     for i in range(1, n):
         hl = high[i] - low[i]
         hc = abs(high[i] - close[i - 1])
@@ -44,12 +45,12 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
         if dn > up and dn > 0:
             neg[i] = dn
 
-    # RMA smoothing for ATR, +DM, -DM
+    # Wilder running sums for true range and directional movement.
     atr_rma = np.zeros(n)
     pos_rma = np.zeros(n)
     neg_rma = np.zeros(n)
 
-    # SMA init
+    # Seed from the first length - 1 directional changes.
     atr_sum = 0.0
     pos_sum = 0.0
     neg_sum = 0.0
@@ -57,27 +58,29 @@ def _nb_adx(high, low, close, length, lensig, adxr_length, scalar):
         atr_sum += tr[i]
         pos_sum += pos[i]
         neg_sum += neg[i]
-    atr_rma[length - 1] = atr_sum / length
-    pos_rma[length - 1] = pos_sum / length
-    neg_rma[length - 1] = neg_sum / length
+    atr_rma[length - 1] = atr_sum
+    pos_rma[length - 1] = pos_sum
+    neg_rma[length - 1] = neg_sum
 
-    alpha = 1.0 / length
     for i in range(length, n):
-        atr_rma[i] = alpha * tr[i] + (1 - alpha) * atr_rma[i - 1]
-        pos_rma[i] = alpha * pos[i] + (1 - alpha) * pos_rma[i - 1]
-        neg_rma[i] = alpha * neg[i] + (1 - alpha) * neg_rma[i - 1]
+        atr_rma[i] = atr_rma[i - 1] - atr_rma[i - 1] / length + tr[i]
+        pos_rma[i] = pos_rma[i - 1] - pos_rma[i - 1] / length + pos[i]
+        neg_rma[i] = neg_rma[i - 1] - neg_rma[i - 1] / length + neg[i]
 
     # DMP/DMN outputs are the Wilder sum-smoothed directional movement, matching
-    # TA-Lib PLUS_DM/MINUS_DM (== length * RMA of the raw DM). DX is derived from
+    # TA-Lib PLUS_DM/MINUS_DM. DX is derived from
     # the directional indicators (+DI/-DI = scalar * smoothed_DM / smoothed_TR),
     # which are scale-invariant to the sum-vs-average smoothing choice.
     dx = np.full(n, np.nan)
     for i in range(length - 1, n):
-        dmp_out[i] = length * pos_rma[i]
-        dmn_out[i] = length * neg_rma[i]
+        dmp_out[i] = pos_rma[i]
+        dmn_out[i] = neg_rma[i]
+        if i < length:
+            continue
+        dx[i] = 0.0
         if atr_rma[i] != 0:
-            di_pos = scalar * pos_rma[i] / atr_rma[i]
-            di_neg = scalar * neg_rma[i] / atr_rma[i]
+            di_pos = pos_rma[i] / atr_rma[i]
+            di_neg = neg_rma[i] / atr_rma[i]
             di_sum = di_pos + di_neg
             if di_sum != 0:
                 dx[i] = scalar * abs(di_pos - di_neg) / di_sum
@@ -174,7 +177,9 @@ def adx(
             adxr_arr = 0.5 * (adx_arr + np.roll(adx_arr, adxr_length))
             adxr_arr[:adxr_length] = np.nan
         else:
-            adx_arr, adxr_arr, dmp_arr, dmn_arr = _nb_adx(h, l_, c, length, _lensig, adxr_length, scalar)
+            adx_arr, adxr_arr, dmp_arr, dmn_arr = run_after_prefix(
+                (h, l_, c), lambda arrays: _nb_adx(*arrays, length, _lensig, adxr_length, scalar), outputs=4
+            )
 
         if offset != 0:
             for arr in [adx_arr, adxr_arr, dmp_arr, dmn_arr]:

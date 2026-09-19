@@ -111,6 +111,26 @@ df.select(rsi("close", length=14, talib=False))   # native
 
 See [TA-Lib & native paths](talib.md).
 
+## Missing rows and indicator warmup
+
+Keep rows aligned when chaining indicators. A leading run of null/NaN values is
+warmup: the recursive indicators covered by the
+[September release follow-up](upstream/2026-09-release-review.md) initialize from
+the first valid input and return their original row count. Their lookback starts
+there, and offsets apply after the missing prefix is restored. Candle patterns
+retain zero signals during their prefix/lookback.
+
+An interior gap is different. Hilbert recurrences return missing values from the
+first gap onward; `ht_trendmode` uses nulls in its Int32 output for undefined
+states, rather than classifying them as cycle mode. Rolling indicators require a
+complete valid window and recover when the gap leaves it. Other recurrences keep
+their documented gap rules; do not assume every indicator recovers identically.
+
+Resampling a weekday-only feed onto calendar days can insert missing weekend
+rows. Decide whether those rows represent observations before computing an
+indicator. If you intentionally exclude them, retain a row key and join computed
+results back to that key; do not forward-fill missing market data implicitly.
+
 ## Next steps
 
 - Browse the full [indicator list](indicators.md).

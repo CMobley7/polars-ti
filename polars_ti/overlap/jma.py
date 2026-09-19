@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._validate import v_expr
 
 
@@ -123,7 +124,7 @@ def jma(
 
     def compute_jma(s: pl.Series) -> pl.Series:
         arr = s.to_numpy().astype(np.float64)
-        result = nb_jma(arr, length, phase)
+        result = run_after_prefix((arr,), lambda arrays: (nb_jma(arrays[0], length, phase),))[0]
         if offset != 0:
             result = np.roll(result, offset)
             if offset > 0:

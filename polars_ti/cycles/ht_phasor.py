@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.cycles._ht_utils import run_hilbert
 from polars_ti.utils._validate import v_expr
 
 
@@ -45,13 +46,9 @@ def ht_phasor(
         if _use_talib:
             from talib import HT_PHASOR
 
-            inphase_arr, quad_arr = HT_PHASOR(arr)
+            inphase_arr, quad_arr = run_hilbert(arr, lambda inputs: HT_PHASOR(inputs[0]), 32, outputs=2)
         else:
-            _, _, inphase_arr, quad_arr, _ = nb_ht_pipeline(arr)
-            inphase_arr = inphase_arr.copy()
-            quad_arr = quad_arr.copy()
-            inphase_arr[:32] = np.nan
-            quad_arr[:32] = np.nan
+            inphase_arr, quad_arr = run_hilbert(arr, lambda inputs: nb_ht_pipeline(inputs[0])[2:4], 32, outputs=2)
 
         return pl.DataFrame(
             {

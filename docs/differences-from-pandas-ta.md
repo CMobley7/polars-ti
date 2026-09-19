@@ -397,3 +397,21 @@ TA-Lib fast path:
 | `mavp` | Overlap | Moving Average with Variable Period — a per-bar variable-period SMA | matches `talib.MAVP` for `matype=0` (SMA); other `matype` values route to TA-Lib |
 
 This brings the total to **267** indicators.
+
+## September 2026 upstream fixes
+
+The [0.8.32 / 0.6.52 review](upstream/2026-09-release-review.md) records each
+applicable fix and the pandas-specific changes not ported. This follow-up fixes
+leading-prefix initialization, Hilbert missing-state handling, candle detection,
+Wilder warmup, causal full-history candle normalization, transition drift and
+short-input cases. ADX's DMP/DMN fields remain Wilder **sums**, and standalone
+ADXR retains its `length - 1` lag. Existing native-versus-TA-Lib conventions not
+part of these fixes, including native RSI smoothing and approximate Hilbert
+phase/sine/trendmode, remain as documented.
+
+`utils.tal_ma` now works without TA-Lib and rejects unsupported names instead of
+silently choosing SMA. `utils.linear_regression` uses SciPy's least-squares
+implementation consistently: `r` is Pearson correlation, never sklearn's R²,
+and fractional slopes are retained. Invalid/nonfinite/constant-x input raises
+`ValueError`. `utils.combination` uses exact integer `math.comb`; requesting more
+items than available yields zero, and `multichoose` remains supported.

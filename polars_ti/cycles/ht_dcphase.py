@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.cycles._ht_utils import run_hilbert
 from polars_ti.utils._validate import v_expr
 
 
@@ -43,11 +44,10 @@ def ht_dcphase(
         if _use_talib:
             from talib import HT_DCPHASE
 
-            result = HT_DCPHASE(arr)
+            result = run_hilbert(arr, lambda inputs: (HT_DCPHASE(inputs[0]),), 63)[0]
         else:
-            _, dcphase, _, _, _ = nb_ht_pipeline(arr)
-            result = dcphase
-            result[:63] = np.nan
+            result = run_hilbert(arr, lambda inputs: (nb_ht_pipeline(inputs[0])[1],), 63)[0]
+
         return pl.Series(values=result, name=s.name)
 
     result = close_expr.map_batches(_compute, return_dtype=pl.Float64)

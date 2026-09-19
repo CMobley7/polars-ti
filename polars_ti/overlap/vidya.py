@@ -31,6 +31,7 @@ import polars as pl
 import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._validate import v_expr
 
 
@@ -105,7 +106,9 @@ def vidya(
         abs_cmo = np.nan_to_num(np.clip(np.abs(cmo_vals), 0.0, 1.0)).astype(np.float64)
 
         # Use the shared Numba kernel (SMA-seeded; warmup stays NaN).
-        result = nb_vidya(arr, abs_cmo, alpha, _length)
+        result = run_after_prefix((arr, abs_cmo), lambda arrays: (nb_vidya(*arrays, alpha, _length),), valid_inputs=1)[
+            0
+        ]
 
         return pl.Series(result)
 

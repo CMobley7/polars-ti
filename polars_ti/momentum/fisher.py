@@ -8,6 +8,7 @@ import polars as pl
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._prefix import run_after_prefix
 from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
@@ -74,7 +75,6 @@ def fisher(
         hl2_arr = (high_arr + low_arr) / 2.0
 
         # Rolling max/min of HL2
-        n = len(hl2_arr)
         highest = rolling_extreme(hl2_arr, _length, True)[0]
         lowest = rolling_extreme(hl2_arr, _length, False)[0]
 
@@ -82,7 +82,11 @@ def fisher(
         hlr = highest - lowest
         hlr = np.maximum(hlr, 0.001)
 
-        result = nb_fisher(hl2_arr, lowest, hlr, _length)
+        result = run_after_prefix(
+            (hl2_arr, lowest, hlr),
+            lambda arrays: (nb_fisher(*arrays, _length),),
+            valid_inputs=1,
+        )[0]
         return pl.Series(result)
 
     struct_expr = pl.struct(high=high_expr, low=low_expr)

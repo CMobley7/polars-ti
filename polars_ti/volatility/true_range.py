@@ -69,7 +69,8 @@ def true_range(
         hl_range = high_expr - low_expr
         hc_range = (high_expr - prev_close).abs()
         lc_range = (prev_close - low_expr).abs()
-        result = pl.max_horizontal(hl_range, hc_range, lc_range)
+        valid = high_expr.is_finite() & low_expr.is_finite() & prev_close.is_finite()
+        result = pl.when(valid).then(pl.max_horizontal(hl_range, hc_range, lc_range)).otherwise(float("nan"))
 
     if offset != 0:
         result = result.shift(offset)
