@@ -4,7 +4,7 @@
 The original SMA used Numba convolution, which could abort when SciPy's LAPACK
 was missing. SMA now uses rolling sums; its regression still checks compilation,
 warmup and values. SciPy remains a hard dependency because the FIR kernel and
-shared regression utility import scipy.signal.oaconvolve and scipy.stats.linregress.
+shared regression utility import scipy.signal.fftconvolve and scipy.stats.linregress.
 """
 
 import numpy as np

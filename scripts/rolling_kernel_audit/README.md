@@ -57,3 +57,7 @@ worst case remains O(n·w); the normal-path complexity and measured corpus behav
 must not be presented as an unconditional asymptotic guarantee. Extended-precision
 FIR acceleration requires `longdouble` wider than `float64`; other platforms use
 its accurate direct path.
+
+The later [FIR prefix correction](CAUSAL_FIR.md) preserves the ML consumer's strict
+bitwise prefix contract. Its separate `causal_fir.py` / `causal_fir.json` reproduce
+the new timings without replacing the historical measurements above.

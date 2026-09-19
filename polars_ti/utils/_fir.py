@@ -2,15 +2,15 @@
 
 import numpy as np
 import polars as pl
-from scipy.signal import oaconvolve
+from scipy.signal import fftconvolve
 
 from polars_ti.utils._rolling import FloatArray, rolling_extreme, rolling_sum
 
 
 def rolling_fir(values: FloatArray, weights: FloatArray) -> FloatArray:
-    """Apply oldest-first weights with extended-precision overlap-add convolution.
+    """Apply oldest-first weights with prefix-stable extended-precision convolution.
 
-    The normal path is O(n log w). Small windows, platforms without extended
+    The normal path is O(n log² w). Small windows, platforms without extended
     long double, and windows whose convolution error estimate exceeds the local
     direct-sum budget use direct products. Cancellation alone does not trigger
     fallback; exceptional inputs can require O(n*w) work to protect accuracy.
@@ -35,21 +35,64 @@ def rolling_fir(values: FloatArray, weights: FloatArray) -> FloatArray:
     weight_norm = float(np.sum(np.abs(extended_weights)))
     rounding_budget = 4 * np.finfo(np.float64).eps * local_scale * weight_norm
     missing = rolling_sum(np.isnan(values).astype(np.float64), window) > 0
-    block_size = max(256, window)
-    for block in range(window - 1, len(values), block_size):
-        end = min(len(values), block + block_size)
-        start = block - window + 1
-        segment = clean[start:end]
-        computed = oaconvolve(segment, extended_weights[::-1], mode="valid")
-        result[block:end] = computed.astype(np.float64)
-        # A distant extreme cannot contaminate an independently transformed
-        # block. Compare absolute error with the local direct-sum budget;
-        # cancellation alone must never trigger full-window reevaluation.
-        bound = float(64 * extended_epsilon * np.max(np.abs(segment)) * weight_norm * np.log2(len(segment) + window))
-        fallback = ((invalid[block:end] > 0) | (bound > rounding_budget[block:end])) & ~missing[block:end]
-        for i in np.flatnonzero(fallback) + block:
-            direct = values[i - window + 1 : i + 1].astype(np.longdouble)
-            result[i] = np.sum(direct * extended_weights)
+    # Lag chunks [B, 2B) use only completed B-row input blocks. Their first
+    # contribution is at least B rows later, after every source value is known.
+    # Appending rows can therefore add no operands to an earlier output, even
+    # through FFT roundoff or an accuracy-fallback decision.
+    kernel = extended_weights[::-1]
+    accumulated = np.zeros(len(values), dtype=np.longdouble)
+    error_bound = np.zeros(len(values), dtype=np.longdouble)
+    head = 32
+    for lag in range(head):
+        accumulated[lag:] += clean[: len(values) - lag] * kernel[lag]
+    block_size = head
+    while block_size < window:
+        block_count = len(values) // block_size
+        if block_count == 0:
+            break
+        chunk = kernel[block_size : 2 * block_size]
+        blocks = clean[: block_count * block_size].reshape(block_count, block_size)
+        # Transform only the time axis: the fixed per-row FFT shape is independent
+        # of how many complete blocks the caller supplies. Batching avoids one
+        # Python/SciPy call per small block without changing the arithmetic.
+        convolved = fftconvolve(blocks, chunk[None, :], mode="full", axes=-1)
+        bounds = (
+            64
+            * extended_epsilon
+            * np.max(np.abs(blocks), axis=1)
+            * np.sum(np.abs(chunk))
+            * np.log2(block_size + len(chunk))
+        )
+        # Each convolution overlaps at most two output blocks. Add all heads,
+        # then all tails at every lag level, preserving that order in prefixes.
+        for part in range(2):
+            section = convolved[:, part * block_size : (part + 1) * block_size]
+            width = section.shape[1]
+            if width == 0:
+                continue
+            destination = (part + 1) * block_size
+            count = min(block_count, (len(values) - destination + block_size - 1) // block_size)
+            if count <= 0:
+                continue
+            # Pad the partial convolution tail so each source block keeps its
+            # fixed output position instead of packing adjacent tails together.
+            packed = np.zeros((count, block_size), dtype=np.longdouble)
+            packed[:, :width] = section[:count]
+            budget = np.zeros_like(packed)
+            budget[:, :width] = bounds[:count, None]
+            size = min(count * block_size, len(values) - destination)
+            accumulated[destination : destination + size] += packed.ravel()[:size]
+            error_bound[destination : destination + size] += budget.ravel()[:size]
+        block_size *= 2
+    result[window - 1 :] = accumulated[window - 1 :].astype(np.float64)
+    # Both the bound and the local budget use only past observations. Direct
+    # reevaluation protects extreme scales and infinities without admitting a
+    # future outlier into the rounding decision for an earlier window.
+    fallback = ((invalid > 0) | (error_bound > rounding_budget)) & ~missing
+    fallback[: window - 1] = False
+    for i in np.flatnonzero(fallback):
+        direct = values[i - window + 1 : i + 1].astype(np.longdouble)
+        result[i] = np.sum(direct * extended_weights)
     result[missing] = np.nan
     return result
 

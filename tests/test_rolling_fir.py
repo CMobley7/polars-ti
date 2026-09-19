@@ -70,3 +70,28 @@ def test_distant_outlier_does_not_force_all_later_windows(monkeypatch):
     actual = _fir.rolling_fir(values, weights)
     np.testing.assert_allclose(actual[window:], 1, atol=3e-15, rtol=0)
     assert len(direct_calls) <= 4 * window
+
+
+@pytest.mark.parametrize("window", [35, 64, 127, 480])
+def test_fir_prefix_is_bitwise_stable(window):
+    """Appending observations must not change even the rounding of earlier rows."""
+    values = 60648 + np.random.default_rng(71).normal(size=1600)
+    weights = np.exp(-0.5 * ((np.arange(window) - window / 3) / window * 6) ** 2)
+    weights /= weights.sum()
+    full = rolling_fir(values, weights)
+    for end in [window, window + 17, 601, 999]:
+        prefix = rolling_fir(values[:end], weights)
+        np.testing.assert_array_equal(full[:end].view(np.uint64), prefix.view(np.uint64))
+
+
+@pytest.mark.parametrize("window", [35, 127, 480])
+def test_fir_future_scale_and_missingness_cannot_change_prefix(window):
+    """Error-budget decisions must also depend only on already observed values."""
+    values = 60648 + np.random.default_rng(71).normal(size=1600)
+    weights = np.full(window, 1 / window)
+    before = rolling_fir(values[:601], weights)
+    values[601:900] = 1e20
+    values[900:1000] = np.nan
+    values[1000] = np.inf
+    full = rolling_fir(values, weights)
+    np.testing.assert_array_equal(before.view(np.uint64), full[:601].view(np.uint64))
