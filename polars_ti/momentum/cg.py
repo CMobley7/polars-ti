@@ -1,43 +1,30 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars CG (Center of Gravity) Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils import v_pos_int
+from polars_ti.utils._rolling import rolling_linear, scaled_window_linear
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_cg(close: np.ndarray, length: int) -> np.ndarray:
-    """Numba: Center of Gravity calculation.
-
-    CG = -sum(close[i] * weight[i]) / sum(close[i])
-    where weight[i] = 1..length (1 for oldest, length for newest in window)
-    """
-    n = len(close)
-    result = np.full(n, np.nan, dtype=np.float64)
-
-    if length > n:
-        # Window larger than the data -> all NaN. Return before allocating the
-        # O(length) weight vector, which on an absurd length would exhaust memory.
-        return result
-
-    weights = np.arange(1, length + 1, dtype=np.float64)
-
-    for i in range(length - 1, n):
-        window = close[i - length + 1 : i + 1]
-        weighted_sum = np.sum(window * weights)
-        total_sum = np.sum(window)
-
-        if abs(total_sum) > 1e-10:
-            result[i] = -weighted_sum / total_sum
-        else:
-            result[i] = np.nan
-
+    """Compute center of gravity from compensated linear weighted sums."""
+    total, weighted, _ = rolling_linear(close, length)
+    result = np.full(len(close), np.nan)
+    for i in range(length - 1, len(close)):
+        if not np.isfinite(total[i]) or not np.isfinite(weighted[i]):
+            normalized_total, normalized_weighted, scale = scaled_window_linear(close, i - length + 1, i + 1)
+            if abs(normalized_total) > 1e-10 / scale:
+                result[i] = -normalized_weighted / normalized_total
+        elif abs(total[i]) > 1e-10:
+            result[i] = -weighted[i] / total[i]
     return result
 
 

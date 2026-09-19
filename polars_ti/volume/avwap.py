@@ -1,30 +1,25 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars AVWAP (Anchored Volume Weighted Average Price) Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def _nb_find_pivots(data: np.ndarray, left: int, right: int, is_high: bool) -> np.ndarray:
-    """Find pivot points in a series using Numba."""
+    """Find every tied centered pivot in linear time."""
     n = len(data)
     pivots = np.zeros(n, dtype=np.bool_)
-
+    extreme = rolling_extreme(data, left + right + 1, is_high)[0]
     for i in range(left, n - right):
-        window = data[i - left : i + right + 1]
-        if is_high:
-            if data[i] == np.max(window):
-                pivots[i] = True
-        else:
-            if data[i] == np.min(window):
-                pivots[i] = True
-
+        pivots[i] = data[i] == extreme[i + right]
     return pivots
 
 

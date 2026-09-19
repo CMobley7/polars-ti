@@ -1,49 +1,22 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars QUANTILE Implementation (Numba @njit kernel)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
 from polars_ti.utils import v_pos_int
+from polars_ti.utils._rolling import rolling_quantile
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_quantile(close: np.ndarray, length: int, q: float) -> np.ndarray:
-    """Numba-optimized rolling quantile with linear interpolation.
-
-    Matches Pandas rolling.quantile() with default linear interpolation.
-    """
-    n = len(close)
-    result = np.full(n, np.nan)
-
-    for i in range(length - 1, n):
-        window = close[i - length + 1 : i + 1].copy()
-
-        # Sort the window
-        for j in range(length):
-            for k in range(j + 1, length):
-                if window[j] > window[k]:
-                    tmp = window[j]
-                    window[j] = window[k]
-                    window[k] = tmp
-
-        # Linear interpolation (matching Pandas default)
-        # idx = q * (n - 1), then interpolate
-        idx = q * (length - 1)
-        lower_idx = int(idx)
-        upper_idx = lower_idx + 1
-
-        if upper_idx >= length:
-            result[i] = window[length - 1]
-        else:
-            frac = idx - lower_idx
-            result[i] = window[lower_idx] * (1 - frac) + window[upper_idx] * frac
-
-    return result
+    """Return linearly interpolated quantiles; any NaN invalidates its window."""
+    return rolling_quantile(close, length, q)
 
 
 def quantile(

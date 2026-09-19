@@ -1,32 +1,43 @@
-# -*- coding: utf-8 -*-
-from numpy import arange, dot, float64, nan, zeros_like
 from numba import njit
+
+# -*- coding: utf-8 -*-
+
+from polars_ti.utils._rolling import rolling_extreme, rolling_linear, scaled_window_linear
 
 
 @njit(cache=True)
 def nb_wma(x, n, asc, prenan):
-    m = x.size
-    w = arange(1, n + 1, dtype=float64)
-    result = zeros_like(x, dtype=x.dtype)
-
-    if not asc:
-        w = w[::-1]
-
-    for i in range(n - 1, m):
-        result[i] = (w * x[i - n + 1 : i + 1]).sum()
-    result *= 2 / (n * n + n)
-
-    if prenan:
-        result[: n - 1] = nan
-
+    """Compute linear weighted means with compensated rolling recurrences."""
+    if asc:
+        _, weighted, _ = rolling_linear(x, n)
+    else:
+        # Reversing the input avoids subtracting independently rounded totals
+        # when descending weights nearly cancel.
+        _, reversed_weighted, _ = rolling_linear(x[::-1], n)
+        weighted = np.full(len(x), np.nan)
+        for i in range(n - 1, len(x)):
+            weighted[i] = reversed_weighted[len(x) - i + n - 2]
+    result = weighted * (2 / (n * n + n))
+    minimum = rolling_extreme(x, n, False)[0]
+    maximum = rolling_extreme(x, n, True)[0]
+    for i in range(n - 1, len(x)):
+        if maximum[i] == np.inf and minimum[i] != -np.inf:
+            result[i] = np.inf
+        elif minimum[i] == -np.inf and maximum[i] != np.inf:
+            result[i] = -np.inf
+        elif not np.isfinite(result[i]) and np.isfinite(minimum[i]) and np.isfinite(maximum[i]):
+            _, normalized, scale = scaled_window_linear(x, i - n + 1, i + 1, asc)
+            result[i] = (normalized / (n * (n + 1) / 2.0)) * scale
+    if not prenan:
+        result[: n - 1] = 0.0
     return result
 
 
 # =============================================================================
 # Polars WMA Implementation (using nb_wma kernel)
 # =============================================================================
-import polars as pl
 import numpy as np
+import polars as pl
 
 from polars_ti._typing import IntoExpr, PlExpr
 from polars_ti.utils._validate import v_expr, v_pos_int

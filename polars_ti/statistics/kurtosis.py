@@ -1,59 +1,33 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars KURTOSIS Implementation (Numba @njit kernel)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import needs_scaling, rolling_extreme, rolling_moments, scaled_window_moments
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_kurtosis(close: np.ndarray, length: int) -> np.ndarray:
-    """Numba-optimized Fisher's excess kurtosis calculation.
-
-    Fisher's definition (matching Pandas):
-    kurtosis = (m4 / m2^2) - 3 (excess kurtosis)
-
-    With bias correction for sample kurtosis.
-    """
-    n = len(close)
-    result = np.full(n, np.nan)
-
-    for i in range(length - 1, n):
-        window = close[i - length + 1 : i + 1]
-        window_n = length
-
-        # Compute mean
-        mean = 0.0
-        for j in range(window_n):
-            mean += window[j]
-        mean /= window_n
-
-        # Compute centered moments (m2 = variance without ddof, m4 = fourth moment)
-        m2 = 0.0
-        m4 = 0.0
-        for j in range(window_n):
-            diff = window[j] - mean
-            diff2 = diff * diff
-            m2 += diff2
-            m4 += diff2 * diff2
-
-        m2 /= window_n
-        m4 /= window_n
-
-        # Fisher's excess kurtosis with bias correction (matching Pandas)
-        # Pandas uses the formula: g2 = m4/m2^2 - 3
-        # Then applies bias correction: G2 = ((n+1)*g2 + 6) * (n-1) / ((n-2)*(n-3))
-        if window_n > 3 and m2 > 0:
-            g2 = m4 / (m2 * m2) - 3.0
-            # Bias correction factor
-            adj = (window_n - 1.0) / ((window_n - 2.0) * (window_n - 3.0))
-            G2 = ((window_n + 1.0) * g2 + 6.0) * adj
-            result[i] = G2
-
+    """Compute corrected sample moments using centered compensated rolling sums."""
+    _, second, third, fourth = rolling_moments(close, length, 4)
+    result = np.full(len(close), np.nan)
+    magnitude = rolling_extreme(np.abs(close), length, True)[0]
+    for i in range(length - 1, len(close)):
+        if needs_scaling(magnitude[i]):
+            _, normalized2, normalized3, normalized4, _, last = scaled_window_moments(close, i - length + 1, i + 1)
+            if length > 3 and normalized2 > 0:
+                excess = normalized4 / (normalized2 * normalized2) - 3.0
+                result[i] = ((length + 1.0) * excess + 6.0) * ((length - 1.0) / ((length - 2.0) * (length - 3.0)))
+            continue
+        if length > 3 and second[i] > 0:
+            excess = fourth[i] / (second[i] * second[i]) - 3.0
+            result[i] = ((length + 1.0) * excess + 6.0) * ((length - 1.0) / ((length - 2.0) * (length - 3.0)))
     return result
 
 

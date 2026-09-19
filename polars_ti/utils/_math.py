@@ -7,13 +7,11 @@ from sys import float_info as sflt
 from numba import njit
 from numpy import (
     all,
-    append,
     array,
     corrcoef,
     dot,
     exp,
     fabs,
-    float64,
     log,
     nan,
     ndarray,
@@ -25,7 +23,6 @@ from numpy import (
     triu,
     zeros,
 )
-
 
 from polars_ti._typing import Array, DictLike, Float, Int, IntFloat, List, Optional
 from polars_ti.maps import Imports
@@ -164,7 +161,10 @@ def pascals_triangle(n: Int = None, inverse: bool = False, weighted: bool = Fals
     n = int(fabs(n)) if n is not None else 0
 
     # Calculation
-    triangle = array([combination(n=n, r=i) for i in range(0, n + 1)])
+    coefficients = [1]
+    for index in range(n):
+        coefficients.append(coefficients[-1] * (n - index) // (index + 1))
+    triangle = array(coefficients)
     triangle_sum = sum(triangle)
     triangle_weights = triangle / triangle_sum
     inverse_weights = 1 - triangle_weights
@@ -303,8 +303,8 @@ def _linear_regression_np(x, y) -> DictLike:
 def _linear_regression_sklearn(x, y) -> DictLike:
     """Simple Linear Regression in Scikit Learn for two 1d arrays for
     environments with the sklearn package."""
-    from sklearn.linear_model import LinearRegression
     import numpy as _np
+    from sklearn.linear_model import LinearRegression
 
     X = _np.asarray(x).reshape(-1, 1)
     y = _np.asarray(y)

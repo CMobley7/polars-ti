@@ -1,0 +1,83 @@
+[
+  {
+    "kernel": "statistics.quantile.nb_quantile.(0.37,)",
+    "max_absolute": 0.0,
+    "max_relative": 0.0,
+    "relative_above_1pct_median": 0.0,
+    "nan_mask_mismatches": 20,
+    "infinity_mismatches": 0,
+    "finite_compared": 1978
+  },
+  {
+    "kernel": "cycles.msw.nb_msw",
+    "max_absolute": 4.456823798903997e-12,
+    "max_relative": 3.726043096909132e-11,
+    "relative_above_1pct_median": 1.7599184601259386e-11,
+    "nan_mask_mismatches": 106,
+    "infinity_mismatches": 0,
+    "finite_compared": 3956
+  },
+  {
+    "kernel": "trend.trama._nb_rolling_max",
+    "max_absolute": 0.0,
+    "max_relative": 0.0,
+    "relative_above_1pct_median": 0.0,
+    "nan_mask_mismatches": 16,
+    "infinity_mismatches": 0,
+    "finite_compared": 1978
+  },
+  {
+    "kernel": "trend.trama._nb_rolling_min",
+    "max_absolute": 0.0,
+    "max_relative": 0.0,
+    "relative_above_1pct_median": 0.0,
+    "nan_mask_mismatches": 16,
+    "infinity_mismatches": 0,
+    "finite_compared": 1978
+  },
+  {
+    "kernel": "trend.aroon._nb_aroon",
+    "max_absolute": 0.0,
+    "max_relative": 0.0,
+    "relative_above_1pct_median": 0.0,
+    "nan_mask_mismatches": 165,
+    "infinity_mismatches": 0,
+    "finite_compared": 5928
+  },
+  {
+    "kernel": "momentum.stoch._stoch_rawk",
+    "max_absolute": 0.0,
+    "max_relative": 0.0,
+    "relative_above_1pct_median": 0.0,
+    "nan_mask_mismatches": 32,
+    "infinity_mismatches": 0,
+    "finite_compared": 1978
+  },
+  {
+    "kernel": "momentum.stoch._stoch_core.(3, 3)",
+    "max_absolute": 1.0658141036401503e-13,
+    "max_relative": 8.60498764773307e-12,
+    "relative_above_1pct_median": 1.4405689937334152e-13,
+    "nan_mask_mismatches": 54,
+    "infinity_mismatches": 0,
+    "finite_compared": 2531
+  },
+  {
+    "kernel": "momentum.stochf._stochf_core.(3,)",
+    "max_absolute": 2.842170943040401e-14,
+    "max_relative": 7.688304830467662e-16,
+    "relative_above_1pct_median": 7.688304830467662e-16,
+    "nan_mask_mismatches": 50,
+    "infinity_mismatches": 0,
+    "finite_compared": 2823
+  },
+  {
+    "kernel": "momentum.stc.nb_schaff_tc.(0.5,)",
+    "max_absolute": 0.0,
+    "max_relative": 0.0,
+    "relative_above_1pct_median": 0.0,
+    "nan_mask_mismatches": 2296,
+    "infinity_mismatches": 0,
+    "finite_compared": 1800
+  }
+]

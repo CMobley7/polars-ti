@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars TMO Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_ranks
 from polars_ti.utils._validate import v_expr
 
 
@@ -17,25 +19,10 @@ def _signed_rolling_deltas_numba(
     length: int,
     exclusive: bool,
 ) -> np.ndarray:
-    """Numba kernel for signed rolling deltas."""
-    n = len(close_arr)
-    result = np.full(n, np.nan, dtype=np.float64)
-
+    """Count comparison signs exactly with block-local order statistics."""
     lookback = length if exclusive else length - 1
-
-    for i in range(lookback, n):
-        sum_signed = 0.0
-        for j in range(lookback):
-            idx = i - lookback + j
-            if idx >= 0:
-                diff = close_arr[i] - open_arr[idx]
-                if diff > 0:
-                    sum_signed += 1.0
-                elif diff < 0:
-                    sum_signed -= 1.0
-        result[i] = sum_signed
-
-    return result
+    less, greater = rolling_ranks(open_arr, close_arr, lookback)
+    return less - greater
 
 
 def _tmo_core(

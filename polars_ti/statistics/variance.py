@@ -1,11 +1,13 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars VARIANCE Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import rolling_variance
 from polars_ti.utils._validate import v_expr
 
 
@@ -18,7 +20,7 @@ def variance(
 ) -> pl.Expr:
     """Polars: Rolling Variance
 
-    Calculates Variance over a rolling period using native Polars.
+    Calculates rolling variance using compensated moments or explicit TA-Lib dispatch.
 
     Args:
         close: Column name or pl.Expr for 'close' prices
@@ -47,7 +49,20 @@ def variance(
 
         result = close_expr.map_batches(compute_var, return_dtype=pl.Float64)
     else:
-        result = close_expr.rolling_var(window_size=length, min_samples=length, ddof=ddof)
+        if length < 1 or not 0 <= ddof <= 255:
+            raise ValueError("positive length and ddof in [0, 255] required")
+
+        def compute_native(s: pl.Series) -> pl.Series:
+            """Evaluate stable variance using centered compensated moments."""
+            values = s.to_numpy().astype(np.float64)
+            result = rolling_variance(values, length, ddof)
+            output = pl.Series(result)
+            if length <= ddof:
+                return output.fill_nan(None)
+            missing = s.is_null().cast(pl.Int64).rolling_sum(length, min_samples=length)
+            return output.set(missing.is_null() | (missing > 0), None)
+
+        result = close_expr.map_batches(compute_native, return_dtype=pl.Float64)
 
     if offset != 0:
         result = result.shift(offset)

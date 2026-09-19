@@ -1,12 +1,21 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars LINREG Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import (
+    compensated_add,
+    needs_scaling,
+    rolling_extreme,
+    rolling_linear,
+    rolling_moments,
+    scaled_window_moments,
+)
 from polars_ti.utils._validate import v_expr, v_pos_int
 
 
@@ -21,71 +30,47 @@ def nb_linreg(
     slope: bool,
     tsf: bool,
 ) -> np.ndarray:
-    """Numba-optimized rolling linear regression calculation."""
+    """Compute stable rolling regression without subtracting large raw moments."""
     n = len(close)
-    result = np.empty(n, dtype=np.float64)
-    result[: length - 1] = np.nan
-
-    # Precompute constants
-    x_sum = 0.5 * length * (length + 1)
-    x2_sum = x_sum * (2 * length + 1) / 3
-    divisor = length * x2_sum - x_sum * x_sum
-
+    result = np.full(n, np.nan)
+    if length < 2:
+        return result
+    _, _, covariance = rolling_linear(close, length)
+    mean, variance, _, _ = rolling_moments(close, length)
+    x_mean = (length + 1) / 2.0
+    x_variation = length * (length * length - 1) / 12.0
+    magnitude = rolling_extreme(np.abs(close), length, True)[0]
     for i in range(length - 1, n):
-        # Get window
-        window = close[i - length + 1 : i + 1]
-
-        # Compute sums
-        y_sum = 0.0
-        xy_sum = 0.0
-        y2_sum = 0.0
-        for j in range(length):
-            y_sum += window[j]
-            xy_sum += (j + 1) * window[j]
-            y2_sum += window[j] * window[j]
-
-        # Slope (m)
-        m = (length * xy_sum - x_sum * y_sum) / divisor
-
+        gradient = covariance[i] / x_variation
+        scaled_correlation = np.nan
+        if needs_scaling(magnitude[i]):
+            _, normalized2, _, _, scale, _ = scaled_window_moments(close, i - length + 1, i + 1)
+            anchor = close[i - length + 1] / scale
+            total = correction = 0.0
+            for j in range(length):
+                value = (j + 1 - x_mean) * (close[i - length + 1 + j] / scale - anchor)
+                total, correction = compensated_add(total, correction, value)
+            centered_covariance = total + correction
+            gradient = (centered_covariance / x_variation) * scale
+            denominator = x_variation * length * normalized2
+            scaled_correlation = centered_covariance / np.sqrt(denominator) if denominator > 0 else 0.0
         if slope:
-            result[i] = m
-            continue
-
-        # Intercept (b)
-        b = (y_sum * x2_sum - x_sum * xy_sum) / divisor
-
-        if intercept:
-            result[i] = b
-            continue
-
-        if angle:
-            theta = np.arctan(m)
+            result[i] = gradient
+        elif intercept:
+            result[i] = mean[i] - gradient * x_mean
+        elif angle:
+            result[i] = np.arctan(gradient)
             if degrees:
-                theta *= 180.0 / np.pi
-            result[i] = theta
-            continue
-
-        if r:
-            rn = length * xy_sum - x_sum * y_sum
-            rd_sq = divisor * (length * y2_sum - y_sum * y_sum)
-            if rd_sq > 0:
-                rd = np.sqrt(rd_sq)
-                result[i] = rn / rd
-            else:
-                result[i] = 0.0
-            continue
-
-        # Default: LINREG value or TSF.
-        # With x = [1, 2, ..., length], the regression endpoint (LINREG) is at
-        # x = length, so LINREG = m * length + b.  The Time Series Forecast is
-        # the one-step-ahead projection at x = length + 1, so it must add one
-        # more slope step: TSF = m * (length + 1) + b.  This matches TA-Lib's
-        # TSF / LINEARREG exactly (verified against talib.TSF / talib.LINEARREG).
-        if tsf:
-            result[i] = m * (length + 1) + b
+                result[i] *= 180.0 / np.pi
+        elif r:
+            if needs_scaling(magnitude[i]):
+                result[i] = scaled_correlation
+                continue
+            denominator = x_variation * length * variance[i]
+            result[i] = covariance[i] / np.sqrt(denominator) if denominator > 0 else 0.0
         else:
-            result[i] = m * length + b
-
+            endpoint = length + 1 if tsf else length
+            result[i] = mean[i] + gradient * (endpoint - x_mean)
     return result
 
 
@@ -123,9 +108,10 @@ def linreg(
     Returns:
         pl.Expr: LINREG expression for lazy evaluation
     """
+    import numpy as np
+
     from polars_ti.maps import Imports
     from polars_ti.utils import v_talib
-    import numpy as np
 
     close_expr = v_expr(close)
     if close_expr is None:

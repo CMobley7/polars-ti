@@ -7,6 +7,7 @@ import polars as pl
 from numba import njit
 
 from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
@@ -85,15 +86,8 @@ def kdj(
         n = len(h_arr)
 
         # Rolling max/min with window = _length
-        highest_high = np.full(n, np.nan)
-        lowest_low = np.full(n, np.nan)
-        for i in range(_length - 1, n):
-            window_h = h_arr[i - _length + 1 : i + 1]
-            window_l = l_arr[i - _length + 1 : i + 1]
-            if not np.any(np.isnan(window_h)):
-                highest_high[i] = np.max(window_h)
-            if not np.any(np.isnan(window_l)):
-                lowest_low[i] = np.min(window_l)
+        highest_high = rolling_extreme(h_arr, _length, True)[0]
+        lowest_low = rolling_extreme(l_arr, _length, False)[0]
 
         # Fast %K — OLD uses non_zero_range(highest_high, lowest_low): the raw
         # range, with sys.float_info.epsilon added to EVERY element only if any

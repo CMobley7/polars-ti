@@ -1,46 +1,31 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars ZSCORE Implementation (Numba @njit kernel)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import needs_scaling, rolling_extreme, rolling_moments, scaled_window_moments
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_zscore(close: np.ndarray, length: int, std_mult: float) -> np.ndarray:
-    """Numba-optimized Z-Score calculation.
-
-    Z = (close - rolling_mean) / (std_mult * rolling_std)
-
-    Uses ddof=0 for std matching TA-Lib's behavior.
-    """
-    n = len(close)
-    result = np.full(n, np.nan)
-
-    for i in range(length - 1, n):
-        window = close[i - length + 1 : i + 1]
-
-        # Compute mean
-        mean = 0.0
-        for j in range(length):
-            mean += window[j]
-        mean /= length
-
-        # Compute std with ddof=0 (TA-Lib style)
-        var = 0.0
-        for j in range(length):
-            diff = window[j] - mean
-            var += diff * diff
-        var /= length
-        std = np.sqrt(var)
-
-        if std > 0:
-            result[i] = (close[i] - mean) / (std_mult * std)
-
+    """Compute Z scores from stable centered moments."""
+    mean, variance, _, _ = rolling_moments(close, length)
+    result = np.full(len(close), np.nan)
+    magnitude = rolling_extreme(np.abs(close), length, True)[0]
+    for i in range(length - 1, len(close)):
+        if needs_scaling(magnitude[i]):
+            _, normalized2, normalized3, normalized4, _, last = scaled_window_moments(close, i - length + 1, i + 1)
+            if normalized2 > 0:
+                result[i] = last / (std_mult * np.sqrt(normalized2))
+            continue
+        if variance[i] > 0:
+            result[i] = (close[i] - mean[i]) / (std_mult * np.sqrt(variance[i]))
     return result
 
 

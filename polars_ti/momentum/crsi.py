@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars CRSI (Connors RSI) Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_ranks
 from polars_ti.utils._validate import v_expr
 
 
@@ -34,25 +36,28 @@ def nb_percent_rank(close: np.ndarray, lookback: int) -> np.ndarray:
 
     # Calculate daily returns
     returns = np.empty(n)
+    if n == 0:
+        return result
     returns[0] = np.nan
     for i in range(1, n):
         returns[i] = (close[i] - close[i - 1]) / close[i - 1]
 
-    # Calculate percent rank.
-    # Mirror OLD pandas-ta: nanmean over the full ``lookback`` window where a
-    # NaN return (e.g. the first day's undefined return) compares False rather
-    # than being dropped from the denominator. So divide by the fixed window
-    # size, not by the count of finite values.
+    # LLVM vectorizes the bounded scan; measured tree overhead dominates below
+    # this crossover. Larger windows use logarithmic order statistics.
+    if lookback <= 1024:
+        for i in range(lookback, n):
+            if np.isnan(returns[i]):
+                continue
+            count_less = 0
+            for j in range(i - lookback, i):
+                if not np.isnan(returns[j]) and returns[j] < returns[i]:
+                    count_less += 1
+            result[i] = (count_less / lookback) * 100.0
+        return result
+    less, _ = rolling_ranks(returns, returns, lookback)
     for i in range(lookback, n):
-        current = returns[i]
-        if np.isnan(current):
-            continue
-        count_less = 0
-        for j in range(i - lookback, i):
-            if not np.isnan(returns[j]) and returns[j] < current:
-                count_less += 1
-        result[i] = (count_less / lookback) * 100.0
-
+        if not np.isnan(returns[i]):
+            result[i] = (less[i] / lookback) * 100.0
     return result
 
 
@@ -84,8 +89,8 @@ def crsi(
         pl.Expr: CRSI expression
     """
     from polars_ti.maps import Imports
-    from polars_ti.utils import v_talib
     from polars_ti.momentum.rsi import rsi
+    from polars_ti.utils import v_talib
 
     close_expr = v_expr(close)
     _use_talib = Imports["talib"] and v_talib(talib)

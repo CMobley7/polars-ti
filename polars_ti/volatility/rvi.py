@@ -6,18 +6,15 @@ import numpy as np
 import polars as pl
 
 from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import rolling_standard_deviation
 from polars_ti.utils._validate import v_expr
 
 
 def _rolling_std(arr: np.ndarray, length: int, ddof: int) -> np.ndarray:
-    """Rolling standard deviation (pandas ``Series.rolling(length).std()``)."""
-    n = len(arr)
-    out = np.full(n, np.nan, dtype=np.float64)
-    for i in range(length - 1, n):
-        window = arr[i - length + 1 : i + 1]
-        if not np.any(np.isnan(window)):
-            out[i] = np.std(window, ddof=ddof)
-    return out
+    """Compute rolling sample deviation with centered compensated moments."""
+    if length <= ddof:
+        return np.full(len(arr), np.nan)
+    return rolling_standard_deviation(arr, length, ddof)
 
 
 def _dispatch_ma(arr: np.ndarray, mamode: str, length: int, talib: bool) -> np.ndarray:
@@ -63,8 +60,8 @@ def _pl_rvi_single(
     the TA-Lib EMA/SMA — matching the OLD library's talib-mode output. Native
     mode uses ddof=1 std and the pandas ``ewm`` EMA seed.
     """
-    from polars_ti.overlap.ema import _ema_numba
     from polars_ti.maps import Imports
+    from polars_ti.overlap.ema import _ema_numba
 
     n = len(arr)
     use_talib = bool(talib) and Imports["talib"]

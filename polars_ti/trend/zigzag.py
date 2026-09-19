@@ -1,6 +1,9 @@
-# -*- coding: utf-8 -*-
-from numpy import floor, isnan, nan, roll, zeros, zeros_like
 from numba import njit
+
+# -*- coding: utf-8 -*-
+from numpy import floor, nan, zeros, zeros_like
+
+from polars_ti.utils._rolling import rolling_extreme
 
 
 @njit(cache=True)
@@ -17,20 +20,18 @@ def nb_rolling_hl(np_high, np_low, window_size):
     extremums = 0
     left = int(floor(window_size / 2))
     right = left + 1
-    # sample_array = [*[left-window], *[center], *[right-window]]
+    minimum = rolling_extreme(np_low, left + right, False)[0]
+    maximum = rolling_extreme(np_high, left + right, True)[0]
     for i in range(left, m - right):
         low_center = np_low[i]
         high_center = np_high[i]
-        low_window = np_low[i - left : i + right]
-        high_window = np_high[i - left : i + right]
-
-        if (low_center <= low_window).all():
+        if low_center <= minimum[i + right - 1]:
             idx[extremums] = i
             swing[extremums] = -1
             value[extremums] = low_center
             extremums += 1
 
-        if (high_center >= high_window).all():
+        if high_center >= maximum[i + right - 1]:
             idx[extremums] = i
             swing[extremums] = 1
             value[extremums] = high_center

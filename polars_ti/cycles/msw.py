@@ -7,6 +7,7 @@ import polars as pl
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme, rolling_sum
 from polars_ti.utils._validate import v_expr, v_pos_int
 
 
@@ -32,13 +33,43 @@ def nb_msw(arr: np.ndarray, period: int):
         cos_arr[j] = np.cos(tpi * j / period)
         sin_arr[j] = np.sin(tpi * j / period)
 
+    real = imaginary = 0.0
+    rotation_real = np.cos(tpi / period)
+    rotation_imaginary = np.sin(tpi / period)
+    finite = np.isfinite(arr)
+    clean = np.where(finite, arr, 0.0)
+    invalid = rolling_sum((~finite).astype(np.float64), period)
+    magnitude = rolling_sum(np.abs(clean), period)
+    maximum = rolling_extreme(np.abs(clean), period, True)[0]
+    state_magnitude = 0.0
     for i in range(period, size):
-        rp = 0.0
-        ip = 0.0
-        for j in range(period):
-            v = arr[i - j]  # newest first: j=0 is arr[i]
-            rp += v * cos_arr[j]
-            ip += v * sin_arr[j]
+        if i % period == 0 or state_magnitude > maximum[i] * 1e6:
+            real = imaginary = 0.0
+            state_magnitude = 0.0
+            for j in range(period):
+                real += clean[i - j] * cos_arr[j]
+                imaginary += clean[i - j] * sin_arr[j]
+                state_magnitude = max(state_magnitude, abs(clean[i - j]))
+        else:
+            previous_real = real
+            real = clean[i] - clean[i - period] + rotation_real * real - rotation_imaginary * imaginary
+            imaginary = rotation_imaginary * previous_real + rotation_real * imaginary
+            state_magnitude = max(state_magnitude, abs(clean[i]))
+        if invalid[i]:
+            continue
+        rp = real
+        ip = imaginary
+        # Preserve phase branch decisions when accumulated roundoff could change
+        # the real-component sign or cross the algorithm's 0.001 threshold.
+        uncertainty = 64 * np.finfo(np.float64).eps * period * max(magnitude[i], period * state_magnitude)
+        if abs(rp) <= uncertainty or abs(abs(rp) - 0.001) <= uncertainty:
+            rp = ip = 0.0
+            for j in range(period):
+                rp += arr[i - j] * cos_arr[j]
+                ip += arr[i - j] * sin_arr[j]
+
+        if np.isnan(rp) or np.isnan(ip):
+            continue
 
         if abs(rp) > 0.001:
             phase = np.arctan(ip / rp)

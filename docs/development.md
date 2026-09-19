@@ -28,8 +28,8 @@ uv run pytest tests/ -q --tb=short
 
 ## CI matrix
 
-CI runs the test job across **{Python 3.11, 3.12} × {oldest-supported, latest
-Polars} × {TA-Lib installed, TA-Lib absent}**. The no-TA-Lib leg is a hard gate
+CI runs the test job on **Python 3.14.7 and the locked Polars release**, with
+**TA-Lib installed and absent**. The no-TA-Lib leg is a hard gate
 that exercises the native (Numba) code paths. Reproduce it locally with:
 
 ```bash

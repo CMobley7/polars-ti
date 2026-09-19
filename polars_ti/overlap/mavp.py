@@ -7,6 +7,7 @@ import polars as pl
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._order_stats import variable_mean
 from polars_ti.utils._validate import v_expr
 
 
@@ -17,45 +18,8 @@ def _nb_mavp(
     min_period: int,
     max_period: int,
 ) -> np.ndarray:
-    """Numba kernel: per-bar Simple Moving Average with a variable period.
-
-    Matches TA-Lib ``MAVP`` (matype=0): the per-bar period is the truncated,
-    clamped value from ``periods``, and every output before ``max_period - 1``
-    is NaN regardless of that bar's own (possibly small) period.
-
-    NaN period handling mirrors TA-Lib: casting a NaN period to ``int`` yields a
-    value below ``min_period``, which the clamp then pins to ``min_period``.
-
-    Known divergence (deferred): TA-Lib evaluates each distinct period via a
-    running-sum SMA, so a NaN in ``close`` poisons every later output that shares
-    that period bucket. This kernel uses a fresh per-bar window instead, so a
-    close-NaN only affects the windows that actually span it. The two agree on
-    realistic (NaN-free) data; the divergence is a degenerate-input edge.
-    """
-    n = len(close)
-    out = np.full(n, np.nan)
-    if n == 0:
-        return out
-
-    for i in range(max_period - 1, n):
-        p = periods[i]
-        # TA-Lib truncates the fractional period, then clamps to [min, max]. A
-        # NaN period casts to a value below min_period, so it clamps to min.
-        if np.isnan(p):
-            period = min_period
-        else:
-            period = int(p)
-            if period < min_period:
-                period = min_period
-            elif period > max_period:
-                period = max_period
-
-        total = 0.0
-        for j in range(i - period + 1, i + 1):
-            total += close[j]
-        out[i] = total / period
-
-    return out
+    """Return variable-window means using a compensated range-sum tree."""
+    return variable_mean(close, periods, min_period, max_period)
 
 
 def mavp(

@@ -1,59 +1,31 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars SKEW Implementation (Numba @njit kernel)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import needs_scaling, rolling_extreme, rolling_moments, scaled_window_moments
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_skew(close: np.ndarray, length: int) -> np.ndarray:
-    """Numba-optimized Fisher's skewness calculation.
-
-    Fisher's definition (matching Pandas):
-    skewness = m3 / m2^(3/2)
-
-    With bias correction for sample skewness.
-    """
-    n = len(close)
-    result = np.full(n, np.nan)
-
-    for i in range(length - 1, n):
-        window = close[i - length + 1 : i + 1]
-        window_n = length
-
-        # Compute mean
-        mean = 0.0
-        for j in range(window_n):
-            mean += window[j]
-        mean /= window_n
-
-        # Compute centered moments
-        m2 = 0.0
-        m3 = 0.0
-        for j in range(window_n):
-            diff = window[j] - mean
-            diff2 = diff * diff
-            m2 += diff2
-            m3 += diff2 * diff
-
-        m2 /= window_n
-        m3 /= window_n
-
-        # Fisher's skewness with bias correction (matching Pandas)
-        # g1 = m3 / m2^(3/2)
-        # Then applies bias correction: G1 = sqrt(n*(n-1))/(n-2) * g1
-        if window_n > 2 and m2 > 0:
-            m2_32 = m2**1.5
-            g1 = m3 / m2_32
-            # Bias correction factor
-            adj = np.sqrt(window_n * (window_n - 1.0)) / (window_n - 2.0)
-            result[i] = adj * g1
-
+    """Compute corrected sample moments using centered compensated rolling sums."""
+    _, second, third, fourth = rolling_moments(close, length, 3)
+    result = np.full(len(close), np.nan)
+    magnitude = rolling_extreme(np.abs(close), length, True)[0]
+    for i in range(length - 1, len(close)):
+        if needs_scaling(magnitude[i]):
+            _, normalized2, normalized3, normalized4, _, last = scaled_window_moments(close, i - length + 1, i + 1)
+            if length > 2 and normalized2 > 0:
+                result[i] = np.sqrt(length * (length - 1.0)) / (length - 2.0) * normalized3 / normalized2**1.5
+            continue
+        if length > 2 and second[i] > 0:
+            result[i] = np.sqrt(length * (length - 1.0)) / (length - 2.0) * third[i] / second[i] ** 1.5
     return result
 
 

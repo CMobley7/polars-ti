@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars MFI (Money Flow Index) Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_sum
 from polars_ti.utils._validate import v_expr
 
 
@@ -18,25 +20,22 @@ def _nb_mfi(
     volume: np.ndarray,
     length: int,
 ) -> np.ndarray:
-    """Calculate MFI using Numba."""
+    """Calculate MFI from compensated rolling positive/negative flows."""
     n = len(close)
-    result = np.full(n, np.nan)
-
     tp = (high + low + close) / 3.0
-
+    positive = np.zeros(n)
+    negative = np.zeros(n)
+    for i in range(1, n):
+        if tp[i] > tp[i - 1]:
+            positive[i] = tp[i] * volume[i]
+        elif tp[i] < tp[i - 1]:
+            negative[i] = tp[i] * volume[i]
+    positive = rolling_sum(positive, length)
+    negative = rolling_sum(negative, length)
+    result = np.full(n, np.nan)
     for i in range(length, n):
-        pos_flow = 0.0
-        neg_flow = 0.0
-
-        for j in range(i - length + 1, i + 1):
-            if tp[j] > tp[j - 1]:
-                pos_flow += tp[j] * volume[j]
-            elif tp[j] < tp[j - 1]:
-                neg_flow += tp[j] * volume[j]
-
-        if pos_flow + neg_flow > 0:
-            result[i] = 100.0 * pos_flow / (pos_flow + neg_flow)
-
+        if positive[i] + negative[i] > 0:
+            result[i] = 100.0 * positive[i] / (positive[i] + negative[i])
     return result
 
 

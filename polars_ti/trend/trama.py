@@ -1,6 +1,9 @@
-# -*- coding: utf-8 -*-
-from numpy import empty, float64, isnan, nan
 from numba import njit
+
+# -*- coding: utf-8 -*-
+from numpy import empty, float64, isnan
+
+from polars_ti.utils._rolling import rolling_extreme
 
 
 @njit(cache=True)
@@ -38,30 +41,14 @@ from polars_ti.utils._validate import v_expr
 
 @_njit_trama(cache=True)
 def _nb_rolling_max(arr, window):
-    """Numba-optimized rolling max."""
-    n = len(arr)
-    result = np.full(n, np.nan)
-    for i in range(window - 1, n):
-        mx = arr[i - window + 1]
-        for j in range(1, window):
-            if arr[i - window + 1 + j] > mx:
-                mx = arr[i - window + 1 + j]
-        result[i] = mx
-    return result
+    """Return full-window extrema with uniform NaN propagation."""
+    return rolling_extreme(arr, window, True)[0]
 
 
 @_njit_trama(cache=True)
 def _nb_rolling_min(arr, window):
-    """Numba-optimized rolling min."""
-    n = len(arr)
-    result = np.full(n, np.nan)
-    for i in range(window - 1, n):
-        mn = arr[i - window + 1]
-        for j in range(1, window):
-            if arr[i - window + 1 + j] < mn:
-                mn = arr[i - window + 1 + j]
-        result[i] = mn
-    return result
+    """Return full-window extrema with uniform NaN propagation."""
+    return rolling_extreme(arr, window, False)[0]
 
 
 def trama(

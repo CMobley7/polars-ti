@@ -3,45 +3,28 @@
 # Polars Aroon Implementation
 # =============================================================================
 import numpy as np
-from numba import njit
 import polars as pl
+from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def _nb_aroon(high: np.ndarray, low: np.ndarray, length: int, scalar: float):
-    """Numba kernel for Aroon Up, Down, and Oscillator."""
+    """Calculate Aroon with newest ties and no indexing of invalid sentinels."""
     n = len(high)
     aroon_up = np.full(n, np.nan)
     aroon_down = np.full(n, np.nan)
-    aroon_osc = np.full(n, np.nan)
-    window = length + 1
-
-    for i in range(window - 1, n):
-        # Find periods since highest high and lowest low
-        max_idx = 0
-        min_idx = 0
-        max_val = high[i - window + 1]
-        min_val = low[i - window + 1]
-        for j in range(1, window):
-            idx = i - window + 1 + j
-            if high[idx] >= max_val:
-                max_val = high[idx]
-                max_idx = j
-            if low[idx] <= min_val:
-                min_val = low[idx]
-                min_idx = j
-
-        periods_from_hh = (window - 1) - max_idx
-        periods_from_ll = (window - 1) - min_idx
-
-        aroon_up[i] = scalar * (1.0 - periods_from_hh / length)
-        aroon_down[i] = scalar * (1.0 - periods_from_ll / length)
-        aroon_osc[i] = aroon_up[i] - aroon_down[i]
-
-    return aroon_up, aroon_down, aroon_osc
+    _, high_index = rolling_extreme(high, length + 1, True)
+    _, low_index = rolling_extreme(low, length + 1, False)
+    for i in range(length, n):
+        if high_index[i] >= 0:
+            aroon_up[i] = scalar * (1.0 - (i - high_index[i]) / length)
+        if low_index[i] >= 0:
+            aroon_down[i] = scalar * (1.0 - (i - low_index[i]) / length)
+    return aroon_up, aroon_down, aroon_up - aroon_down
 
 
 def aroon(
@@ -80,7 +63,8 @@ def aroon(
         h = data["_high"].to_numpy().astype(np.float64)
         l_ = data["_low"].to_numpy().astype(np.float64)
         if _use_talib:
-            from talib import AROON as _AROON, AROONOSC as _AROONOSC
+            from talib import AROON as _AROON
+            from talib import AROONOSC as _AROONOSC
 
             # TA-Lib AROON hardcodes scalar=100; rescale so ``scalar`` is honoured
             # (exact *1.0 no-op at the default). Returns (down, up).

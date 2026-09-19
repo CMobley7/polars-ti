@@ -1,57 +1,28 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars ENTROPY Implementation (Numba @njit kernel)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import rolling_sum
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_entropy(close: np.ndarray, length: int, base: float) -> np.ndarray:
-    """Numba-optimized Shannon entropy calculation.
-
-    Matches Pandas logic:
-    1. p = close / close.rolling(length).sum()
-    2. entropy = (-p * log(p) / log(base)).rolling(length).sum()
-    """
-    n = len(close)
-    result = np.full(n, np.nan)
-    log_base = np.log(base)
-
-    # Compute rolling sum for p calculation
-    rolling_sum = np.full(n, np.nan)
-    for i in range(length - 1, n):
-        rolling_sum[i] = np.sum(close[i - length + 1 : i + 1])
-
-    # Compute p = close / rolling_sum
-    p = np.full(n, np.nan)
-    for i in range(length - 1, n):
-        if rolling_sum[i] > 0:
-            p[i] = close[i] / rolling_sum[i]
-
-    # Compute term = -p * log(p) / log(base)
-    term = np.full(n, np.nan)
-    for i in range(n):
-        if not np.isnan(p[i]) and p[i] > 0:
-            term[i] = -p[i] * np.log(p[i]) / log_base
-
-    # Compute rolling sum of term (second rolling)
-    for i in range(2 * length - 2, n):
-        window = term[i - length + 1 : i + 1]
-        valid_count = 0
-        window_sum = 0.0
-        for j in range(length):
-            if not np.isnan(window[j]):
-                window_sum += window[j]
-                valid_count += 1
-        if valid_count == length:
-            result[i] = window_sum
-
-    return result
+    """Compute the two full-window entropy sums in linear time."""
+    total = rolling_sum(close, length)
+    term = np.full(len(close), np.nan)
+    for i in range(length - 1, len(close)):
+        if total[i] > 0:
+            probability = close[i] / total[i]
+            if probability > 0:
+                term[i] = -probability * np.log(probability) / np.log(base)
+    return rolling_sum(term, length)
 
 
 def entropy(

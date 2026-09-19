@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars Fisher Transform Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
@@ -58,7 +60,6 @@ def fisher(
     Returns:
         list[pl.Expr]: [FISHERT, FISHERTs] expressions
     """
-    from polars_ti.overlap.hl2 import hl2
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)
@@ -74,12 +75,8 @@ def fisher(
 
         # Rolling max/min of HL2
         n = len(hl2_arr)
-        highest = np.full(n, np.nan)
-        lowest = np.full(n, np.nan)
-        for i in range(_length - 1, n):
-            window = hl2_arr[i - _length + 1 : i + 1]
-            highest[i] = np.max(window)
-            lowest[i] = np.min(window)
+        highest = rolling_extreme(hl2_arr, _length, True)[0]
+        lowest = rolling_extreme(hl2_arr, _length, False)[0]
 
         # High-low range with floor
         hlr = highest - lowest

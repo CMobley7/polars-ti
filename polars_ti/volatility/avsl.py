@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars AVSL Implementation (Composition: pl_vwma + pl_sma)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import rolling_sum
 from polars_ti.utils._validate import v_expr
 
 
@@ -54,27 +56,9 @@ def nb_avsl_core_logic(
             else:
                 adjusted_price[i] = val
 
-    # Rolling mean of adjusted_price / 100
-    price_function = np.empty(n, dtype=np.float64)
-    price_function[: slow - 1] = np.nan
-    for i in range(slow - 1, n):
-        win_sum = 0.0
-        for j in range(slow):
-            win_sum += adjusted_price[i - j]
-        price_function[i] = (win_sum / slow) / 100
-
-    # Final AVSL: rolling mean of (low - price_function + deviation)
+    price_function = (rolling_sum(adjusted_price, slow) / slow) / 100
     raw_avsl = low_arr - price_function + deviation
-
-    avsl = np.empty(n, dtype=np.float64)
-    avsl[: slow - 1] = np.nan
-    for i in range(slow - 1, n):
-        win_sum = 0.0
-        for j in range(slow):
-            win_sum += raw_avsl[i - j]
-        avsl[i] = win_sum / slow
-
-    return avsl
+    return rolling_sum(raw_avsl, slow) / slow
 
 
 def avsl(
@@ -107,8 +91,8 @@ def avsl(
     Returns:
         pl.Expr: AVSL stop-loss expression
     """
-    from polars_ti.volume.vwma import vwma
     from polars_ti.overlap.sma import sma
+    from polars_ti.volume.vwma import vwma
 
     close_expr = v_expr(close)
     low_expr = v_expr(low)

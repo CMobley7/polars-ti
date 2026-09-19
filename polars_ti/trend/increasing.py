@@ -48,8 +48,10 @@ def increasing(
         # Strict mode: check each step is increasing
         # Start with first comparison
         result = close_expr > close_adj.shift(drift)
-        for x in range(3, length + 1):
-            result = result & (close_expr.shift(x - (drift + 1)) > close_adj.shift(x - drift))
+        if length >= 3:
+            adjacent = (close_expr > close_adj.shift(1)).fill_null(False)
+            all_steps = adjacent.cast(pl.Int8).rolling_min(window_size=length - 2, min_samples=length - 2)
+            result = result & all_steps.shift(2 - drift).cast(pl.Boolean)
         result = result.fill_null(False)
     else:
         # Non-strict: just check if diff over length is positive.

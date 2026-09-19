@@ -91,7 +91,7 @@ from polars_ti.candles import (
 )
 from polars_ti.candles.cdl_doji import cdl_doji
 from polars_ti.candles.cdl_inside import cdl_inside
-from polars_ti.candles.cdl_pattern import cdl, cdl_pattern
+from polars_ti.candles.cdl_pattern import cdl_pattern
 from polars_ti.candles.cdl_z import cdl_z
 from polars_ti.candles.ha import ha
 from polars_ti.cycles.dsp import dsp
@@ -103,8 +103,7 @@ from polars_ti.cycles.ht_sine import ht_sine
 from polars_ti.cycles.ht_trendmode import ht_trendmode
 from polars_ti.cycles.msw import msw
 from polars_ti.cycles.reflex import reflex
-from polars_ti.ma import ma
-from polars_ti.maps import EXCHANGE_TZ, Category, Imports, version
+from polars_ti.maps import EXCHANGE_TZ, Category, version
 from polars_ti.momentum.ao import ao
 from polars_ti.momentum.apo import apo
 from polars_ti.momentum.bias import bias
@@ -558,7 +557,7 @@ class TechnicalIndicators:
                 return None
             try:
                 native_params = inspect.signature(native).parameters
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return None
             if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in native_params.values()):
                 return None
@@ -572,7 +571,7 @@ class TechnicalIndicators:
                 accepted.add("open")
             try:
                 acc_params = inspect.signature(accessor_fn).parameters
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return accepted
             accepted.update(name for name, p in acc_params.items() if p.kind is not inspect.Parameter.VAR_KEYWORD)
             return accepted

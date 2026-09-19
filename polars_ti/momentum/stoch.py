@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars Stochastic Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
@@ -53,19 +55,8 @@ def _stoch_rawk(
 ) -> np.ndarray:
     """Numba kernel: raw (unsmoothed) %K = 100 * (close - LL) / (HH - LL)."""
     n = len(close)
-    lowest_low = np.full(n, np.nan, dtype=np.float64)
-    highest_high = np.full(n, np.nan, dtype=np.float64)
-
-    for i in range(k - 1, n):
-        ll = low[i]
-        hh = high[i]
-        for j in range(i - k + 1, i):
-            if low[j] < ll:
-                ll = low[j]
-            if high[j] > hh:
-                hh = high[j]
-        lowest_low[i] = ll
-        highest_high[i] = hh
+    lowest_low = rolling_extreme(low, k, False)[0]
+    highest_high = rolling_extreme(high, k, True)[0]
 
     stoch_raw = np.full(n, np.nan, dtype=np.float64)
     for i in range(k - 1, n):
@@ -89,19 +80,8 @@ def _stoch_core(
     n = len(close)
 
     # Calculate lowest low and highest high over k periods
-    lowest_low = np.full(n, np.nan, dtype=np.float64)
-    highest_high = np.full(n, np.nan, dtype=np.float64)
-
-    for i in range(k - 1, n):
-        ll = low[i]
-        hh = high[i]
-        for j in range(i - k + 1, i):
-            if low[j] < ll:
-                ll = low[j]
-            if high[j] > hh:
-                hh = high[j]
-        lowest_low[i] = ll
-        highest_high[i] = hh
+    lowest_low = rolling_extreme(low, k, False)[0]
+    highest_high = rolling_extreme(high, k, True)[0]
 
     # Raw %K = 100 * (close - ll) / (hh - ll)
     stoch_raw = np.full(n, np.nan, dtype=np.float64)
@@ -164,9 +144,9 @@ def stoch(
             - STOCHd_{k}_{d}_{smooth_k}: %D signal line
             - STOCHh_{k}_{d}_{smooth_k}: Histogram (%K - %D)
     """
-    from polars_ti.maps import Imports
-    from polars_ti.utils import v_talib, tal_ma
     from polars_ti.ma import ma
+    from polars_ti.maps import Imports
+    from polars_ti.utils import tal_ma, v_talib
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)

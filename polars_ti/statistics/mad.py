@@ -1,43 +1,22 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars MAD Implementation (Numba @njit kernel)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
 from polars_ti.utils import v_pos_int
+from polars_ti.utils._order_stats import rolling_mad
 from polars_ti.utils._validate import v_expr
 
 
 @njit(cache=True)
 def nb_mad(close: np.ndarray, length: int) -> np.ndarray:
-    """Numba-optimized Mean Absolute Deviation calculation.
-
-    MAD = mean(|x - mean(x)|) for each rolling window
-    """
-    n = len(close)
-    result = np.full(n, np.nan)
-
-    for i in range(length - 1, n):
-        window = close[i - length + 1 : i + 1]
-
-        # Compute mean
-        mean = 0.0
-        for j in range(length):
-            mean += window[j]
-        mean /= length
-
-        # Compute mean absolute deviation
-        mad = 0.0
-        for j in range(length):
-            mad += np.abs(window[j] - mean)
-        mad /= length
-
-        result[i] = mad
-
-    return result
+    """Return mean absolute deviation from stable rolling order statistics."""
+    return rolling_mad(close, length)
 
 
 def mad(

@@ -1,11 +1,13 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars STDEV Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 
-from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti._typing import IntoExpr
+from polars_ti.utils._rolling import rolling_standard_deviation
 from polars_ti.utils._validate import v_expr
 
 
@@ -18,7 +20,7 @@ def stdev(
 ) -> pl.Expr:
     """Polars: Rolling Standard Deviation
 
-    Calculates Standard Deviation over a rolling period using native Polars.
+    Calculates rolling standard deviation using compensated moments or TA-Lib.
 
     Args:
         close: Column name or pl.Expr for 'close' prices
@@ -47,7 +49,20 @@ def stdev(
 
         result = close_expr.map_batches(compute_stdev, return_dtype=pl.Float64)
     else:
-        result = close_expr.rolling_std(window_size=length, min_samples=length, ddof=ddof)
+        if length < 1 or not 0 <= ddof <= 255:
+            raise ValueError("positive length and ddof in [0, 255] required")
+
+        def compute_native(s: pl.Series) -> pl.Series:
+            """Evaluate stable variance using centered compensated moments."""
+            values = s.to_numpy().astype(np.float64)
+            result = rolling_standard_deviation(values, length, ddof)
+            output = pl.Series(result)
+            if length <= ddof:
+                return output.fill_nan(None)
+            missing = s.is_null().cast(pl.Int64).rolling_sum(length, min_samples=length)
+            return output.set(missing.is_null() | (missing > 0), None)
+
+        result = close_expr.map_batches(compute_native, return_dtype=pl.Float64)
 
     if offset != 0:
         result = result.shift(offset)

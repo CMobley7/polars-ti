@@ -1,11 +1,13 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars ALMA Implementation (Pure rolling_map)
 # =============================================================================
 import polars as pl
-import numpy as np
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._fir import fir_series
 from polars_ti.utils._validate import v_expr
 
 
@@ -35,28 +37,17 @@ def alma(
     if close_expr is None:
         return None
 
-    _length = length
-    _weights: list[float] | None = None
+    def compute(series: pl.Series) -> pl.Series:
+        """Apply the filter once per batch, preserving missing-window semantics."""
+        if len(series) < length:
+            return pl.Series([None] * len(series), dtype=pl.Float64)
+        x = np.arange(length, dtype=np.float64)
+        k = np.floor(dist_offset * (length - 1))
+        weights = np.exp(-0.5 * ((sigma / length) * (x - k)) ** 2)
+        weights /= weights.sum()
+        return fir_series(series, weights)
 
-    def gaussian_weighted_mean(s: pl.Series) -> float:
-        nonlocal _weights
-        vals = s.to_numpy()
-        if len(vals) < _length:
-            return float("nan")
-        # Check for NaN in window
-        if np.isnan(vals).any():
-            return float("nan")
-        if _weights is None:
-            # Build the length-sized weight vector lazily — only once a full window
-            # exists — so an absurd length (>> data) returns all-null instead of
-            # eagerly allocating an O(length) array (a hang/OOM on e.g. length=1e9).
-            x = np.arange(_length, dtype=np.float64)
-            k = np.floor(dist_offset * (_length - 1))
-            w = np.exp(-0.5 * ((sigma / _length) * (x - k)) ** 2)
-            _weights = (w / w.sum()).tolist()
-        return (vals * _weights).sum()
-
-    alma_expr = close_expr.rolling_map(function=gaussian_weighted_mean, window_size=length, min_samples=length)
+    alma_expr = close_expr.map_batches(compute, return_dtype=pl.Float64)
 
     # Apply offset
     if offset != 0:

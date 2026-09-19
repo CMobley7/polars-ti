@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars StochRSI Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
@@ -120,28 +122,10 @@ def _stochrsi_raw_core(
     rsi = _rsi_numba(close, rsi_length)
 
     # 2. Calculate rolling min/max of RSI over 'length' periods
-    lowest_rsi = np.full(n, np.nan, dtype=np.float64)
-    highest_rsi = np.full(n, np.nan, dtype=np.float64)
-
-    for i in range(rsi_length + length - 1, n):
-        window_start = i - length + 1
-        # Check if all values in window are valid
-        all_valid = True
-        for j in range(window_start, i + 1):
-            if np.isnan(rsi[j]):
-                all_valid = False
-                break
-
-        if all_valid:
-            min_val = rsi[window_start]
-            max_val = rsi[window_start]
-            for j in range(window_start + 1, i + 1):
-                if rsi[j] < min_val:
-                    min_val = rsi[j]
-                if rsi[j] > max_val:
-                    max_val = rsi[j]
-            lowest_rsi[i] = min_val
-            highest_rsi[i] = max_val
+    lowest_rsi = rolling_extreme(rsi, length, False)[0]
+    highest_rsi = rolling_extreme(rsi, length, True)[0]
+    lowest_rsi[: rsi_length + length - 1] = np.nan
+    highest_rsi[: rsi_length + length - 1] = np.nan
 
     # 3. Calculate raw StochRSI
     stochrsi_raw = np.full(n, np.nan, dtype=np.float64)
@@ -245,14 +229,8 @@ def stochrsi(
 
             # Apply Stochastic to RSI
             n = len(rsi)
-            lowest_rsi = np.full(n, np.nan, dtype=np.float64)
-            highest_rsi = np.full(n, np.nan, dtype=np.float64)
-
-            for i in range(_length - 1, n):
-                window = rsi[i - _length + 1 : i + 1]
-                if not np.any(np.isnan(window)):
-                    lowest_rsi[i] = np.min(window)
-                    highest_rsi[i] = np.max(window)
+            lowest_rsi = rolling_extreme(rsi, _length, False)[0]
+            highest_rsi = rolling_extreme(rsi, _length, True)[0]
 
             # Raw StochRSI
             range_val = highest_rsi - lowest_rsi

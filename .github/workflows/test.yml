@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.14.7"]
         os: [ubuntu-latest]
 
     steps:
@@ -31,9 +31,8 @@ jobs:
       - name: Install dependencies
         run: |
           # TA-Lib 0.6.5+ provides binary wheels that include the C library
-          uv pip install -e .[full,test]
+          uv sync --extra full --extra test --dev --locked
 
       - name: Run tests
         run: |
-          source .venv/bin/activate
-          pytest -vvv
+          uv run pytest -vvv

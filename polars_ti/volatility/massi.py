@@ -1,14 +1,16 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars MASSI Implementation (Composition: pl_ema + Numba for cascade)
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr
 from polars_ti.utils import v_pos_int
 from polars_ti.utils._math import non_zero_range
+from polars_ti.utils._rolling import rolling_sum
 from polars_ti.utils._validate import v_expr
 
 
@@ -52,21 +54,7 @@ def nb_massi_from_ema1(ema1: np.ndarray, fast: int, slow: int) -> np.ndarray:
         else:
             ratio[i] = ema1[i] / ema2[i]
 
-    # Rolling sum
-    result = np.empty(n, dtype=np.float64)
-    result[:] = np.nan
-    for i in range(slow - 1, n):
-        window_sum = 0.0
-        valid = True
-        for j in range(slow):
-            if np.isnan(ratio[i - j]):
-                valid = False
-                break
-            window_sum += ratio[i - j]
-        if valid:
-            result[i] = window_sum
-
-    return result
+    return rolling_sum(ratio, slow)
 
 
 def massi(

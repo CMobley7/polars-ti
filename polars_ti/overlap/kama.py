@@ -1,14 +1,16 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars KAMA Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
-from polars_ti.utils._validate import v_expr
 from polars_ti.maps import Imports
+from polars_ti.utils._rolling import rolling_sum
+from polars_ti.utils._validate import v_expr
 
 
 def kama(
@@ -72,14 +74,16 @@ def kama(
             # Initial value - SMA of first `length` values
             result[length - 1] = np.mean(close_arr[:length])
 
+            differences = np.empty(m)
+            differences[0] = np.nan
+            differences[1:] = np.abs(close_arr[1:] - close_arr[:-1])
+            volatility_sum = rolling_sum(differences, length)
             for i in range(length, m):
                 # Change in price
                 change = abs(close_arr[i] - close_arr[i - length])
 
                 # Volatility (sum of absolute differences)
-                volatility = 0.0
-                for j in range(i - length + 1, i + 1):
-                    volatility += abs(close_arr[j] - close_arr[j - 1])
+                volatility = volatility_sum[i]
 
                 # Efficiency Ratio
                 if volatility > 1e-10:

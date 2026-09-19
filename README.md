@@ -75,3 +75,6 @@ Polars-TI is a Polars/Numba port of, and builds on,
 indicators were integrated from community forks with attribution — see
 [Differences §6](docs/differences-from-pandas-ta.md#6-new-indicators--credits).
 See [LICENSE](LICENSE).
+
+Development and execution use Python 3.14.7 (`.python-version`). Runtime versions
+are pinned in `pyproject.toml` and reproduced by `uv sync --extra test --dev`.

@@ -58,13 +58,13 @@ trap cleanup EXIT
 
 dependency_audit() {
     REQ_FILE="$(mktemp)"
-    uv export --format requirements-txt --no-hashes --output-file "$REQ_FILE" >/dev/null
+    uv export --extra test --format requirements-txt --no-hashes --output-file "$REQ_FILE" >/dev/null
     uv run pip-audit -r "$REQ_FILE" --desc off --progress-spinner off
 }
 
 mypy_targets() {
     local targets=("polars_ti")
-    if compgen -G "scripts/*.py" >/dev/null; then
+    if [[ -d scripts ]]; then
         targets+=("scripts")
     fi
     uv run mypy --strict "${targets[@]}"

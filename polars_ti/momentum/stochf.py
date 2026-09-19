@@ -1,12 +1,14 @@
+import numpy as np
+
 # -*- coding: utf-8 -*-
 # =============================================================================
 # Polars Fast Stochastic Implementation
 # =============================================================================
 import polars as pl
-import numpy as np
 from numba import njit
 
 from polars_ti._typing import IntoExpr, PlExpr
+from polars_ti.utils._rolling import rolling_extreme
 from polars_ti.utils._validate import v_expr
 
 
@@ -53,19 +55,8 @@ def _stochf_core(
     n = len(close)
 
     # Calculate lowest low and highest high over k periods
-    lowest_low = np.full(n, np.nan, dtype=np.float64)
-    highest_high = np.full(n, np.nan, dtype=np.float64)
-
-    for i in range(k - 1, n):
-        ll = low[i]
-        hh = high[i]
-        for j in range(i - k + 1, i):
-            if low[j] < ll:
-                ll = low[j]
-            if high[j] > hh:
-                hh = high[j]
-        lowest_low[i] = ll
-        highest_high[i] = hh
+    lowest_low = rolling_extreme(low, k, False)[0]
+    highest_high = rolling_extreme(high, k, True)[0]
 
     # Fast %K = 100 * (close - ll) / (hh - ll) - NO smoothing
     stochf_k = np.full(n, np.nan, dtype=np.float64)
@@ -115,9 +106,9 @@ def stochf(
             - STOCHFk_{k}_{d}: Fast %K line (unsmoothed)
             - STOCHFd_{k}_{d}: %D signal line (MA of Fast %K)
     """
-    from polars_ti.maps import Imports
-    from polars_ti.utils import v_talib, tal_ma
     from polars_ti.ma import ma
+    from polars_ti.maps import Imports
+    from polars_ti.utils import tal_ma, v_talib
 
     high_expr = v_expr(high)
     low_expr = v_expr(low)

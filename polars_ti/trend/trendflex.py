@@ -1,6 +1,9 @@
-# -*- coding: utf-8 -*-
-from numpy import cos, exp, nan, sqrt, zeros_like
 from numba import njit
+
+# -*- coding: utf-8 -*-
+from numpy import cos, exp, sqrt, zeros_like
+
+from polars_ti.utils._rolling import rolling_difference
 
 
 @njit(cache=True)
@@ -17,11 +20,9 @@ def nb_trendflex(x, n, k, alpha, pi, sqrt2):
     for i in range(2, m):
         _f[i] = 0.5 * c * (x[i] + x[i - 1]) + b * _f[i - 1] - a * a * _f[i - 2]
 
+    differences = rolling_difference(_f, n)
     for i in range(n, m):
-        _sum = 0
-        for j in range(1, n):
-            _sum += _f[i] - _f[i - j]
-        _sum /= n
+        _sum = differences[i] / n
 
         _ms[i] = alpha * _sum * _sum + (1 - alpha) * _ms[i - 1]
         if _ms[i] != 0.0:
